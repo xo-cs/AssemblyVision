@@ -1,9 +1,11 @@
 data/
 env/
-tools/
+/tools/
 models/
 tmp/
 .cache/
 .config/
 .claude-home/
 *.bak
+docs/
+__pycache__/

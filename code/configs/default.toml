@@ -1,0 +1,44 @@
+# AssemblyVision default configuration (LLD 3.0.5).
+# Every parameter lives here with its default. Later layers (gpu.toml, steps.toml,
+# run_config.toml, command line) may only override keys that exist in this file.
+
+[run]
+seed = 42
+progress_every_s = 2.0       # longest time between progress lines (s)
+
+[paths]
+# Relative to ~/AssemblyVision. QiSens runs write only under qisens_root,
+# public runs only under public_root (CLAUDE.md data layout).
+qisens_root = "data/qisens"
+public_root = "data/public"
+models_dir = "models"
+
+[ingest]
+max_fps = 30                 # cap of the constant frame rate (frames/s)
+default_fps = 25             # used if the source fps cannot be read (frames/s)
+crf = 18                     # x264 quality of cfr.mp4, lower is better
+min_duration_s = 60.0        # shortest video that can be split (s)
+disk_factor = 3.0            # free disk needed before transcoding (x file size)
+vfr_tolerance_ms = 1.0       # largest frame interval deviation still treated as constant (ms)
+
+[split]
+train_frac = 0.60
+val_frac = 0.10
+
+[pose]
+variant = "m"                # YOLO26 pose variant: n, s, m or l
+fallback_variant = "s"       # used once when the GPU runs out of memory ("" = none)
+imgsz = 640                  # inference size (px)
+det_conf_min = 0.10          # detector threshold, low so the tracker can use weak detections
+ref_conf_min = 0.50          # threshold for the reference frame
+ref_search_s = 5.0           # seconds scanned for a reference frame
+half = false                 # FP32 only, the Pascal GPU gives no gain from FP16
+hand_crop_margin = 0.15      # margin added to the box for RTMW
+
+[gpu]
+pose = 0                     # GTX 1080 Ti (PCI bus order)
+
+[overlay]
+kp_conf_min = 0.30           # keypoints below this are drawn faded (display only)
+max_width = 1920             # overlay is scaled down to this width (px)
+crf = 20                     # x264 quality of the overlay video
