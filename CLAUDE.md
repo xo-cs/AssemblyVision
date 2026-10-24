@@ -29,7 +29,7 @@ Design reference: HLD v1.1 and LLD v1.0 (error codes AV-XXX-nnn, tests TC-XXX-nn
 - Always: source ~/AssemblyVision/av.sh (conda env ~/AssemblyVision/env, Python 3.11)
 - torch 2.14.1+cu126, ultralytics 8.4.178, opencv 5.0.0
 - Ubuntu 20.04, gcc 7.5, nvcc 11.3, cmake 3.16 (old system toolchain)
-- Folders: scripts/ code, models/ weights, logs/ logs of public runs, data/ (see layout)
+- Folders: code/ (assemblyvision package, LLD 3.0.2), docs/ HLD and LLD, models/ weights, logs/ logs of public runs, data/ (see layout)
 
 ## Writing style for documents and comments
 No hyphens or em dashes in prose; use parentheses or commas instead.
