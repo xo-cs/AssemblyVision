@@ -1,0 +1,9 @@
+data/
+env/
+tools/
+models/
+tmp/
+.cache/
+.config/
+.claude-home/
+*.bak
