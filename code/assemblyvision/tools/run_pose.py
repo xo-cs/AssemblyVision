@@ -1,4 +1,5 @@
-"""First pose stage from the command line: ingest, one shot, YOLO26 pose, overlay.
+"""Batch analysis from the command line: ingest, shots, reference frames, YOLO26
+pose, tracking (KTS v1) and the track overlay, in LLD order (3.0.6).
 
     source ~/AssemblyVision/av.sh && cd ~/AssemblyVision/code
     python -m assemblyvision.tools.run_pose --source {qisens,public} --video PATH \
@@ -19,15 +20,16 @@ import random
 import sys
 import tempfile
 import time
+import tomllib
 import traceback
 from pathlib import Path
 
 from ..config import DEFAULT_TOML, VARIANTS, Config
 from ..errors import AvError
-from ..storage.files import (SOURCE_TYPE, SOURCES, RunContext, RunPaths, check_video_source,
+from ..storage.files import (REPO_ROOT, SOURCE_TYPE, SOURCES, RunContext, RunPaths, check_video_source,
                              new_run_id, utc_now, write_atomic)
 
-STAGES = ("ingest", "shots", "pose_body", "overlay")
+STAGES = ("ingest", "shots", "reference", "pose_body", "tracking", "overlay")
 
 
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -39,8 +41,26 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     p.add_argument("--gpu", required=True, type=int, help="GPU index in PCI bus order, -1 for CPU")
     p.add_argument("--config", action="append", type=Path, default=[],
                    help="extra TOML layer over configs/default.toml (repeatable)")
+    p.add_argument("--set", action="append", default=[], metavar="SECTION.KEY=VALUE",
+                   help="override one setting, value in TOML syntax (repeatable)")
     p.add_argument("--no-overlay", action="store_true", help="skip the overlay video")
     return p.parse_args(argv)
+
+
+def parse_sets(items: list[str]) -> dict:
+    """--set track.dup_suppress=false -> {"track": {"dup_suppress": False}} (AV-CFG-002 on bad syntax)."""
+    out: dict = {}
+    for item in items:
+        key, sep, value = item.partition("=")
+        section, dot, name = key.strip().partition(".")
+        try:
+            if not sep or not dot:
+                raise ValueError("expected SECTION.KEY=VALUE")
+            parsed = tomllib.loads(f"v = {value.strip()}")["v"]
+        except (ValueError, tomllib.TOMLDecodeError) as e:
+            raise AvError("AV-CFG-002", key=key.strip() or item, value=repr(value), range=f"TOML value ({e})") from e
+        out.setdefault(section, {})[name] = parsed
+    return out
 
 
 def _fail(err: AvError) -> int:
@@ -118,9 +138,13 @@ def main(argv: list[str] | None = None) -> int:
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu) if args.gpu >= 0 else ""
     os.environ["YOLO_OFFLINE"] = "1"              # no analytics, no downloads (FR-POSE-06)
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+    # platformdirs (scenedetect) must not write to ~/.config or ~/.cache outside ~/AssemblyVision
+    os.environ["XDG_CONFIG_HOME"] = str(REPO_ROOT / ".config")
+    os.environ.setdefault("XDG_CACHE_HOME", str(REPO_ROOT / ".cache"))
 
     try:
-        overrides = {"pose": {"variant": args.variant}}
+        overrides = parse_sets(args.set)
+        overrides.setdefault("pose", {})["variant"] = args.variant
         if args.gpu >= 0:
             overrides["gpu"] = {"pose": args.gpu}
         cfg = Config.load([DEFAULT_TOML, *args.config], overrides=overrides)
@@ -154,9 +178,10 @@ def main(argv: list[str] | None = None) -> int:
     import torch
 
     from ..ingest.ingestor import VideoIngestor
-    from ..output.overlay import render_pose_overlay
+    from ..ingest.shots import ShotDetector
+    from ..output.overlay import render_track_overlay
     from ..perception.pose import PoseEstimator
-    from ..types import Shot
+    from ..perception.tracker import Tracker, summarize
 
     seed = cfg["run"]["seed"]
     random.seed(seed)
@@ -174,21 +199,37 @@ def main(argv: list[str] | None = None) -> int:
         info, _split = _run_stage(ctx, "ingest", lambda: VideoIngestor(cfg, ctx).ingest(
             run_id, video, SOURCE_TYPE[args.source], strict_split=False))
 
-        def one_shot() -> Shot:   # shot detection (LLD 3.3) comes later
-            shot = Shot(f"{run_id}_s01", run_id, 0, info.frame_count, 0.0, info.duration_s, "handheld", None)
-            ctx.manifest["shots"] = [{**shot.__dict__, "method": "whole video, shot detection not run"}]
-            return shot
-        shot = _run_stage(ctx, "shots", one_shot)
+        shots = _run_stage(ctx, "shots", lambda: ShotDetector(cfg, ctx).detect(run_id, paths.cfr, info))
 
         pose = PoseEstimator(cfg, ctx, device="cuda:0" if args.gpu >= 0 else "cpu")
-        det_path = _run_stage(ctx, "pose_body", lambda: (pose.load_models(args.variant),
-                                                         pose.estimate_body(run_id, shot))[1])
+        refs = _run_stage(ctx, "reference", lambda: (pose.load_models(args.variant),
+                                                     pose.reference_frames(run_id, shots))[1])
+        ref_by_shot = {r["shot_id"]: r for r in refs}
+        for item in ctx.manifest["shots"]["items"]:
+            item["ref_frame"] = ref_by_shot.get(item["shot_id"], {}).get("frame_idx")
+        det_paths = _run_stage(ctx, "pose_body", lambda: pose.estimate_body_shots(run_id, shots))
+        pose_meta = {"pose_model": f"yolo26{pose.variant}-pose", "pose_variant": pose.variant, "seed": seed}
+
+        def track_all() -> dict:
+            tracker = Tracker(cfg, ctx)
+            ctx.manifest["tracking"] = {"per_shot": [], "tracks": []}
+            for s in shots:
+                tracker.track(run_id, s, det_paths[s.shot_id], ref_by_shot.get(s.shot_id), fps=info.fps,
+                              size=(info.width, info.height), meta=pose_meta)
+            return summarize(ctx)
+        _run_stage(ctx, "tracking", track_all)
+
         if args.no_overlay:
             ctx.manifest["stages"]["overlay"]["status"] = "skipped"
         else:
+            items = {}
+            for p in ctx.manifest["tracking"]["per_shot"]:
+                subj = p["subject"]
+                items[p["shot_id"]] = {"det": det_paths[p["shot_id"]], "assign": paths.assign(p["shot_id"]),
+                                       "subject": int(subj.rsplit("-t", 1)[1]) if subj else None}
             try:
-                _run_stage(ctx, "overlay", lambda: render_pose_overlay(paths.cfr, det_path, paths.pose_overlay,
-                                                                       info.fps, cfg, ctx))
+                _run_stage(ctx, "overlay", lambda: render_track_overlay(paths.cfr, shots, items, paths.tracks_overlay,
+                                                                        info.fps, cfg, ctx))
             except AvError as e:
                 status, code = "partial", _fail(e)
     except AvError as e:
@@ -200,11 +241,14 @@ def main(argv: list[str] | None = None) -> int:
         ctx.write_manifest()
 
     pb = ctx.manifest.get("pose_body", {})
+    tt = ctx.manifest.get("tracking", {}).get("totals", {})
     ing = ctx.manifest.get("ingest", {}).get("cfr", {})
     summary = (f"{run_id} {status}: variant {pb.get('variant', args.variant)}, "
                f"{pb.get('frames', 0)} frames ({ing.get('width')}x{ing.get('height')} at {ing.get('fps')} fps), "
                f"pose {pb.get('pose_fps')} fps, peak GPU {pb.get('gpu_peak_mb')} MB, "
-               f"{pb.get('failed_frames', 0)} failed frames, run folder {paths.root}")
+               f"{pb.get('failed_frames', 0)} failed frames, {ctx.manifest.get('shots', {}).get('count', 0)} shots, "
+               f"{tt.get('tracks_kept', 0)} tracks, {tt.get('short_tracks', 0)} short tracks, "
+               f"{tt.get('duplicates_suppressed', 0)} duplicates suppressed, run folder {paths.root}")
     log.info(summary)
     print(summary)
     return code

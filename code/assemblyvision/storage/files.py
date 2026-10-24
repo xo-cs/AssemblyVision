@@ -83,8 +83,11 @@ class RunPaths:
     video_dir = property(lambda self: self.root / "video")
     cfr = property(lambda self: self.root / "video" / "cfr.mp4")
     detections_dir = property(lambda self: self.root / "detections")
+    reference_dir = property(lambda self: self.root / "reference")
+    keypoints_dir = property(lambda self: self.root / "keypoints")
     overlay_dir = property(lambda self: self.root / "overlay")
     pose_overlay = property(lambda self: self.root / "overlay" / "pose_overlay.mp4")
+    tracks_overlay = property(lambda self: self.root / "overlay" / "tracks_overlay.mp4")
     log_dir = property(lambda self: self.root / "log")
     run_log = property(lambda self: self.root / "log" / "run.log")
     failed_frames = property(lambda self: self.root / "failed_frames.csv")
@@ -95,6 +98,18 @@ class RunPaths:
     def det(self, shot_id: str) -> Path:
         return self.detections_dir / f"{shot_id}.npz"
 
+    def assign(self, shot_id: str) -> Path:
+        return self.detections_dir / f"{shot_id}_assign.npz"
+
+    def ref_png(self, shot_id: str) -> Path:
+        return self.reference_dir / f"{shot_id}.png"
+
+    def ref_json(self, shot_id: str) -> Path:
+        return self.reference_dir / f"{shot_id}.json"
+
+    def kts(self, track_id: str) -> Path:
+        return self.keypoints_dir / f"{track_id}.npz"
+
     def stage_log(self, stage: str) -> Path:
         return self.log_dir / f"{stage}.log"
 
@@ -102,7 +117,8 @@ class RunPaths:
         """Make the run folder; FileExistsError if this run ID is already taken."""
         self.root.parent.mkdir(parents=True, exist_ok=True)
         self.root.mkdir()
-        for d in (self.video_dir, self.detections_dir, self.overlay_dir, self.log_dir, self.tmp_dir):
+        for d in (self.video_dir, self.detections_dir, self.reference_dir, self.keypoints_dir,
+                  self.overlay_dir, self.log_dir, self.tmp_dir):
             d.mkdir(parents=True, exist_ok=True)
 
     def check_inside(self, path: Path) -> Path:

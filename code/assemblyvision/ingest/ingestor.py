@@ -17,7 +17,7 @@ import time
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
-from typing import Iterator
+from typing import Callable, Iterator
 
 import cv2
 import numpy as np
@@ -227,20 +227,27 @@ class VideoIngestor:
         return SplitSpec(d, round(train * d, 3), round((train + val) * d, 3))
 
 
-def iter_frames(path: Path, start: int = 0, end: int | None = None) -> Iterator[tuple[int, np.ndarray]]:
-    """Yield (frame index, BGR image) one at a time; memory does not grow with length."""
+def iter_frames(path: Path, start: int = 0, end: int | None = None,
+                want: Callable[[int], bool] | None = None) -> Iterator[tuple[int, np.ndarray]]:
+    """Yield (frame index, BGR image) one at a time; memory does not grow with length.
+
+    want(idx) selects frames: the others are only grabbed, not converted.
+    Frames before start are grabbed too (no seeking), so indices are exact.
+    """
     cap = cv2.VideoCapture(str(path))
     if not cap.isOpened():
         raise AvError("AV-ING-001", name=Path(path).name, detail="OpenCV could not open the video")
     try:
-        if start > 0:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, start)
-        idx = start
+        idx = 0
         while end is None or idx < end:
-            ok, frame = cap.read()
-            if not ok:
-                break
-            yield idx, frame
+            if idx < start or (want is not None and not want(idx)):
+                if not cap.grab():
+                    break
+            else:
+                ok, frame = cap.read()
+                if not ok:
+                    break
+                yield idx, frame
             idx += 1
     finally:
         cap.release()

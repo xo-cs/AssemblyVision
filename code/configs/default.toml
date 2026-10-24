@@ -25,6 +25,13 @@ vfr_tolerance_ms = 1.0       # largest frame interval deviation still treated as
 train_frac = 0.60
 val_frac = 0.10
 
+[shots]
+cut_threshold = 25.0         # PySceneDetect ContentDetector threshold (tuned on shots_tune_480p30: 15 to 35 all perfect)
+min_shot_s = 1.0             # shorter shots merge into the previous one (s)
+fixed_motion_max = 0.002     # fixed if the 90th percentile background motion is below this (fraction of width)
+motion_pairs = 20            # frame pairs for the background motion
+motion_pair_s = 0.5          # time between the two frames of a pair (s)
+
 [pose]
 variant = "m"                # YOLO26 pose variant: n, s, m or l
 fallback_variant = "s"       # used once when the GPU runs out of memory ("" = none)
@@ -34,6 +41,22 @@ ref_conf_min = 0.50          # threshold for the reference frame
 ref_search_s = 5.0           # seconds scanned for a reference frame
 half = false                 # FP32 only, the Pascal GPU gives no gain from FP16
 hand_crop_margin = 0.15      # margin added to the box for RTMW
+
+[track]
+algorithm = "bytetrack"
+high_thresh = 0.25           # first association; ByteTrack high score band
+low_thresh = 0.10            # second association only (low to high band); never starts a track
+new_thresh = 0.25            # a new track starts only at or above this score
+match_thresh = 0.80          # IoU based matching threshold
+buffer_s = 1.0               # longest gap in which identity is kept (s)
+min_track_s = 1.0            # shorter tracks are not stored (s)
+auto_subject_min_coverage = 0.30   # automatic subject only if the longest track covers this share of the shot
+dup_suppress = true          # drop duplicate partial skeletons of one worker before tracking
+dup_iou = 0.70               # duplicate if IoU with a higher scoring box is at least this
+dup_contain = 0.80           # or if the smaller box lies this much inside the other ...
+dup_kp_agree = 0.60          # ... and this share of the shared keypoints coincide
+dup_kp_conf = 0.30           # keypoints at or above this confidence count as shared
+dup_kp_dist = 0.10           # coincide = closer than this fraction of the smaller box diagonal
 
 [gpu]
 pose = 0                     # GTX 1080 Ti (PCI bus order)

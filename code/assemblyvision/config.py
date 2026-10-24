@@ -29,6 +29,11 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "ingest.vfr_tolerance_ms": (lambda v: v >= 0, ">= 0"),
     "split.train_frac": (lambda v: 0 < v < 1, "0 to 1"),
     "split.val_frac": (lambda v: 0 <= v < 1, "0 to 1"),
+    "shots.cut_threshold": (lambda v: 0 < v <= 255, "0 to 255"),
+    "shots.min_shot_s": (lambda v: v >= 0, ">= 0"),
+    "shots.fixed_motion_max": (lambda v: 0 <= v <= 1, "0 to 1"),
+    "shots.motion_pairs": (lambda v: v >= 1, ">= 1"),
+    "shots.motion_pair_s": (lambda v: v > 0, "> 0"),
     "pose.variant": (lambda v: v in VARIANTS, "n, s, m, l"),
     "pose.fallback_variant": (lambda v: v in VARIANTS + ("",), "n, s, m, l or empty"),
     "pose.imgsz": (lambda v: 32 <= v <= 1920 and v % 32 == 0, "32 to 1920, multiple of 32"),
@@ -37,6 +42,19 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "pose.ref_search_s": (lambda v: v > 0, "> 0"),
     "pose.half": (lambda v: v is False, "false (Pascal GPU, FP32 only)"),
     "pose.hand_crop_margin": (lambda v: 0 <= v <= 1, "0 to 1"),
+    "track.algorithm": (lambda v: v == "bytetrack", "bytetrack"),
+    "track.high_thresh": (lambda v: 0 <= v <= 1, "0 to 1"),
+    "track.low_thresh": (lambda v: 0 <= v <= 1, "0 to 1"),
+    "track.new_thresh": (lambda v: 0 <= v <= 1, "0 to 1"),
+    "track.match_thresh": (lambda v: 0 < v <= 1, "0 to 1"),
+    "track.buffer_s": (lambda v: v >= 0, ">= 0"),
+    "track.min_track_s": (lambda v: v >= 0, ">= 0"),
+    "track.auto_subject_min_coverage": (lambda v: 0 <= v <= 1, "0 to 1"),
+    "track.dup_iou": (lambda v: 0 < v <= 1, "0 to 1"),
+    "track.dup_contain": (lambda v: 0 < v <= 1, "0 to 1"),
+    "track.dup_kp_agree": (lambda v: 0 < v <= 1, "0 to 1"),
+    "track.dup_kp_conf": (lambda v: 0 <= v <= 1, "0 to 1"),
+    "track.dup_kp_dist": (lambda v: v > 0, "> 0"),
     "gpu.pose": (lambda v: v >= 0, ">= 0"),
     "overlay.kp_conf_min": (lambda v: 0 <= v <= 1, "0 to 1"),
     "overlay.max_width": (lambda v: v >= 64, ">= 64"),
@@ -84,7 +102,18 @@ class Config:
             value = base.get(section, {}).get(name)
             if value is not None and not check(value):
                 raise AvError("AV-CFG-002", key=key, value=repr(value), range=allowed)
+        cls._check_cross(base)
         return cls(base, sources)
+
+    @staticmethod
+    def _check_cross(d: dict) -> None:
+        """Rules between keys: the ByteTrack low band must contain detections."""
+        t, low = d["track"], d["track"]["low_thresh"]
+        if not low <= t["high_thresh"]:
+            raise AvError("AV-CFG-002", key="track.low_thresh", value=repr(low), range="<= track.high_thresh")
+        if d["pose"]["det_conf_min"] > low:
+            raise AvError("AV-CFG-002", key="pose.det_conf_min", value=repr(d["pose"]["det_conf_min"]),
+                          range="<= track.low_thresh, or the low score band of ByteTrack stays empty")
 
     @staticmethod
     def _merge(base: dict, layer: dict, file: str) -> None:
