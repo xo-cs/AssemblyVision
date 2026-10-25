@@ -112,6 +112,15 @@ class RunPaths:
     run_config = property(lambda self: self.root / "run_config.toml")
     steps_csv = property(lambda self: self.root / "steps.csv")
     eval_json = property(lambda self: self.root / "eval.json")
+    metrics_csv = property(lambda self: self.root / "metrics.csv")
+    paths_dir = property(lambda self: self.root / "paths")
+    out_dir = property(lambda self: self.root / "out")
+
+    def path_npz(self, segment_id: str) -> Path:
+        return self.paths_dir / f"{segment_id}.npz"
+
+    def heatmap(self, shot_id: str, ext: str = "png") -> Path:
+        return self.out_dir / f"heatmap_{shot_id}.{ext}"
 
     def det(self, shot_id: str) -> Path:
         return self.detections_dir / f"{shot_id}.npz"

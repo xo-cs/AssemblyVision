@@ -91,8 +91,36 @@ seg_fps = 15                 # frame sampling for frame accuracy, edit and F1 (f
 kappa_fps = 5                # frame sampling for Cohen's kappa (frames/s)
 overlaps = [0.10, 0.25, 0.50]   # IoU thresholds of the segmental F1
 
+[motion]
+# MotionAnalyzer (LLD 3.7). Add "gaze" to enabled for the rough gaze direction (FR-MOTION-08, Want).
+enabled = ["duration", "path", "back_bending", "repetition", "hand_travel", "two_hand", "idle"]
+angle_bands = [20.0, 45.0, 60.0]   # trunk angle band edges B0 | B1 | B2 | B3 (deg)
+cov_min = 0.50               # below this share of measured frames a metric is NULL (AV-MOT-001)
+path_hz = 5                  # sampling of the stored mid hip path (samples/s)
+jitter_torso = 0.005         # wrist steps below this count as zero (torso lengths/frame)
+rep_lag_min_s = 0.4          # repetition periods searched (s)
+rep_lag_max_s = 2.0
+rep_window_s = 10.0          # autocorrelation window (s)
+rep_hop_s = 5.0              # window step (s)
+rep_acf_min = 0.5            # a window is periodic if its autocorrelation peak reaches this
+idle_energy = 0.15           # idle below this motion energy (torso lengths/s)
+idle_min_s = 1.0             # shortest idle stretch (s)
+foreshort_ratio = 0.6        # torso shorter than this share of the shot's 90th percentile is foreshortened
+view_limited_share = 0.30    # flag view_limited above this share of foreshortened frames
+hand_active = 0.3            # a hand is active at or above this wrist speed relative to the hip (torso lengths/s)
+gaze_conf_min = 0.5          # face keypoints below this are not used for gaze
+gaze_yaw = 0.3               # |nose offset from the eye midpoint| / eye distance above this is left or right
+gaze_down_torso = 0.10       # nose this far below the ears (torso lengths) is looking down
+stream_rep_every_s = 1.0     # live: repetition is recomputed this often (s)
+stream_torso_s = 10.0        # live: running median of the torso length over this time (s)
+
+[heatmap]
+cell_m = 0.10                # grid cell with a floor scale (m)
+cell_px = 20                 # grid cell without a floor scale (px)
+min_samples = 30             # fewer path samples give no heatmap
+
 [gpu]
-pose = 0                     # GTX 1080 Ti (PCI bus order)
+pose = 0                    # GTX 1080 Ti (PCI bus order)
 
 [overlay]
 kp_conf_min = 0.30           # keypoints below this are drawn faded (display only)

@@ -1,6 +1,6 @@
 """Batch analysis from the command line: ingest, shots, reference frames, YOLO26
-pose, tracking (KTS v1), step segmentation (Engine A), the track overlay and,
-with --gt, the step evaluation, in LLD order (3.0.6).
+pose, tracking (KTS v1), step segmentation (Engine A), motion metrics, the
+track overlay and, with --gt, the step evaluation, in LLD order (3.0.6).
 
     source ~/AssemblyVision/av.sh && cd ~/AssemblyVision/code
     python -m assemblyvision.tools.run_pose --source {qisens,public} --video PATH \
@@ -8,12 +8,14 @@ with --gt, the step evaluation, in LLD order (3.0.6).
 
 Rerun stages of an existing run from its stored files (CPU, no pose, no tracking):
 
-    python -m assemblyvision.tools.run_pose --run RUN_DIR --stages segmentation,overlay,eval \
+    python -m assemblyvision.tools.run_pose --run RUN_DIR --stages segmentation,metrics,overlay,eval \
         [--gt GT_CSV] [--set SECTION.KEY=VALUE] [--config FILE]
 
 (engine is accepted for segmentation.) The rerun takes the configuration stored
 in the run's manifest, then --config files, then --set, and overwrites
-steps.csv, eval.json, the overlay and their manifest sections.
+steps.csv, metrics.csv, eval.json, the overlay and their manifest sections.
+metrics alone uses the stored steps.csv; segmentation without metrics marks
+the stored metrics as stale.
 
 Source qisens writes everything (run folder, temp files, logs, manifest) under
 data/qisens/runs/<run_id>/, source public under data/public/runs/<run_id>/. A
@@ -41,8 +43,8 @@ from ..errors import AvError
 from ..storage.files import (REPO_ROOT, SOURCE_TYPE, SOURCES, RunContext, RunPaths, check_video_source,
                              data_area, new_run_id, run_source, utc_now, write_atomic)
 
-STAGES = ("ingest", "shots", "reference", "pose_body", "tracking", "segmentation", "overlay", "eval")
-RERUN_STAGES = ("segmentation", "overlay", "eval")
+STAGES = ("ingest", "shots", "reference", "pose_body", "tracking", "segmentation", "metrics", "overlay", "eval")
+RERUN_STAGES = ("segmentation", "metrics", "overlay", "eval")
 _ALIASES = {"engine": "segmentation"}
 
 
@@ -197,6 +199,13 @@ def stage_segmentation(ctx: RunContext, cfg: Config) -> list:
     return steps
 
 
+def stage_metrics(ctx: RunContext, cfg: Config, steps: list) -> dict:
+    from ..analysis.motion import run_metrics
+    if steps is None:
+        raise AvError("AV-STO-003", file="steps.csv", detail="the run has no steps; run the segmentation stage first")
+    return run_metrics(ctx, cfg, steps)
+
+
 def _shots_from_manifest(manifest: dict) -> list:
     from ..types import Shot
     return [Shot(i["shot_id"], manifest["run_id"], i["start_frame"], i["end_frame"], i["start_s"], i["end_s"],
@@ -238,6 +247,10 @@ def _summary(ctx: RunContext, status: str) -> str:
         text += f" ({seg.get('phases_found')}/{seg.get('phases_expected')} phases, solver {seg.get('solver_used')})"
     elif seg.get("mode"):
         text += f" ({seg['mode']})"
+    mt = m.get("metrics")
+    if mt:
+        text += (f", metrics: {mt['counts']['records']} records, {mt['counts']['null']} not reported"
+                 + (" (stale)" if mt.get("stale") else ""))
     ev = m.get("eval")
     if ev:
         from ..evaluation.steps_eval import format_metrics
@@ -285,6 +298,13 @@ def rerun(args: argparse.Namespace) -> int:
     try:
         if "segmentation" in args.stages:
             steps = _run_stage(ctx, "segmentation", lambda: stage_segmentation(ctx, cfg))
+            if "metrics" not in args.stages and "metrics" in manifest:
+                manifest["metrics"]["stale"] = True
+                log.warning("the stored metrics belong to the previous steps; rerun with --stages metrics")
+        if "metrics" in args.stages:
+            if steps is None:
+                steps = _stored_steps(ctx)
+            _run_stage(ctx, "metrics", lambda: stage_metrics(ctx, cfg, steps))
         if "overlay" in args.stages:
             if steps is None:
                 steps = _stored_steps(ctx)
@@ -400,6 +420,14 @@ def main(argv: list[str] | None = None) -> int:
             steps = _run_stage(ctx, "segmentation", lambda: stage_segmentation(ctx, cfg))
         except AvError as e:
             status, code = "partial", _fail(e)
+
+        if steps is None:
+            ctx.manifest["stages"]["metrics"]["status"] = "skipped"
+        else:
+            try:
+                _run_stage(ctx, "metrics", lambda: stage_metrics(ctx, cfg, steps))
+            except AvError as e:
+                status, code = "partial", _fail(e)
 
         if args.no_overlay:
             ctx.manifest["stages"]["overlay"]["status"] = "skipped"

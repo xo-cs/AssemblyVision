@@ -19,6 +19,7 @@ STEPS_TOML = CODE_DIR / "configs" / "steps.toml"
 DEFAULT_LAYERS = [DEFAULT_TOML, STEPS_TOML]          # LLD 3.0.5 order (gpu.toml comes later)
 
 VARIANTS = ("n", "s", "m", "l")
+MOTION_METRICS = ("duration", "path", "back_bending", "repetition", "hand_travel", "two_hand", "idle", "gaze")
 
 # dotted key: (check, allowed range shown in AV-CFG-002)
 _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
@@ -80,6 +81,30 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "eval.kappa_fps": (lambda v: 1 <= v <= 240, "1 to 240"),
     "eval.overlaps": (lambda v: len(v) > 0 and all(isinstance(x, (int, float)) and 0 < x <= 1 for x in v),
                       "a non empty list of numbers in (0, 1]"),
+    "motion.enabled": (lambda v: all(x in MOTION_METRICS for x in v), ", ".join(MOTION_METRICS)),
+    "motion.angle_bands": (lambda v: len(v) == 3 and all(isinstance(x, (int, float)) for x in v)
+                           and 0 < v[0] < v[1] < v[2] < 180, "three increasing angles in (0, 180) deg"),
+    "motion.cov_min": (lambda v: 0 <= v <= 1, "0 to 1"),
+    "motion.path_hz": (lambda v: v > 0, "> 0"),
+    "motion.jitter_torso": (lambda v: v >= 0, ">= 0"),
+    "motion.rep_lag_min_s": (lambda v: v > 0, "> 0"),
+    "motion.rep_lag_max_s": (lambda v: v > 0, "> 0"),
+    "motion.rep_window_s": (lambda v: v > 0, "> 0"),
+    "motion.rep_hop_s": (lambda v: v > 0, "> 0"),
+    "motion.rep_acf_min": (lambda v: 0 <= v <= 1, "0 to 1"),
+    "motion.idle_energy": (lambda v: v >= 0, ">= 0"),
+    "motion.idle_min_s": (lambda v: v > 0, "> 0"),
+    "motion.foreshort_ratio": (lambda v: 0 < v <= 1, "0 to 1"),
+    "motion.view_limited_share": (lambda v: 0 <= v <= 1, "0 to 1"),
+    "motion.hand_active": (lambda v: v >= 0, ">= 0"),
+    "motion.gaze_conf_min": (lambda v: 0 <= v <= 1, "0 to 1"),
+    "motion.gaze_yaw": (lambda v: v > 0, "> 0"),
+    "motion.gaze_down_torso": (lambda v: v >= 0, ">= 0"),
+    "motion.stream_rep_every_s": (lambda v: v > 0, "> 0"),
+    "motion.stream_torso_s": (lambda v: v > 0, "> 0"),
+    "heatmap.cell_m": (lambda v: v > 0, "> 0"),
+    "heatmap.cell_px": (lambda v: v >= 1, ">= 1"),
+    "heatmap.min_samples": (lambda v: v >= 1, ">= 1"),
     "gpu.pose": (lambda v: v >= 0, ">= 0"),
     "overlay.kp_conf_min": (lambda v: 0 <= v <= 1, "0 to 1"),
     "overlay.max_width": (lambda v: v >= 64, ">= 64"),
@@ -164,6 +189,13 @@ class Config:
         if d["pose"]["det_conf_min"] > low:
             raise AvError("AV-CFG-002", key="pose.det_conf_min", value=repr(d["pose"]["det_conf_min"]),
                           range="<= track.low_thresh, or the low score band of ByteTrack stays empty")
+        m = d["motion"]
+        if not m["rep_lag_min_s"] < m["rep_lag_max_s"]:
+            raise AvError("AV-CFG-002", key="motion.rep_lag_min_s", value=repr(m["rep_lag_min_s"]),
+                          range="< motion.rep_lag_max_s")
+        if m["rep_window_s"] < 2 * m["rep_lag_max_s"]:
+            raise AvError("AV-CFG-002", key="motion.rep_window_s", value=repr(m["rep_window_s"]),
+                          range=">= 2 * motion.rep_lag_max_s")
 
     @staticmethod
     def _merge(base: dict, layer: dict, file: str) -> None:
