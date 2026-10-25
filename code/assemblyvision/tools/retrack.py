@@ -16,9 +16,9 @@ import os
 import sys
 from pathlib import Path
 
-from ..config import DEFAULT_TOML, Config
+from ..config import Config
 from ..errors import AvError
-from ..storage.files import REPO_ROOT, SOURCES, RunContext, RunPaths, source_root, utc_now
+from ..storage.files import REPO_ROOT, RunContext, RunPaths, run_source, utc_now
 from .run_pose import _fail, parse_sets
 
 
@@ -37,15 +37,12 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         base = Config.load()
-        run_root = Path(os.path.realpath(args.run))
-        source = next((s for s in SOURCES if run_root.parent == source_root(s, base["paths"]) / "runs"), None)
-        if source is None:
-            raise AvError("AV-STO-005", path=str(args.run), detail="not a run folder under data/<source>/runs/")
+        source, run_root = run_source(args.run, base["paths"])
         manifest = json.loads((run_root / "manifest.json").read_text())
         overrides = manifest["config"]
         for section, values in parse_sets(args.set).items():
             overrides.setdefault(section, {}).update(values)
-        cfg = Config.load([DEFAULT_TOML], overrides=overrides)
+        cfg = Config.load(overrides=overrides)
     except (OSError, ValueError, KeyError) as e:
         print(f"cannot read the run: {e}", file=sys.stderr)
         return 1

@@ -50,6 +50,22 @@ def check_video_source(video: Path, source: str, paths_cfg: dict,
     return real
 
 
+def data_area(path: Path, paths_cfg: dict, repo_root: Path = REPO_ROOT) -> str | None:
+    """'qisens' or 'public' if the resolved path lies in that data area, else None."""
+    real = Path(os.path.realpath(path))
+    return next((s for s in SOURCES if real.is_relative_to(source_root(s, paths_cfg, repo_root))), None)
+
+
+def run_source(run_dir: Path, paths_cfg: dict, repo_root: Path = REPO_ROOT) -> tuple[str, Path]:
+    """(source, resolved folder) of an existing run folder data/<source>/runs/<run_id>,
+    or AV-STO-005."""
+    root = Path(os.path.realpath(run_dir))
+    for s in SOURCES:
+        if root.parent == source_root(s, paths_cfg, repo_root) / "runs" and (root / "manifest.json").is_file():
+            return s, root
+    raise AvError("AV-STO-005", path=str(run_dir), detail="not a run folder under data/<source>/runs/")
+
+
 _issued: set[str] = set()
 
 
@@ -94,6 +110,8 @@ class RunPaths:
     tmp_dir = property(lambda self: self.root / "tmp")
     manifest = property(lambda self: self.root / "manifest.json")
     run_config = property(lambda self: self.root / "run_config.toml")
+    steps_csv = property(lambda self: self.root / "steps.csv")
+    eval_json = property(lambda self: self.root / "eval.json")
 
     def det(self, shot_id: str) -> Path:
         return self.detections_dir / f"{shot_id}.npz"

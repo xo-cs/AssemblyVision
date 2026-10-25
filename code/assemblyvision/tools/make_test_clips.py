@@ -1,8 +1,9 @@
 """Build the public test clips for shot detection and tracking (public data only).
 
-    python -m assemblyvision.tools.make_test_clips
+    python -m assemblyvision.tools.make_test_clips [shots] [occlusion] [process]
 
-Writes to data/public/videos/:
+Writes to data/public/videos/ (all three groups without arguments):
+  process_480p30.mp4 + .json + _gt.csv   Engine A clip, five made up phases with GT
   shots_tune_480p30.mp4  + .json   threshold tuning clip (ground truth cuts and types)
   shots_check_480p30.mp4 + .json   held out clip, reported once with the tuned value
   occlusion_480p30.mp4   + .json   train platform clip with a sliding opaque pillar
@@ -128,14 +129,95 @@ def build_occlusion_clip(videos: Path, tmp: Path) -> Path:
     return out
 
 
+# Process clip for Engine A: five made up phases of about one minute, joined from
+# public segments (so there are cuts inside phases). Harder than a clean case:
+# a 5 s close up without any person inside phases 2 and 4 (crops of empty floor
+# and of a table, checked by eye), and no title card before phase 4.
+# ("title", seconds, text) | ("closeup", source, start s, seconds, crop w:h:x:y) | (source, start s, seconds)
+PROCESS = [
+    ("title", 3.0, "Maintenance process (public test clip)"),
+    ("phase", "Removal"), ("c2", 0.0, 20.0), ("c3", 2.0, 18.0), ("c7", 1.0, 24.0),
+    ("title", 3.0, "Part 2  Disassembly"),
+    ("phase", "Disassembly"), ("c2", 22.0, 20.0), ("closeup", "c4", 1.0, 5.0, "1000:560:2050:1500"),
+    ("c0", 0.0, 8.0), ("c5", 0.0, 18.0), ("c1", 0.0, 15.0),
+    ("title", 3.0, "Part 3  Cleaning"),
+    ("phase", "Cleaning"), ("c6", 0.0, 6.5), ("c4", 0.0, 10.0), ("c2", 44.0, 20.0), ("c3", 22.0, 10.0),
+    ("c8", 0.0, 13.5),
+    ("phase", "Adjustment and Inspection"),           # no title card before this phase
+    ("c3", 0.0, 20.0), ("closeup", "c8", 2.0, 5.0, "480:270:1440:0"), ("c1", 2.0, 16.0), ("c7", 3.0, 23.0),
+    ("title", 3.0, "Part 5  Assembly and Installation"),
+    ("phase", "Assembly and Installation"), ("c2", 50.0, 20.0), ("c5", 0.0, 18.0), ("c0", 0.0, 8.0),
+    ("c4", 0.0, 10.0), ("c6", 0.0, 6.0),
+]
+
+
+def _title(out: Path, seconds: float, text: str) -> None:
+    img = np.zeros((H, W, 3), np.uint8)
+    (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
+    cv2.putText(img, text, ((W - tw) // 2, (H + th) // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2,
+                cv2.LINE_AA)
+    png = out.with_suffix(".png")
+    cv2.imwrite(str(png), img)
+    _ff(["-loop", "1", "-framerate", str(FPS), "-i", str(png), "-frames:v", str(round(seconds * FPS)), *ENC, str(out)])
+
+
+def build_process_clip(videos: Path, tmp: Path, name: str = "process_480p30") -> Path:
+    parts, rows, pos, phase, segs = [], [], 0, None, []
+    for k, spec in enumerate(PROCESS):
+        if spec[0] == "phase":
+            if phase is not None:
+                rows.append((phase, phase_start, pos))
+            phase, phase_start = spec[1], pos
+            continue
+        part = tmp / f"{name}_{k:02d}.mp4"
+        if spec[0] == "title":
+            if phase is not None:
+                rows.append((phase, phase_start, pos))
+                phase = None
+            _title(part, spec[1], spec[2])
+            frames, kind = round(spec[1] * FPS), "title"
+        elif spec[0] == "closeup":
+            _, src, start, secs, crop = spec
+            frames, kind = round(secs * FPS), "closeup"
+            vf = f"crop={crop},scale={W}:{H},fps={FPS},setsar=1"
+            _ff(["-ss", str(start), "-i", str(videos / SRC[src]), "-vf", vf, "-frames:v", str(frames), *ENC, str(part)])
+        else:
+            src, start, secs = spec
+            frames, kind = round(secs * FPS), "work"
+            _segment(videos, (src, start, frames), part)
+        parts.append(part)
+        segs.append({"start_frame": pos, "frames": frames, "kind": kind, "spec": list(spec)})
+        pos += frames
+    if phase is not None:
+        rows.append((phase, phase_start, pos))
+    lst = tmp / f"{name}.txt"
+    lst.write_text("".join(f"file '{p}'\n" for p in parts))
+    out = videos / f"{name}.mp4"
+    _ff(["-f", "concat", "-safe", "0", "-i", str(lst), "-r", str(FPS), *ENC, str(out)])
+    labels = [p for p in PROCESS if p[0] == "phase"]
+    gt = "step,label,start_s,end_s,source\n" + "".join(
+        f"{[l[1] for l in labels].index(lab) + 1},{lab},{a / FPS:.3f},{b / FPS:.3f},made_up\n" for lab, a, b in rows)
+    out.with_name(f"{name}_gt.csv").write_text(gt)
+    meta = {"video": out.name, "fps": FPS, "width": W, "height": H, "frame_count": pos, "segments": segs,
+            "note": "made up phases for testing Engine A; title and closeup segments have no person; "
+                    "no title card before phase 4"}
+    out.with_suffix(".json").write_text(json.dumps(meta, indent=2))
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     videos = source_root("public", Config.load()["paths"]) / "videos"
     (REPO_ROOT / "tmp").mkdir(exist_ok=True)
     tmp = Path(tempfile.mkdtemp(prefix="testclips_", dir=REPO_ROOT / "tmp"))
+    which = set(argv if argv is not None else sys.argv[1:]) or {"shots", "occlusion", "process"}
     try:
-        for name, specs in (("shots_tune_480p30", TUNE), ("shots_check_480p30", CHECK)):
-            print("wrote", build_shot_clip(videos, tmp, name, specs).relative_to(REPO_ROOT))
-        print("wrote", build_occlusion_clip(videos, tmp).relative_to(REPO_ROOT))
+        if "shots" in which:
+            for name, specs in (("shots_tune_480p30", TUNE), ("shots_check_480p30", CHECK)):
+                print("wrote", build_shot_clip(videos, tmp, name, specs).relative_to(REPO_ROOT))
+        if "occlusion" in which:
+            print("wrote", build_occlusion_clip(videos, tmp).relative_to(REPO_ROOT))
+        if "process" in which:
+            print("wrote", build_process_clip(videos, tmp).relative_to(REPO_ROOT))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     return 0

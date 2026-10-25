@@ -13,7 +13,6 @@ import time
 from pathlib import Path
 
 import numpy as np
-import torch
 
 from ..config import VARIANTS, Config
 from ..errors import AvError
@@ -89,7 +88,8 @@ class PoseEstimator:
         name = path.name
         if variant not in VARIANTS or not path.is_file():
             raise AvError("AV-POS-001", name=name, detail=f"expected file {path}")
-        from ultralytics import YOLO   # imported late: env (offline, GPU pinning) is set by the caller
+        import torch                   # imported late: env (offline, GPU pinning) is set by the caller,
+        from ultralytics import YOLO   # and CPU only stages (tracking, overlay) never load torch
         self.model = None
         if self.device.startswith("cuda"):
             torch.cuda.empty_cache()
@@ -193,6 +193,7 @@ class PoseEstimator:
         """Pose on every frame of every shot in one pass over the video; one DET
         v1 file per shot (AV-POS-002, 003). Statistics, totals and per shot, go
         to ctx.manifest["pose_body"]."""
+        import torch
         if self.model is None:
             self.load_models(self.pcfg["variant"])
         ctx, log = self.ctx, self.ctx.log

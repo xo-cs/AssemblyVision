@@ -58,6 +58,39 @@ dup_kp_agree = 0.60          # ... and this share of the shared keypoints coinci
 dup_kp_conf = 0.30           # keypoints at or above this confidence count as shared
 dup_kp_dist = 0.10           # coincide = closer than this fraction of the smaller box diagonal
 
+[clean]
+body_conf_min = 0.30         # keypoints below this become NaN (LLD 3.6)
+gap_max_s = 0.5              # longest gap that is interpolated (never counted as measured) (s)
+sg_window_s = 0.33           # Savitzky Golay window, made odd in frames (s)
+sg_order = 2                 # Savitzky Golay polynomial order
+
+[seg_a]
+phase_solver = "dp"          # "dp" = best global boundary choice, "forward" = LLD forward walk
+min_factor = 0.25            # phase min_s = min_factor * T / K (T = first to last frame with a person)
+max_factor = 2.5             # phase max_s = max_factor * T / K
+pause_energy = 0.15          # motion energy below this is still (torso lengths/s)
+pause_min_s = 0.8            # shortest pause (s)
+long_pause_s = 5.0           # pause that counts as phase boundary evidence (s)
+cut_pause_window_s = 2.0     # a long pause this close to a cut makes the cut stronger (s)
+no_person_min_s = 1.5        # stretch without any stored track that counts as evidence (s)
+fallback_pause_min_s = 1.5   # pause that cuts a segment when no vocabulary exists (s)
+other_min_s = 1.0            # shorter stretches between steps join the previous step (s)
+strength_no_person = 1.0     # evidence strengths used by both solvers
+strength_cut_pause = 0.6
+strength_pause = 0.4
+strength_cut = 0.2
+
+[steps]
+# The vocabulary lives in configs/steps.toml (LLD 3.0.5); this is the empty default.
+use = true                   # false = pause based segment_1..n fallback (AV-SEG-003)
+mode = "ordered"             # phases in this order, each at most once, never backwards
+step = []                    # [{name, min_s?, max_s?}, ...]; limits default to the derived ones
+
+[eval]
+seg_fps = 15                 # frame sampling for frame accuracy, edit and F1 (frames/s)
+kappa_fps = 5                # frame sampling for Cohen's kappa (frames/s)
+overlaps = [0.10, 0.25, 0.50]   # IoU thresholds of the segmental F1
+
 [gpu]
 pose = 0                     # GTX 1080 Ti (PCI bus order)
 

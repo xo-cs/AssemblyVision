@@ -1,0 +1,16 @@
+# Step vocabulary for Engine A (LLD 3.0.5, 3.6), decided by the team.
+# Five ordered process phases of the maintenance video, each 1 to 4 minutes long.
+# min_s and max_s are left out on purpose: they are derived per run from the
+# video (seg_a.min_factor, seg_a.max_factor). Set them here only for a process
+# with known standard times. Never set them from QiSens annotation data.
+
+[steps]
+use = true
+mode = "ordered"
+step = [
+    { name = "Removal" },
+    { name = "Disassembly" },
+    { name = "Cleaning" },
+    { name = "Adjustment and Inspection" },
+    { name = "Assembly and Installation" },
+]

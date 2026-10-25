@@ -85,8 +85,7 @@ def render_pose_overlay(video: Path, det_path: Path, out_path: Path, fps: float,
                 sel = order[lo:hi]
                 draw_people(img, det["bbox_xyxy"][sel], det["det_conf"][sel], det["body_xy"][sel],
                             det["body_conf"][sel], ocfg["kp_conf_min"], scale)
-            cv2.putText(img, f"frame {idx}  people {hi - lo}", (10, 24), cv2.FONT_HERSHEY_SIMPLEX,
-                        0.6, (255, 255, 255), 2, cv2.LINE_AA)
+            draw_header(img, f"frame {idx}  people {hi - lo}", scale=0.55 * max(1.0, oh / 480))
             proc.stdin.write(np.ascontiguousarray(img).tobytes())
             n += 1
         proc.stdin.close()
@@ -118,11 +117,33 @@ def _track_color(n: int) -> tuple[int, int, int]:
     return _COLORS[(n - 1) % len(_COLORS)]
 
 
+def draw_header(img: np.ndarray, text: str, scale: float = 0.55, alpha: float = 0.55, margin: int = 8) -> None:
+    """Draw the status text once, bottom left, on a semi transparent black box.
+    The top left stays free: the QiSens video carries its own step captions there."""
+    font, th = cv2.FONT_HERSHEY_SIMPLEX, 1
+    (tw, tht), base = cv2.getTextSize(text, font, scale, th)
+    h, w = img.shape[:2]
+    x0, y1 = margin, h - margin
+    x1, y0 = min(w, x0 + tw + 2 * margin), max(0, y1 - tht - base - 2 * margin)
+    roi = img[y0:y1, x0:x1]
+    roi[:] = (roi.astype(np.float32) * (1 - alpha)).astype(np.uint8)
+    cv2.putText(img, text, (x0 + margin, y1 - margin - base), font, scale, (255, 255, 255), th, cv2.LINE_AA)
+
+
+def step_at(steps: list | None, t: float) -> str | None:
+    """Label of the step covering time t (steps sorted, end exclusive)."""
+    for s in steps or ():
+        if s.start_s <= t < s.end_s:
+            return s.label
+    return None
+
+
 def render_track_overlay(video: Path, shots: list, items: dict, out_path: Path, fps: float,
-                         cfg: Config, ctx: RunContext) -> Path:
+                         cfg: Config, ctx: RunContext, steps: list | None = None) -> Path:
     """Overlay of all shots: stored tracks in their own colour with label tNN
     (subject marked S), short tracks orange, untracked rows grey, suppressed
-    duplicates red. items[shot_id] = {"det": path, "assign": path, "subject": n or None}."""
+    duplicates red. items[shot_id] = {"det": path, "assign": path, "subject": n or None}.
+    steps (optional, Step objects) adds the current step label to the header."""
     from ..perception.tracker import SHORT, SUPPRESSED, UNTRACKED, load_assign
     t0 = time.monotonic()
     ocfg = cfg["overlay"]
@@ -178,8 +199,10 @@ def render_track_overlay(video: Path, shots: list, items: dict, out_path: Path, 
                         if a == SUPPRESSED:
                             cv2.line(img, (x1, y1), (x2, y2), color, 1)
             header = f"shot {k + 1}/{len(shots)} {s.shot_type}  frame {idx}"
-            cv2.putText(img, header, (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 4, cv2.LINE_AA)
-            cv2.putText(img, header, (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+            label = step_at(steps, idx / fps)
+            if label is not None:
+                header += f"  step: {label}"
+            draw_header(img, header, scale=0.55 * max(1.0, oh / 480))
             proc.stdin.write(np.ascontiguousarray(img).tobytes())
             n_out += 1
         proc.stdin.close()

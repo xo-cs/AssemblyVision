@@ -15,6 +15,8 @@ from .errors import AvError
 
 CODE_DIR = Path(__file__).resolve().parent.parent          # ~/AssemblyVision/code
 DEFAULT_TOML = CODE_DIR / "configs" / "default.toml"
+STEPS_TOML = CODE_DIR / "configs" / "steps.toml"
+DEFAULT_LAYERS = [DEFAULT_TOML, STEPS_TOML]          # LLD 3.0.5 order (gpu.toml comes later)
 
 VARIANTS = ("n", "s", "m", "l")
 
@@ -55,6 +57,29 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "track.dup_kp_agree": (lambda v: 0 < v <= 1, "0 to 1"),
     "track.dup_kp_conf": (lambda v: 0 <= v <= 1, "0 to 1"),
     "track.dup_kp_dist": (lambda v: v > 0, "> 0"),
+    "clean.body_conf_min": (lambda v: 0 <= v <= 1, "0 to 1"),
+    "clean.gap_max_s": (lambda v: v >= 0, ">= 0"),
+    "clean.sg_window_s": (lambda v: v >= 0, ">= 0 (0 = no smoothing)"),
+    "clean.sg_order": (lambda v: 0 <= v <= 5, "0 to 5"),
+    "seg_a.phase_solver": (lambda v: v in ("dp", "forward"), "dp or forward"),
+    "seg_a.min_factor": (lambda v: v >= 0, ">= 0"),
+    "seg_a.max_factor": (lambda v: v > 0, "> 0"),
+    "seg_a.pause_energy": (lambda v: v >= 0, ">= 0"),
+    "seg_a.pause_min_s": (lambda v: v > 0, "> 0"),
+    "seg_a.long_pause_s": (lambda v: v > 0, "> 0"),
+    "seg_a.cut_pause_window_s": (lambda v: v >= 0, ">= 0"),
+    "seg_a.no_person_min_s": (lambda v: v > 0, "> 0"),
+    "seg_a.fallback_pause_min_s": (lambda v: v > 0, "> 0"),
+    "seg_a.other_min_s": (lambda v: v >= 0, ">= 0"),
+    "seg_a.strength_no_person": (lambda v: v >= 0, ">= 0"),
+    "seg_a.strength_cut_pause": (lambda v: v >= 0, ">= 0"),
+    "seg_a.strength_pause": (lambda v: v >= 0, ">= 0"),
+    "seg_a.strength_cut": (lambda v: v >= 0, ">= 0"),
+    "steps.mode": (lambda v: v == "ordered", "ordered"),
+    "eval.seg_fps": (lambda v: 1 <= v <= 240, "1 to 240"),
+    "eval.kappa_fps": (lambda v: 1 <= v <= 240, "1 to 240"),
+    "eval.overlaps": (lambda v: len(v) > 0 and all(isinstance(x, (int, float)) and 0 < x <= 1 for x in v),
+                      "a non empty list of numbers in (0, 1]"),
     "gpu.pose": (lambda v: v >= 0, ">= 0"),
     "overlay.kp_conf_min": (lambda v: 0 <= v <= 1, "0 to 1"),
     "overlay.max_width": (lambda v: v >= 64, ">= 64"),
@@ -88,7 +113,7 @@ class Config:
     @classmethod
     def load(cls, layers: list[Path] | None = None, run_config: Path | None = None,
              overrides: dict | None = None) -> "Config":
-        layers = list(layers) if layers else [DEFAULT_TOML]
+        layers = list(layers) if layers else list(DEFAULT_LAYERS)
         base = _read_toml(layers[0])
         sources = [str(layers[0])]
         for path in layers[1:] + ([run_config] if run_config else []):
@@ -103,7 +128,32 @@ class Config:
             if value is not None and not check(value):
                 raise AvError("AV-CFG-002", key=key, value=repr(value), range=allowed)
         cls._check_cross(base)
+        cls._check_steps(base.get("steps", {}).get("step", []))
         return cls(base, sources)
+
+    @staticmethod
+    def _check_steps(steps: list) -> None:
+        """steps.step: [{name, min_s?, max_s?}], names unique, 0 < min_s < max_s."""
+        names = set()
+        for i, st in enumerate(steps):
+            key = f"steps.step[{i}]"
+            if not isinstance(st, dict):
+                raise AvError("AV-CFG-002", key=key, value=repr(st), range="a table {name, min_s, max_s}")
+            for name in st:
+                if name not in ("name", "min_s", "max_s"):
+                    raise AvError("AV-CFG-001", key=f"{key}.{name}", file="steps")
+            name = st.get("name")
+            if not isinstance(name, str) or not name.strip() or name in names \
+                    or name == "other" or name.startswith("segment_"):
+                raise AvError("AV-CFG-002", key=f"{key}.name", value=repr(name),
+                              range="a unique non empty name, not other or segment_N")
+            names.add(name)
+            for lim in ("min_s", "max_s"):
+                v = st.get(lim)
+                if v is not None and (isinstance(v, bool) or not isinstance(v, (int, float)) or v <= 0):
+                    raise AvError("AV-CFG-002", key=f"{key}.{lim}", value=repr(v), range="> 0")
+            if "min_s" in st and "max_s" in st and not st["min_s"] < st["max_s"]:
+                raise AvError("AV-CFG-002", key=f"{key}.min_s", value=repr(st["min_s"]), range="< max_s")
 
     @staticmethod
     def _check_cross(d: dict) -> None:
@@ -141,17 +191,35 @@ class Config:
         return copy.deepcopy(self._data)
 
     def to_toml(self) -> str:
-        """Serialise the snapshot (flat sections of scalars) as TOML."""
+        """Serialise the snapshot (sections of scalars, lists and inline tables) as TOML."""
         lines = []
         for section, values in self._data.items():
             lines.append(f"[{section}]")
             for name, value in values.items():
-                if isinstance(value, bool):
-                    text = "true" if value else "false"
-                elif isinstance(value, str):
-                    text = '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
-                else:
-                    text = repr(value)
-                lines.append(f"{name} = {text}")
+                lines.append(f"{name} = {_toml_value(value)}")
             lines.append("")
         return "\n".join(lines)
+
+
+def deep_merge(*layers: dict) -> dict:
+    """Section wise merge of override dicts, later layers win (values are copied)."""
+    out: dict = {}
+    for layer in layers:
+        for section, values in layer.items():
+            if isinstance(values, dict):
+                out.setdefault(section, {}).update(copy.deepcopy(values))
+            else:
+                out[section] = copy.deepcopy(values)
+    return out
+
+
+def _toml_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    if isinstance(value, list):
+        return "[" + ", ".join(_toml_value(v) for v in value) + "]"
+    if isinstance(value, dict):
+        return "{ " + ", ".join(f"{k} = {_toml_value(v)}" for k, v in value.items()) + " }"
+    return repr(value)
