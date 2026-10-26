@@ -101,6 +101,7 @@ class LiveSession:
         self.slot = Slot()
         self.frames_in = self.processed = self.dropped = 0
         self.delays: deque = deque(maxlen=600)
+        self.parts: dict = {k: deque(maxlen=600) for k in ("wait", "resize", "pose", "track", "station", "draw")}
         self.done_t: deque = deque(maxlen=600)
         self.notices: deque = deque(maxlen=8)
         self.recorder = None
@@ -247,18 +248,21 @@ class LiveSession:
         if self.paused:
             self.paused = False
             self.notice("Camera running again.")
-        self.last_frame_mono = time.monotonic()
+        c0 = self.last_frame_mono = time.monotonic()
         ts = t - self.t0
         h, w = frame.shape[:2]
         scale = live["input_px"] / max(h, w)
         small = cv2.resize(frame, (round(w * scale), round(h * scale)), interpolation=cv2.INTER_AREA) \
             if scale < 1 else frame
+        c1 = time.monotonic()
         det = self.backend.predict(small)
         if scale < 1:
             det = det.scaled(1 / scale)
+        c2 = time.monotonic()
         if self.tracker is None:
             self.tracker = LiveTracker(self.cfg["track"], 1 / live["stream_every_s"], live["lost_s"])
         ids = self.tracker.update(det, (w, h))
+        c3 = time.monotonic()
         subj = self._choose(det, ids, ts)
         station = self.stations[-1]
         kp = ok = None
@@ -284,6 +288,7 @@ class LiveSession:
             with self.lock:
                 station.update(ts, kp, kconf, (w, h))
         panel = station.panel(ts)
+        c4 = time.monotonic()
         banner, sub, strip = overlay_texts(panel)
         zones = station.t.zones if station.t is not None and station.kind == "workbench" else None
         notice = ""
@@ -291,6 +296,9 @@ class LiveSession:
             notice = "No person visible" if not len(det.conf) else "Waiting for the selected person"
         img = draw_overlay(frame, det.boxes, subj, kp, ok, zones, banner, sub, strip, panel["band"], notice)
         done = time.monotonic()
+        for k, v in (("wait", c0 - t), ("resize", c1 - c0), ("pose", c2 - c1), ("track", c3 - c2),
+                     ("station", c4 - c3), ("draw", done - c4)):
+            self.parts[k].append(v)
         with self.lock:
             self.latest_overlay = img
             self.latest_boxes, self.latest_ids = det.boxes, ids
@@ -336,6 +344,16 @@ class LiveSession:
             return None, None
         return round(1000 * float(np.percentile(d, 50))), round(1000 * float(np.percentile(d, 95)))
 
+    def stage_ms(self) -> dict:
+        """p50 and p95 per part of a processed frame (ms): wait = time in the slot before processing."""
+        out = {}
+        for k, d in self.parts.items():
+            v = list(d)
+            if v:
+                out[k] = {"p50": round(1000 * float(np.percentile(v, 50)), 1),
+                          "p95": round(1000 * float(np.percentile(v, 95)), 1)}
+        return out
+
     def panel(self) -> dict:
         t = self.now_s()
         with self.lock:
@@ -360,7 +378,7 @@ class LiveSession:
                 "duration_s": round(t, 1), "stop_reason": self.stop_reason, "frames_in": self.frames_in,
                 "processed": self.processed, "dropped": self.dropped,
                 "fps_mean": round(self.processed / t, 2) if t > 0 else None, "delay_p50_ms": p50,
-                "delay_p95_ms": p95, "recording": str(rec) if rec.is_file() else None,
+                "delay_p95_ms": p95, "stage_ms": self.stage_ms(), "recording": str(rec) if rec.is_file() else None,
                 "recording_error": self.recording_error, "stations": stations,
                 "notices": [f"{a:.0f} s: {b}" for a, b in self.notices]}
 

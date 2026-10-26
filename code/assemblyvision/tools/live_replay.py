@@ -81,12 +81,16 @@ def main(argv: list[str] | None = None) -> int:
     snap_at = set(np.linspace(n_send // 5, n_send - 1, args.snapshots).astype(int).tolist()) if n_send else set()
     t0 = time.monotonic()
     sent = 0
+    pos = int(round(args.start * vfps))
+    cap.set(cv2.CAP_PROP_POS_FRAMES, pos)          # one seek, then read in order (a seek per frame is slow)
     for i in range(n_send):
         fidx = int(round((args.start + i / args.fps) * vfps))
         if fidx >= n_total:
             break
-        cap.set(cv2.CAP_PROP_POS_FRAMES, fidx)
+        while pos < fidx and cap.grab():
+            pos += 1
         ok, bgr = cap.read()
+        pos += 1
         if not ok:
             break
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
@@ -111,6 +115,8 @@ def main(argv: list[str] | None = None) -> int:
           f"in {wall:.1f} s, processed {summary['processed']}, dropped {summary['dropped']}, "
           f"processed fps {summary['processed'] / wall:.1f}, delay p50 {summary['delay_p50_ms']} ms, "
           f"p95 {summary['delay_p95_ms']} ms")
+    print("  time per frame, p50 / p95 ms: " + ", ".join(f"{k} {v['p50']} / {v['p95']}"
+                                                         for k, v in summary["stage_ms"].items()))
     for st in summary["stations"]:
         print(f"  {st['title']}:")
         for k, v in st["rows"]:
