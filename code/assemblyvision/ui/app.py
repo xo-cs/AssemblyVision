@@ -1,12 +1,17 @@
-"""GradioApp (LLD 3.10): the Run and Results tabs. Live, Suggestions, Compare
+"""GradioApp (LLD 3.10): the Run, Results and Live tabs. Suggestions, Compare
 and Reports follow.
 
     source ~/AssemblyVision/av.sh && cd ~/AssemblyVision/code
-    python -m assemblyvision.ui.app [--sources qisens,public] [--config FILE]
+    python -m assemblyvision.ui.app [--sources qisens,public] [--port 7860] [--config FILE]
 
 then, on the laptop: ssh -L 7860:127.0.0.1:7860 qisens@<server> and open
-http://127.0.0.1:7860. The page binds 127.0.0.1:7860 only and never makes a
-share link (fixed in code, AV-APP-005 otherwise).
+http://127.0.0.1:7860. The page binds 127.0.0.1 only, on a port from 7860 to
+7869 (default 7860), and never makes a share link (fixed in code, AV-APP-005
+otherwise).
+
+Live mode (LLD 3.12) runs inside this process on GPU live.gpu (the A4000):
+CUDA_VISIBLE_DEVICES is set to that GPU before torch is imported, so this
+process never touches the batch pose GPU; batch runs are separate workers.
 
 Data areas: only the sources named in --sources (default public) are ever
 read; with qisens left out nothing under data/qisens/ is opened or listed.
@@ -37,6 +42,7 @@ from ..storage.runstore import FINISHED, RunStore
 
 HOST = "127.0.0.1"
 PORT = 7860
+PORTS = range(7860, 7870)
 ALL_STEPS = "All steps"
 STAGE_NAMES = {"ingest": "Ingest", "shots": "Shots", "reference": "Reference frames", "pose_body": "Pose",
                "tracking": "Tracking", "segmentation": "Steps (Engine A)", "metrics": "Motion metrics",
@@ -58,10 +64,13 @@ CSS = """
 JS_LIGHT = "() => { document.body.classList.remove('dark'); }"
 
 
-def check_bind(host: str, share: bool) -> None:
-    """AV-APP-005 unless host is loopback or a private address and share is off (NFR-SEC-03)."""
+def check_bind(host: str, share: bool, port: int = PORT) -> None:
+    """AV-APP-005 unless host is loopback or a private address, the port is 7860
+    to 7869 and share is off (NFR-SEC-03)."""
     if share:
         raise AvError("AV-APP-005", detail="share=True")
+    if port not in PORTS:
+        raise AvError("AV-APP-005", detail=f"port {port} is not in 7860 to 7869")
     try:
         ip = ipaddress.ip_address("127.0.0.1" if host == "localhost" else host)
     except ValueError as e:
@@ -83,6 +92,10 @@ def prepare_env(sources: list[str], cfg: Config, repo_root: Path = REPO_ROOT) ->
     os.environ["XDG_CONFIG_HOME"] = str(repo_root / ".config")
     os.environ.setdefault("XDG_CACHE_HOME", str(repo_root / ".cache"))
     os.environ["TMPDIR"] = str(tmp)
+    # live pose sees only the live GPU (PCI bus order, CLAUDE.md); batch workers set their own
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(cfg["live"]["gpu"])
+    os.environ["YOLO_OFFLINE"] = "1"
     import tempfile
     tempfile.tempdir = None
     return tmp
@@ -100,12 +113,17 @@ def _err_text(e: AvError) -> str:
 
 
 class GradioApp:
-    def __init__(self, cfg: Config, sources: list[str], repo_root: Path = REPO_ROOT, worker_cmd=None):
+    def __init__(self, cfg: Config, sources: list[str], repo_root: Path = REPO_ROOT, worker_cmd=None,
+                 port: int = PORT, live=None):
+        from ..live.manager import LiveManager
         from ..runs.manager import RunManager
         self.cfg = cfg
         self.store = RunStore(sources, cfg, repo_root)
         self.runs = RunManager(self.store, cfg, worker_cmd)
         self.sources = self.store.sources
+        self.port = port
+        # live sessions are filmed with consent and kept in the public area (data/public/live/)
+        self.live = live or LiveManager(cfg, source_root("public", cfg["paths"], repo_root) / "live", port=port)
 
     # data for the page (plain functions, tested without a browser) -----------------
 
@@ -323,7 +341,8 @@ class GradioApp:
         variant0 = self.cfg["pose"]["variant"]
 
         # delete_cache: every hour, Gradio's temp files older than a day are removed
-        with gr.Blocks(title="AssemblyVision", theme=theme, css=CSS, js=JS_LIGHT, analytics_enabled=False,
+        from .live_tab import LIVE_CSS, build_live_tab
+        with gr.Blocks(title="AssemblyVision", theme=theme, css=CSS + LIVE_CSS, js=JS_LIGHT, analytics_enabled=False,
                        delete_cache=(3600, 86400)) as demo:
             gr.HTML("<div id='av-header'><h1>AssemblyVision</h1><p>Team 4, QiSens capstone: motion analysis of "
                     "train assembly work</p></div>")
@@ -371,6 +390,7 @@ class GradioApp:
                     eval_md = gr.Markdown()
                     with gr.Accordion("Notices of this run", open=False):
                         notices_md = gr.Markdown()
+                live_load, live_out = build_live_tab(self, gr, run_dd)
 
             results_out = [note, overlay, timeline_img, steps_df, step_dd, metrics_df, bend_img, base_df, eval_md,
                            notices_md]
@@ -421,6 +441,7 @@ class GradioApp:
 
             sel_out = [status, gallery, timer, *results_out]
             demo.load(on_load, None, run_dd)
+            demo.load(live_load, None, live_out)
             run_dd.change(on_select, run_dd, sel_out)
             timer.tick(on_poll, run_dd, sel_out)
             refresh.click(on_refresh, run_dd, [run_dd, video_dd])
@@ -430,8 +451,9 @@ class GradioApp:
         self.demo = demo
         return demo
 
-    def launch(self, host: str = HOST, port: int = PORT, share: bool = False) -> None:
-        check_bind(host, share)
+    def launch(self, host: str = HOST, port: int | None = None, share: bool = False) -> None:
+        port = getattr(self, "port", PORT) if port is None else port
+        check_bind(host, share, port)
         import gradio as gr
         gr.set_static_paths([str(root / "runs") for root in self.store.roots.values()])
         demo = self.build()
@@ -452,13 +474,16 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="python -m assemblyvision.ui.app", description="Start the AssemblyVision page.")
     p.add_argument("--sources", type=parse_sources, default=["public"],
                    help="data areas the page may read, comma list of qisens,public (default public)")
+    p.add_argument("--port", type=int, default=PORT, choices=list(PORTS), metavar="7860..7869",
+                   help="port on 127.0.0.1 (7860 to 7869, default 7860)")
     p.add_argument("--config", action="append", type=Path, default=[], help="extra TOML layer")
     args = p.parse_args(argv)
     try:
         cfg = Config.load([*DEFAULT_LAYERS, *args.config])
         tmp = prepare_env(args.sources, cfg)
-        app = GradioApp(cfg, args.sources)
-        print(f"AssemblyVision page on http://{HOST}:{PORT} (sources {','.join(app.sources)}, temp {tmp})",
+        check_bind(HOST, False, args.port)
+        app = GradioApp(cfg, args.sources, port=args.port)
+        print(f"AssemblyVision page on http://{HOST}:{args.port} (sources {','.join(app.sources)}, temp {tmp})",
               flush=True)
         app.launch()
     except AvError as e:

@@ -1,0 +1,9 @@
+# Station C, side work: sustained awkward posture, idle time and rough gaze.
+kind = "posture"
+title = "C. Side work"
+camera = "Camera at the SIDE, about 3 m away, whole body in view."
+description = "Work at the side bench. The timer shows how long the back stays bent (band B1 or worse) without a break."
+
+[posture]
+awkward_band = 1             # B1 (trunk 20 to 45 deg) or worse counts as awkward
+release_s = 0.5              # this long back in a better band ends a stretch

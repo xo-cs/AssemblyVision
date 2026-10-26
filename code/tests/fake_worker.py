@@ -11,6 +11,7 @@ from pathlib import Path
 p = argparse.ArgumentParser()
 for a in ("--source", "--video", "--variant", "--gpu", "--run-id"):
     p.add_argument(a)
+p.add_argument("--set", action="append", default=[])
 p.add_argument("--fail", action="store_true")
 args = p.parse_args()
 manifest = Path(os.environ["AV_TEST_ROOT"]) / "data" / args.source / "runs" / args.run_id / "manifest.json"

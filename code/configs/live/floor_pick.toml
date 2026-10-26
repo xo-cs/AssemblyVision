@@ -1,0 +1,13 @@
+# Station B, lifts from the floor: stoop or squat.
+kind = "lift"
+title = "B. Floor pick"
+camera = "Camera at the SIDE, about 3 m away, whole body from head to feet in view, camera at hip height."
+description = "Lift a box from the floor, once with a bent back and straight legs (stoop) and once with bent knees and an upright back (squat)."
+
+[lift]
+trunk_deg = 45.0             # a lift starts when the trunk angle reaches this ...
+knee_bend_deg = 120.0        # ... or the knee angle (hip, knee, ankle) drops to this
+knee_straight_deg = 140.0    # it ends when the trunk is below trunk_deg and the knee above this
+hold_s = 0.2                 # each condition must hold this long
+squat_knee_max_deg = 120.0   # knee angle at the lowest hip point: below = squat, else stoop
+min_lift_s = 0.5             # shorter dips are not lifts

@@ -131,3 +131,24 @@ crf = 20                     # x264 quality of the overlay video
 # host 127.0.0.1, port 7860 and share=False are fixed in ui/app.py (FR-INFRA-06, NFR-SEC-03)
 poll_s = 2.0                 # status poll interval of the Run tab (s)
 max_upload_mb = 4096         # largest upload accepted (MB)
+
+[live]
+gpu = 1                      # RTX A4000 (PCI bus order); batch pose stays on gpu.pose
+half = true                  # FP16 on the A4000
+pose_model = "yolo26s-pose.pt"
+input_px = 640               # longest side of the frame given to the model (px)
+det_conf = 0.25              # person detection threshold
+kp_conf_min = 0.30           # keypoint threshold for events, angles and smoothing
+stream_every_s = 0.1         # the browser sends a frame this often (s)
+zone_hold_s = 0.2            # a wrist must stay in or out this long to change zone state (s)
+one_euro_min_cutoff = 1.0    # One Euro filter on every keypoint coordinate (Hz)
+one_euro_beta = 0.007
+one_euro_d_cutoff = 1.0      # (Hz)
+lost_s = 3.0                 # subject or camera unseen this long: open steps close as lost (s)
+idle_stop_s = 120.0          # no frame this long ends the session (s; LLD 10, longer to survive a reload)
+max_session_s = 1800.0       # longest session (s)
+rec_fps = 10                 # frame rate of the recording
+min_free_mb = 1500           # free GPU memory needed to start (MB)
+warn_fps = 5.0               # panel warning below this processed frame rate
+default_template = "workbench"
+model_keep_s = 600.0         # the model is released after this long without a session (s)

@@ -68,6 +68,30 @@ def band_of(angle, edges) -> np.ndarray:
     return np.searchsorted(np.asarray(edges, np.float64), angle, side="right")
 
 
+def gaze_class(raw: np.ndarray, valid: np.ndarray, yaw_max: float) -> np.ndarray:
+    """Rough head direction per frame in image terms (FR-MOTION-08), from the
+    nose, eye and ear keypoints [T, 17, 2] and their validity [T, 17]:
+    -1 unknown, 0 front, 1 left, 2 right, 3 away (indices of GAZE).
+      nose and both eyes: yaw = (nose.x - eye midpoint.x) / eye distance,
+                          left below -yaw_max, right above, front between
+      nose, one eye at most, one ear: profile, left or right of that ear
+      no nose but an ear: away"""
+    raw = np.asarray(raw, np.float64)
+    v = np.asarray(valid, bool)
+    nose, eyes, el, er = v[:, NOSE], v[:, L_EYE] & v[:, R_EYE], v[:, L_EAR], v[:, R_EAR]
+    cls = np.full(len(raw), -1)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        ed = np.linalg.norm(raw[:, L_EYE] - raw[:, R_EYE], axis=1)
+        yaw = (raw[:, NOSE, 0] - (raw[:, L_EYE, 0] + raw[:, R_EYE, 0]) / 2) / ed
+    fr = nose & eyes & (ed > 0)
+    cls[fr] = np.where(yaw[fr] < -yaw_max, 1, np.where(yaw[fr] > yaw_max, 2, 0))
+    prof = nose & ~eyes & (el ^ er) & (cls < 0)
+    ear_x = np.where(el, raw[:, L_EAR, 0], raw[:, R_EAR, 0])
+    cls[prof] = np.where(raw[prof, NOSE, 0] < ear_x[prof], 1, 2)
+    cls[~nose & (el | er) & (cls < 0)] = 3
+    return cls
+
+
 def acf_period(sig: np.ndarray, fps: float, lag_min_s: float, lag_max_s: float) -> tuple[float | None, float]:
     """Period (s) and peak of the normalised autocorrelation of sig [T, C].
 
@@ -477,17 +501,8 @@ class MotionAnalyzer:
             c = np.nan_to_num(np.asarray(p.sub.series.body_conf[p.lo:p.hi], np.float64))
             v = (c >= m["gaze_conf_min"]) & np.asarray(p.sub.series.present[p.lo:p.hi], bool)[:, None] \
                 & np.isfinite(raw).all(-1)
-            nose, eyes, el, er = v[:, NOSE], v[:, L_EYE] & v[:, R_EYE], v[:, L_EAR], v[:, R_EAR]
-            cls = np.full(p.n, -1)
-            with np.errstate(invalid="ignore", divide="ignore"):
-                ed = np.linalg.norm(raw[:, L_EYE] - raw[:, R_EYE], axis=1)
-                yaw = (raw[:, NOSE, 0] - (raw[:, L_EYE, 0] + raw[:, R_EYE, 0]) / 2) / ed
-            fr = nose & eyes & (ed > 0)
-            cls[fr] = np.where(yaw[fr] < -m["gaze_yaw"], 1, np.where(yaw[fr] > m["gaze_yaw"], 2, 0))
-            prof = nose & ~eyes & (el ^ er) & (cls < 0)
-            ear_x = np.where(el, raw[:, L_EAR, 0], raw[:, R_EAR, 0])
-            cls[prof] = np.where(raw[prof, NOSE, 0] < ear_x[prof], 1, 2)
-            cls[~nose & (el | er) & (cls < 0)] = 3
+            nose, el, er = v[:, NOSE], v[:, L_EAR], v[:, R_EAR]
+            cls = gaze_class(raw, v, m["gaze_yaw"])
             ok = cls >= 0
             counts += np.bincount(cls[ok], minlength=4)
             face = v[ok][:, :5]

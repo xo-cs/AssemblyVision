@@ -17,7 +17,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from ..config import VARIANTS
+from ..config import VARIANTS, _toml_value
 from ..errors import AvError
 from ..storage.files import (SOURCE_TYPE, RunPaths, check_video_source, new_run_id, utc_now,
                              write_atomic)
@@ -34,9 +34,11 @@ class RunManager:
         self.worker_cmd = worker_cmd or [sys.executable, "-m", "assemblyvision.tools.run_pose"]
         self._procs: list[subprocess.Popen] = []
 
-    def create_run(self, video: str | Path, source: str, variant: str, engine: str = "A") -> tuple[str, list]:
+    def create_run(self, video: str | Path, source: str, variant: str, engine: str = "A",
+                   overrides: dict | None = None) -> tuple[str, list]:
         """New queued run folder; returns (run_id, notices). AV-RUN-001 if the
-        video is not in the data area of source, or source is not open."""
+        video is not in the data area of source, or source is not open.
+        overrides {section: {key: value}} are passed to the worker as --set."""
         notices = []
         if source not in self.store.roots:
             raise AvError("AV-RUN-001", name=Path(video).name, detail=f"source {source} is not open here")
@@ -58,7 +60,7 @@ class RunManager:
                 continue
         manifest = {"run_id": run_id, "source": source, "source_type": SOURCE_TYPE[source], "status": "queued",
                     "created_utc": utc_now(), "video": str(real), "variant": variant, "engine": engine,
-                    "requested_by": "interface", "stages": {},
+                    "requested_by": "interface", "stages": {}, "overrides": overrides or {},
                     "notices": [{"stage": "interface", **n.as_record()} for n in notices]}
         write_atomic(paths.manifest, json.dumps(manifest, indent=2).encode("utf-8"), paths)
         return run_id, notices
@@ -75,6 +77,9 @@ class RunManager:
             raise AvError("AV-RUN-007")
         cmd = [*self.worker_cmd, "--source", source, "--video", m["video"], "--variant", m["variant"],
                "--gpu", str(self.cfg["gpu"]["pose"]), "--run-id", run_id]
+        for section, values in (m.get("overrides") or {}).items():
+            for key, value in values.items():
+                cmd += ["--set", f"{section}.{key}={_toml_value(value)}"]
         env = dict(os.environ, CUDA_DEVICE_ORDER="PCI_BUS_ID", TMPDIR=str(paths.tmp_dir),
                    PYTHONPATH=str(CODE_DIR) + os.pathsep + os.environ.get("PYTHONPATH", ""))
         paths.log_dir.mkdir(exist_ok=True)

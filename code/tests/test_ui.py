@@ -168,3 +168,65 @@ class AppTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LiveTabTest(unittest.TestCase):
+    def test_port_range(self):
+        check_bind("127.0.0.1", False, 7861)
+        check_bind("127.0.0.1", False, 7869)
+        for port in (7859, 7870, 80):
+            with self.assertRaises(AvError):
+                check_bind("127.0.0.1", False, port)
+        from assemblyvision.ui.app import main
+        with self.assertRaises(SystemExit):
+            main(["--port", "7870"])
+
+    def test_overlay_is_sent_from_memory(self):
+        import gradio as gr
+        import numpy as np
+        from assemblyvision.ui.live_tab import live_image
+        before = set(Path(os.environ.get("GRADIO_TEMP_DIR", tempfile.gettempdir())).rglob("*")) \
+            if os.environ.get("GRADIO_TEMP_DIR") else set()
+        img = live_image(gr, interactive=False, type="numpy")
+        out = img.postprocess(np.zeros((48, 64, 3), np.uint8))
+        self.assertTrue(out.url.startswith("data:image/jpeg;base64,"))
+        self.assertFalse(hasattr(out, "path") and getattr(out, "path", None))
+        if os.environ.get("GRADIO_TEMP_DIR"):
+            self.assertEqual(set(Path(os.environ["GRADIO_TEMP_DIR"]).rglob("*")), before)
+
+    def test_panels_render(self):
+        from assemblyvision.ui.live_tab import log_html, panel_html, station_choices, station_info, summary_html
+        self.assertEqual([c[1] for c in station_choices()], ["workbench", "floor_pick", "side_work"])
+        self.assertIn("FRONT", station_info("workbench"))
+        self.assertIn("SIDE", station_info("floor_pick"))
+        self.assertIn("Start live", panel_html(None))
+        base = {"session_id": "live_20261026_010203_ab12", "status": "running", "elapsed_s": 12, "fps": 9.8,
+                "delay_p50_ms": 60, "delay_p95_ms": 110, "frames_in": 120, "processed": 100, "dropped": 20,
+                "paused": False, "recording": True, "notices": ["1 s: x"]}
+        common = {"trunk_deg": 50, "band": 2, "band_s": [3.0, 2.0, 1.0, 0.0]}
+        lift = {"n": 1, "kind": "stoop", "start_s": 1.0, "end_s": 3.0, "peak_trunk_deg": 70.0, "knee_deg": 172.0,
+                "b2_s": 0.5, "b3_s": 1.0, "duration_s": 2.0}
+        cmp_ = {k: {"n": 1, "peak_trunk_deg": a, "knee_deg": b, "b2_b3_s": c, "duration_s": 2.0}
+                for k, a, b, c in (("stoop", 70.0, 172.0, 1.5), ("squat", 30.0, 88.0, 0.0))}
+        stations = [
+            {"kind": "workbench", "title": "A. Workbench", "step": "assemble", "step_s": 2.0, "cycles": 2,
+             "last_cycle_s": 5.1, "mean_cycle_s": 5.0, "two_hand_simultaneous": 0.6, "two_hand_use_ratio": 0.8},
+            {"kind": "lift", "title": "B. Floor pick", "lifts": [lift], "in_lift": False, "knee_deg": 170,
+             "comparison": cmp_},
+            {"kind": "posture", "title": "C. Side work", "posture": {"band": 1, "current_s": 4.0, "longest_s": 9.0,
+             "total_s": 20.0, "stretches": 3}, "gaze_now": "side", "gaze": {"front": 0.2, "side": 0.7, "away": 0.1},
+             "idle_time_s": 3.0, "idle_share": 0.1}]
+        for st in stations:
+            p = dict(base, station={**common, **st}, log=[lift] if st["kind"] == "lift" else [])
+            h = panel_html(p)
+            self.assertIn("9.8 fps", h)
+            self.assertIn("REC", h)
+            if st["kind"] == "lift":
+                self.assertIn("STOOP", h)
+                self.assertIn("SQUAT", h)
+                self.assertIn("88°", h)
+                self.assertIn("Peak trunk", log_html(p))
+        s = {"session_id": base["session_id"], "duration_s": 60.0, "processed": 590, "fps_mean": 9.8,
+             "delay_p50_ms": 60, "delay_p95_ms": 110, "recording": None, "recording_error": None,
+             "stations": [{"number": 1, "title": "B. Floor pick", "rows": [("Stoop lifts", "1")]}]}
+        self.assertIn("Station 1: B. Floor pick", summary_html(s))

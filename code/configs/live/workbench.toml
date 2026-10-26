@@ -1,0 +1,33 @@
+# Station A, workbench cycles (LLD 3.12 template format, FR-LIVE-03).
+kind = "workbench"
+title = "A. Workbench"
+camera = "Camera in FRONT of the table, the table running across the image, parts moving from image left to image right. Whole upper body and both hands in view."
+description = "Pick a part on the left, assemble it with both hands in the centre, place it on the right. Each place ends one cycle."
+cyclic = true
+
+# zones as [x0, y0, x1, y1] fractions of the image; the page sliders move the two inner borders
+[zones]
+left = [0.0, 0.0, 0.333, 1.0]
+center = [0.333, 0.0, 0.667, 1.0]
+right = [0.667, 0.0, 1.0, 1.0]
+
+[[steps]]
+name = "pick"
+start_event = "zone_enter:left"
+end_event = "both_in:center"
+min_s = 0.2
+max_s = 20.0
+
+[[steps]]
+name = "assemble"
+start_event = "both_in:center"
+end_event = "zone_enter:right"
+min_s = 0.2
+max_s = 60.0
+
+[[steps]]
+name = "place"
+start_event = "zone_enter:right"
+end_event = "zone_exit:right"
+min_s = 0.0
+max_s = 20.0
