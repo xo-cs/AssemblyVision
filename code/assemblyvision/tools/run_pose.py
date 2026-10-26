@@ -4,7 +4,12 @@ track overlay and, with --gt, the step evaluation, in LLD order (3.0.6).
 
     source ~/AssemblyVision/av.sh && cd ~/AssemblyVision/code
     python -m assemblyvision.tools.run_pose --source {qisens,public} --video PATH \
-        --variant {n,s,m,l} --gpu 0 [--gt GT_CSV]
+        --variant {n,s,m,l} --gpu 0 [--gt GT_CSV] [--run-id RUN_ID]
+
+--run-id is used by the interface (RunManager): it creates the run folder with
+a queued manifest and starts this command as the worker process. A full run
+on a GPU first takes the lock ~/AssemblyVision/.locks/gpu<index>.lock, so a
+second run waits (status queued) until the first one has finished (LLD 3.1).
 
 Rerun stages of an existing run from its stored files (CPU, no pose, no tracking):
 
@@ -26,6 +31,7 @@ Exit codes: 0 success, 1 error, 2 wrong argument (LLD 5.2).
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import logging
 import os
@@ -41,7 +47,7 @@ from pathlib import Path
 from ..config import DEFAULT_LAYERS, VARIANTS, Config, _read_toml, deep_merge
 from ..errors import AvError
 from ..storage.files import (REPO_ROOT, SOURCE_TYPE, SOURCES, RunContext, RunPaths, check_video_source,
-                             data_area, new_run_id, run_source, utc_now, write_atomic)
+                             RUN_ID_RE, data_area, new_run_id, run_source, utc_now, write_atomic)
 
 STAGES = ("ingest", "shots", "reference", "pose_body", "tracking", "segmentation", "metrics", "overlay", "eval")
 RERUN_STAGES = ("segmentation", "metrics", "overlay", "eval")
@@ -63,12 +69,13 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     p.add_argument("--set", action="append", default=[], metavar="SECTION.KEY=VALUE",
                    help="override one setting, value in TOML syntax (repeatable)")
     p.add_argument("--no-overlay", action="store_true", help="skip the overlay video")
+    p.add_argument("--run-id", help="use the queued run folder created by the interface")
     args = p.parse_args(argv)
     if args.run is not None:
         if args.stages is None:
             p.error("--run needs --stages")
-        if any(v is not None for v in (args.source, args.video, args.variant, args.gpu)):
-            p.error("--run cannot be combined with --source, --video, --variant or --gpu")
+        if any(v is not None for v in (args.source, args.video, args.variant, args.gpu, args.run_id)):
+            p.error("--run cannot be combined with --source, --video, --variant, --gpu or --run-id")
         try:
             args.stages = parse_stages(args.stages)
         except ValueError as e:
@@ -81,6 +88,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         missing = [f"--{n}" for n in ("source", "video", "variant", "gpu") if getattr(args, n) is None]
         if missing:
             p.error(f"the following arguments are required: {', '.join(missing)}")
+        if args.run_id is not None and not RUN_ID_RE.fullmatch(args.run_id):
+            p.error(f"--run-id {args.run_id!r} is not a run ID")
     return args
 
 
@@ -138,7 +147,8 @@ def _run_stage(ctx: RunContext, name: str, fn):
     else becomes AV-SYS-001 with the traceback in the stage log only."""
     rec = ctx.manifest["stages"].setdefault(name, {})
     rec.clear()
-    rec.update(status="running", started_utc=utc_now())
+    rec.update(status="running", started_utc=utc_now(), progress=0.0)
+    ctx.write_manifest()
     handler = logging.FileHandler(ctx.paths.stage_log(name), encoding="utf-8")
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
     ctx.log.addHandler(handler)
@@ -146,6 +156,7 @@ def _run_stage(ctx: RunContext, name: str, fn):
     try:
         result = fn()
         rec["status"] = "done"
+        rec["progress"] = 1.0
         return result
     except AvError as e:
         rec.update(status="failed", error=e.as_record())
@@ -317,12 +328,34 @@ def rerun(args: argparse.Namespace) -> int:
     finally:
         ctx.write_manifest()
     summary = f"{run_id} rerun {','.join(args.stages)} {'done' if code == 0 else 'failed'}: {_summary(ctx, '')}"
+    manifest["reruns"][-1]["summary"] = summary
+    ctx.write_manifest()
     log.info(summary)
     print(summary)
     return code
 
 
 # full run ------------------------------------------------------------------------------
+
+def _take_gpu_lock(gpu: int, ctx: RunContext):
+    """Exclusive flock on .locks/gpu<index>.lock (one job per GPU, LLD 3.1); waits
+    with status queued while another run holds it. The system frees the lock
+    if the process dies. None on the CPU."""
+    if gpu < 0:
+        return None
+    lock_dir = REPO_ROOT / ".locks"
+    lock_dir.mkdir(exist_ok=True)
+    f = open(lock_dir / f"gpu{gpu}.lock", "a+")
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        ctx.manifest["waiting"] = f"GPU {gpu} is in use by another run; this run starts when it is free"
+        ctx.write_manifest()
+        ctx.log.info("waiting for GPU %d", gpu)
+        fcntl.flock(f, fcntl.LOCK_EX)
+        ctx.manifest.pop("waiting", None)
+    return f
+
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
@@ -349,24 +382,42 @@ def main(argv: list[str] | None = None) -> int:
     except AvError as e:
         return _fail(e)
 
-    while True:
-        run_id = new_run_id()
+    queued: dict = {}
+    if args.run_id is not None:
+        run_id = args.run_id
         paths = RunPaths.for_source(args.source, run_id, cfg["paths"])
         try:
-            paths.create()
-            break
-        except FileExistsError:
-            continue
+            queued = json.loads(paths.manifest.read_text())
+        except (OSError, ValueError):
+            queued = {}
+        if queued.get("status") != "queued" or queued.get("run_id") != run_id:
+            print(f"--run-id {run_id}: no queued run folder of source {args.source}", file=sys.stderr)
+            return 1
+    else:
+        while True:
+            run_id = new_run_id()
+            paths = RunPaths.for_source(args.source, run_id, cfg["paths"])
+            try:
+                paths.create()
+                break
+            except FileExistsError:
+                continue
     os.environ["TMPDIR"] = str(paths.tmp_dir)     # temp files of this process stay in the run folder
     tempfile.tempdir = None
     log = _setup_logging(paths)
-    ctx = RunContext(run_id, args.source, paths, log)
+    ctx = RunContext(run_id, args.source, paths, log, progress_every_s=cfg["run"]["progress_every_s"])
+    ctx.manifest.update({k: queued[k] for k in ("requested_by",) if k in queued})
+    ctx.manifest["worker"] = {"pid": os.getpid(), "started_utc": utc_now()}
     ctx.manifest.update(
         run_id=run_id, source=args.source, source_type=SOURCE_TYPE[args.source],
-        status="running", created_utc=utc_now(), command=" ".join(sys.argv),
+        status="queued", created_utc=queued.get("created_utc", utc_now()), command=" ".join(sys.argv),
         video=str(video), variant=args.variant, gpu=args.gpu, config_sources=cfg.sources,
-        config=cfg.snapshot(), stages={s: {"status": "pending"} for s in STAGES}, notices=[])
+        config=cfg.snapshot(), stages={s: {"status": "pending"} for s in STAGES},
+        notices=list(queued.get("notices", [])))
     write_atomic(paths.run_config, cfg.to_toml().encode("utf-8"), paths)
+    ctx.write_manifest()
+    gpu_lock = _take_gpu_lock(args.gpu, ctx)                # held until this process exits
+    ctx.manifest["status"] = "running"
     log.info("run %s, source %s, video %s, variant %s, gpu %s", run_id, args.source, video.name,
              args.variant, args.gpu)
     log.info("run folder %s", paths.root)
@@ -463,8 +514,12 @@ def main(argv: list[str] | None = None) -> int:
                f"{tt.get('tracks_kept', 0)} tracks, {tt.get('short_tracks', 0)} short tracks, "
                f"{tt.get('duplicates_suppressed', 0)} duplicates suppressed, {_summary(ctx, status)}, "
                f"run folder {paths.root}")
+    ctx.manifest["summary"] = summary
+    ctx.write_manifest()
     log.info(summary)
     print(summary)
+    if gpu_lock is not None:
+        gpu_lock.close()
     return code
 
 

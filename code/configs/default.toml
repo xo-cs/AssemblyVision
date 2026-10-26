@@ -126,3 +126,8 @@ pose = 0                    # GTX 1080 Ti (PCI bus order)
 kp_conf_min = 0.30           # keypoints below this are drawn faded (display only)
 max_width = 1920             # overlay is scaled down to this width (px)
 crf = 20                     # x264 quality of the overlay video
+
+[ui]
+# host 127.0.0.1, port 7860 and share=False are fixed in ui/app.py (FR-INFRA-06, NFR-SEC-03)
+poll_s = 2.0                 # status poll interval of the Run tab (s)
+max_upload_mb = 4096         # largest upload accepted (MB)

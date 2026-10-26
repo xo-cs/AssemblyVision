@@ -9,3 +9,4 @@ tmp/
 *.bak
 docs/
 __pycache__/
+.locks/

@@ -165,6 +165,7 @@ def render_track_overlay(video: Path, shots: list, items: dict, out_path: Path, 
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     shots = sorted(shots, key=lambda s: s.start_frame)
     n_out, k, cur = 0, -1, None
+    total = max(1, shots[-1].end_frame - shots[0].start_frame)
     try:
         for idx, frame in iter_frames(video, shots[0].start_frame, shots[-1].end_frame):
             while k + 1 < len(shots) and idx >= shots[k + 1].start_frame:
@@ -205,6 +206,8 @@ def render_track_overlay(video: Path, shots: list, items: dict, out_path: Path, 
             draw_header(img, header, scale=0.55 * max(1.0, oh / 480))
             proc.stdin.write(np.ascontiguousarray(img).tobytes())
             n_out += 1
+            if n_out % 30 == 0:
+                ctx.progress("overlay", n_out / total)
         proc.stdin.close()
         err = proc.stderr.read().decode(errors="replace")
         proc.stderr.close()

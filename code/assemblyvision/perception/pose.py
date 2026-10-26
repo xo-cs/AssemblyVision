@@ -286,6 +286,7 @@ class PoseEstimator:
                 rate = n_frames / (now - t0)
                 eta = (total - n_frames) / rate if rate > 0 else 0
                 log.info("pose %d/%d frames, %.1f fps, eta %.0f s", n_frames, total, rate, eta)
+                self.ctx.progress("pose_body", n_frames / max(total, 1))
 
         wall = time.monotonic() - t0
         if n_frames == 0:

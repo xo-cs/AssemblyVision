@@ -11,7 +11,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import secrets
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -66,6 +68,7 @@ def run_source(run_dir: Path, paths_cfg: dict, repo_root: Path = REPO_ROOT) -> t
     raise AvError("AV-STO-005", path=str(run_dir), detail="not a run folder under data/<source>/runs/")
 
 
+RUN_ID_RE = re.compile(r"run_\d{8}_\d{6}_[0-9a-f]{4}")
 _issued: set[str] = set()
 
 
@@ -106,6 +109,8 @@ class RunPaths:
     tracks_overlay = property(lambda self: self.root / "overlay" / "tracks_overlay.mp4")
     log_dir = property(lambda self: self.root / "log")
     run_log = property(lambda self: self.root / "log" / "run.log")
+    worker_out = property(lambda self: self.root / "log" / "worker.out")
+    worker_pid = property(lambda self: self.root / "log" / "worker.pid")
     failed_frames = property(lambda self: self.root / "failed_frames.csv")
     tmp_dir = property(lambda self: self.root / "tmp")
     manifest = property(lambda self: self.root / "manifest.json")
@@ -184,11 +189,25 @@ class RunContext:
     paths: RunPaths
     log: logging.Logger
     manifest: dict = field(default_factory=dict)
+    progress_every_s: float = 2.0
+    _last_progress: float = field(default=0.0, repr=False)
 
     def notice(self, err: AvError, stage: str) -> None:
         rec = {"stage": stage, **err.as_record(), "effect": "Notice"}
         self.manifest.setdefault("notices", []).append(rec)
         self.log.warning("%s %s%s", err.code, err.text, f" ({err.detail})" if err.detail else "")
+
+    def progress(self, stage: str, frac: float) -> None:
+        """Share of a running stage done (0 to 1), for the status poll of the
+        interface; the manifest is written at most every progress_every_s."""
+        rec = self.manifest.get("stages", {}).get(stage)
+        if rec is None:
+            return
+        rec["progress"] = round(min(max(float(frac), 0.0), 1.0), 4)
+        now = time.monotonic()
+        if now - self._last_progress >= self.progress_every_s:
+            self._last_progress = now
+            self.write_manifest()
 
     def write_manifest(self) -> Path:
         self.manifest["updated_utc"] = utc_now()

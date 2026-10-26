@@ -109,6 +109,8 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "overlay.kp_conf_min": (lambda v: 0 <= v <= 1, "0 to 1"),
     "overlay.max_width": (lambda v: v >= 64, ">= 64"),
     "overlay.crf": (lambda v: 0 <= v <= 51, "0 to 51"),
+    "ui.poll_s": (lambda v: 0.5 <= v <= 60, "0.5 to 60"),
+    "ui.max_upload_mb": (lambda v: v >= 1, ">= 1"),
 }
 
 
