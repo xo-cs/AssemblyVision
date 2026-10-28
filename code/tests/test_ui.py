@@ -93,19 +93,19 @@ class AppTest(unittest.TestCase):
         self.assertLess(time.monotonic() - t0, 3.0)
         self.assertFalse(active)
         self.assertIn("Finished", html_)
-        self.assertEqual([row[1] for row in r["steps"]], ["Removal", "Cleaning"])
+        self.assertEqual([row[1] for row in r["steps"]], ["Phase 1", "Phase 2"])   # public run: display names
         self.assertEqual(r["timeline"].ndim, 3)
         self.assertEqual(r["bending"].ndim, 3)
         self.assertIn("F1@50", r["eval"])
-        self.assertEqual(r["steps_choices"], [ALL_STEPS, ("1 Removal", "2"), ("2 Cleaning", "4")])
+        self.assertEqual(r["steps_choices"], [ALL_STEPS, ("1 Phase 1", "2"), ("2 Phase 2", "4")])
         self.assertEqual(len(gal), 1)
         self.assertIn("subject t01", gal[0][1])
         # metrics of one step, NULL shown as n/a with its flag
         rows = self.app.metrics_table(RID, "4")
-        self.assertTrue(all(row[0] == "2 Cleaning" for row in rows))
+        self.assertTrue(all(row[0] == "2 Phase 2" for row in rows))
         null = [row for row in rows if row[1] == "two_hand_simultaneous"][0]
         self.assertEqual((null[2], null[3], null[4]), ("n/a", "30 %", "low_coverage"))
-        self.assertEqual(self.app.bending_rows(RID)[0], ("1 Removal", [5.0, 2.0, 1.0, 0.0]))
+        self.assertEqual(self.app.bending_rows(RID)[0], ("1 Phase 1", [5.0, 2.0, 1.0, 0.0]))
 
     def test_partial_run(self):   # TC-APP-09
         stages = {s: {"status": "done"} for s in ("ingest", "shots", "reference", "pose_body", "tracking")}

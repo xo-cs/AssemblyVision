@@ -137,3 +137,47 @@ def mark_subject(png_path, box: list[float] | None, label: str = "S") -> np.ndar
         cv2.rectangle(img, (x1, ty - th - 8), (x1 + tw + 10, ty), (0, 0, 0), -1)
         cv2.putText(img, label, (x1 + 5, ty - 5), cv2.FONT_HERSHEY_DUPLEX, scale, (255, 255, 255), 2, cv2.LINE_AA)
     return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+
+REACH_EXTENT = (-2.5, 2.5, -1.75, 2.75)      # x0, x1, y0, y1 in torso lengths (mid hip at 0, 0)
+
+
+def reach_heatmap(reach, title_note: str = "") -> np.ndarray:
+    """Hand reach heatmap: density of both wrists in the body frame (analysis.reach)
+    on white, inferno (reversed, so empty is white and dense is dark), with a
+    faint grey reference figure at the mean head, shoulder and hip positions."""
+    from ..analysis.reach import density
+    plt = _plt()
+    x0, x1, y0, y1 = REACH_EXTENT
+    d = density(reach.points, REACH_EXTENT, cell=0.05, sigma_cells=2.0)
+    fig, ax = plt.subplots(figsize=(6.4, 5.6))
+    cmap = plt.get_cmap("inferno_r")
+    rgba = cmap(d)
+    rgba[..., 3] = np.clip(d / 0.12, 0.0, 1.0)            # rare fades into the white background
+    ax.imshow(rgba, origin="lower", extent=REACH_EXTENT, aspect="equal", interpolation="bilinear", zorder=1)
+    sk = reach.skeleton
+    ref = dict(color="#8a8a8a", linewidth=2.0, alpha=0.75, solid_capstyle="round", zorder=3)
+    if "sho_half" in sk and "hip_half" in sk:
+        sw, hw = float(sk["sho_half"][0]), float(sk["hip_half"][0])
+        ax.plot([-sw, sw], [1.0, 1.0], **ref)
+        ax.plot([-hw, hw], [0.0, 0.0], **ref)
+        ax.plot([0.0, 0.0], [0.0, 1.0], **ref)
+        if "head" in sk:
+            hd = sk["head"]
+            ax.plot([0.0, hd[0]], [1.0, hd[1] - 0.2], **ref)
+            ax.add_patch(plt.Circle(hd, 0.2, fill=False, edgecolor="#8a8a8a", linewidth=2.0, alpha=0.75, zorder=3))
+    im = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(0, 1))
+    ax.set_xlim(x0, x1)
+    ax.set_ylim(y0, y1)
+    ax.set_xlabel("sideways (torso lengths)")
+    ax.set_ylabel("up from the hips (torso lengths)")
+    ax.set_title("Hand reach heatmap" + (f" · {title_note}" if title_note else ""), loc="left", fontsize=FONT + 1,
+                 color=INK)
+    cb = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.03)
+    cb.set_ticks([0, 1], labels=["rare", "often"])
+    cb.outline.set_visible(False)
+    cb.ax.tick_params(colors=GREY)
+    if not len(reach.points):
+        ax.text(0.5, 0.5, "no frames with valid keypoints", transform=ax.transAxes, ha="center", va="center",
+                color=GREY)
+    return _to_rgb(fig)

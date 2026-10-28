@@ -39,6 +39,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from ...errors import AvError
+from ...phases import phase_defs_for
 from ...storage.files import RunContext
 from ...types import Step
 from ..cleaning import SignalCleaner, _runs
@@ -63,7 +64,8 @@ class RuleBasedEngine(SegmentationEngine):
         self.s = cfg["seg_a"]
         self.cleaner = SignalCleaner(cfg)
         st = cfg["steps"]
-        self.step_defs = list(st["step"]) if st["use"] else []
+        # phase names per data area: steps.toml for QiSens, Phase 1..N for public clips
+        self.step_defs = phase_defs_for(list(st["step"]), ctx.source if ctx else None) if st["use"] else []
         self.vocabulary = [d["name"] for d in self.step_defs]
         self.report: dict = {}
 

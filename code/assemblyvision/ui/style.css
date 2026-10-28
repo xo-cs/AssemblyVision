@@ -248,6 +248,7 @@ body, gradio-app, .gradio-container, .main, .wrap.app { background: var(--av-bg)
   color: var(--av-grey);
 }
 .av-note b { color: var(--av-ink); font-weight: 600; }
+.av-banner { margin-top: 10px; border: 1px solid var(--av-line); }
 .av-note-list { display: flex; flex-direction: column; gap: 6px; }
 
 .av-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }

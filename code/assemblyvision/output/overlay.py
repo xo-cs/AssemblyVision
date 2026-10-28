@@ -117,9 +117,11 @@ def _track_color(n: int) -> tuple[int, int, int]:
     return _COLORS[(n - 1) % len(_COLORS)]
 
 
-def draw_header(img: np.ndarray, text: str, scale: float = 0.55, alpha: float = 0.55, margin: int = 8) -> None:
-    """Draw the status text once, bottom left, on a semi transparent black box.
-    The top left stays free: the QiSens video carries its own step captions there."""
+def draw_header(img: np.ndarray, text: str, scale: float = 0.55, alpha: float = 0.55,
+                margin: int = 8) -> tuple[int, int, int, int]:
+    """Draw the status text once, bottom left, on a semi transparent black box,
+    and return the box (x0, y0, x1, y1). The top left stays free: the QiSens
+    video carries its own step captions there."""
     font, th = cv2.FONT_HERSHEY_SIMPLEX, 1
     (tw, tht), base = cv2.getTextSize(text, font, scale, th)
     h, w = img.shape[:2]
@@ -128,6 +130,71 @@ def draw_header(img: np.ndarray, text: str, scale: float = 0.55, alpha: float = 
     roi = img[y0:y1, x0:x1]
     roi[:] = (roi.astype(np.float32) * (1 - alpha)).astype(np.uint8)
     cv2.putText(img, text, (x0 + margin, y1 - margin - base), font, scale, (255, 255, 255), th, cv2.LINE_AA)
+    return x0, y0, x1, y1
+
+
+# trunk readout, bottom right (like the live overlay) ----------------------------------
+
+_NA_GREY = (150, 150, 150)
+
+
+def band_bgr(band: int) -> tuple[int, int, int]:
+    """Traffic light colour of trunk band 0..3 (motion.BAND_COLORS) in OpenCV BGR."""
+    from ..analysis.motion import BAND_COLORS
+    h = BAND_COLORS[band].lstrip("#")
+    r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+    return b, g, r
+
+
+def trunk_readout(angle: float | None, edges) -> tuple[str, int | None]:
+    """('Trunk 34', band) for a valid angle (the degree sign is drawn), ('Trunk n/a', None) otherwise."""
+    from ..analysis.motion import band_of
+    if angle is None or not np.isfinite(angle):
+        return "Trunk n/a", None
+    return f"Trunk {int(round(float(angle)))}", int(band_of(float(angle), edges))
+
+
+def draw_trunk(img: np.ndarray, angle: float | None, edges, scale: float = 0.55, alpha: float = 0.7,
+               margin: int = 8, avoid: tuple[int, int, int, int] | None = None) -> tuple[int, int, int, int]:
+    """Small dark box bottom right: 'Trunk 34°' with a border in the band colour
+    and a 4 segment B0 to B3 indicator, the current band filled; grey 'Trunk n/a'
+    without a valid angle. avoid (a box, the header) is never covered: the
+    readout moves up above it when both would meet. Returns the box."""
+    text, band = trunk_readout(angle, edges)
+    color = band_bgr(band) if band is not None else _NA_GREY
+    font, th = cv2.FONT_HERSHEY_SIMPLEX, 1
+    (tw, tht), base = cv2.getTextSize(text, font, scale, th)
+    deg_r = max(2, round(2.5 * scale / 0.55))
+    seg_h = max(4, round(6 * scale / 0.55))
+    seg_gap = max(2, round(2 * scale / 0.55))
+    bw = tw + (2 * deg_r + 4 if band is not None else 0) + 2 * margin
+    bh = tht + base + seg_h + 3 * margin
+    h, w = img.shape[:2]
+    x1, y1 = w - margin, h - margin
+    x0, y0 = max(0, x1 - bw), max(0, y1 - bh)
+    if avoid is not None and x0 < avoid[2] + margin and y1 > avoid[1] - margin:
+        y1 = max(bh, avoid[1] - margin)
+        y0 = max(0, y1 - bh)
+    roi = img[y0:y1, x0:x1]
+    roi[:] = (roi.astype(np.float32) * (1 - alpha)).astype(np.uint8)
+    lw = max(1, round(2 * scale / 0.55))
+    cv2.rectangle(img, (x0, y0), (x1 - 1, y1 - 1), color, lw)
+    ty = y0 + margin + tht
+    cv2.putText(img, text, (x0 + margin, ty), font, scale, (255, 255, 255) if band is not None else _NA_GREY, th,
+                cv2.LINE_AA)
+    if band is not None:
+        cv2.circle(img, (x0 + margin + tw + deg_r + 2, ty - tht + deg_r), deg_r, (255, 255, 255), 1, cv2.LINE_AA)
+    sx0, sx1 = x0 + margin, x1 - margin
+    sw = (sx1 - sx0 - 3 * seg_gap) / 4
+    sy0 = ty + base + margin // 2
+    for k in range(4):
+        a = int(round(sx0 + k * (sw + seg_gap)))
+        b = int(round(sx0 + k * (sw + seg_gap) + sw))
+        if k == band:
+            cv2.rectangle(img, (a, sy0), (b, sy0 + seg_h), band_bgr(k), -1)
+        else:
+            cv2.rectangle(img, (a, sy0), (b, sy0 + seg_h), (90, 90, 90), 1)
+    return x0, y0, x1, y1
 
 
 def step_at(steps: list | None, t: float) -> str | None:
@@ -139,11 +206,14 @@ def step_at(steps: list | None, t: float) -> str | None:
 
 
 def render_track_overlay(video: Path, shots: list, items: dict, out_path: Path, fps: float,
-                         cfg: Config, ctx: RunContext, steps: list | None = None) -> Path:
+                         cfg: Config, ctx: RunContext, steps: list | None = None,
+                         trunk: np.ndarray | None = None) -> Path:
     """Overlay of all shots: stored tracks in their own colour with label tNN
     (subject marked S), short tracks orange, untracked rows grey, suppressed
     duplicates red. items[shot_id] = {"det": path, "assign": path, "subject": n or None}.
-    steps (optional, Step objects) adds the current step label to the header."""
+    steps (optional, Step objects) adds the current step label to the header.
+    trunk (optional, subject trunk angle per run frame, NaN = not valid) adds
+    the trunk readout bottom right."""
     from ..perception.tracker import SHORT, SUPPRESSED, UNTRACKED, load_assign
     t0 = time.monotonic()
     ocfg = cfg["overlay"]
@@ -203,7 +273,10 @@ def render_track_overlay(video: Path, shots: list, items: dict, out_path: Path, 
             label = step_at(steps, idx / fps)
             if label is not None:
                 header += f"  step: {label}"
-            draw_header(img, header, scale=0.55 * max(1.0, oh / 480))
+            box = draw_header(img, header, scale=0.55 * max(1.0, oh / 480))
+            if trunk is not None:
+                draw_trunk(img, trunk[idx] if 0 <= idx < len(trunk) else None, cfg["motion"]["angle_bands"],
+                           scale=0.55 * max(1.0, oh / 480), avoid=box)
             proc.stdin.write(np.ascontiguousarray(img).tobytes())
             n_out += 1
             if n_out % 30 == 0:
@@ -224,7 +297,9 @@ def render_track_overlay(video: Path, shots: list, items: dict, out_path: Path, 
     os.replace(tmp, out_path)
     ctx.manifest["overlay"] = {"path": ctx.rel(out_path), "frames": n_out, "width": ow, "height": oh,
                                "legend": "tNN colour = stored track (S = subject), orange = short track, "
-                                         "grey = untracked, red crossed = suppressed duplicate",
+                                         "grey = untracked, red crossed = suppressed duplicate"
+                                         + (", bottom right = subject trunk angle and band" if trunk is not None
+                                            else ""),
                                "seconds": round(time.monotonic() - t0, 2)}
     ctx.log.info("overlay written: %s (%d frames, %dx%d)", ctx.rel(out_path), n_out, ow, oh)
     return out_path

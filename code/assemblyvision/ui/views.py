@@ -266,6 +266,11 @@ def note(text: str) -> str:
     return f"<div class='av-note'>{esc(text)}</div>"
 
 
+def banner(text: str) -> str:
+    """Grey full width line at the top of a page (public test clips)."""
+    return f"<div class='av-note av-banner'>{esc(text)}</div>"
+
+
 def section_title(title: str, sub: str = "") -> str:
     return (f"<div class='av-card-head'><h2>{esc(title)}</h2>"
             + (f"<p>{esc(sub)}</p>" if sub else "") + "</div>")

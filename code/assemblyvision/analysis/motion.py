@@ -73,6 +73,18 @@ def band_of(angle, edges) -> np.ndarray:
     return np.searchsorted(np.asarray(edges, np.float64), angle, side="right")
 
 
+def subject_trunk(cs: CleanSeries) -> tuple[np.ndarray, np.ndarray]:
+    """Run frame and trunk angle (deg) of every row of a cleaned subject track,
+    NaN where back_bending would not count the frame: shoulders and hips must
+    be measured (filled gaps do not count), positions are the cleaned ones."""
+    ok = cs.measured[:, [L_SHO, R_SHO, L_HIP, R_HIP]].all(1)
+    xy = cs.xy.astype(np.float64)
+    ang = np.full(len(ok), np.nan)
+    if ok.any():
+        ang[ok] = trunk_angle(((xy[:, L_SHO] + xy[:, R_SHO]) / 2)[ok], ((xy[:, L_HIP] + xy[:, R_HIP]) / 2)[ok])
+    return np.asarray(cs.frame_idx, np.int64), ang
+
+
 def gaze_class(raw: np.ndarray, valid: np.ndarray, yaw_max: float) -> np.ndarray:
     """Rough head direction per frame in image terms (FR-MOTION-08), from the
     nose, eye and ear keypoints [T, 17, 2] and their validity [T, 17]:

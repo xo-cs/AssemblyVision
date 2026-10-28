@@ -42,6 +42,7 @@ from pathlib import Path
 
 from ..config import DEFAULT_LAYERS, VARIANTS, Config
 from ..errors import AvError
+from ..phases import PUBLIC_NOTE
 from ..storage.files import REPO_ROOT, SOURCES, source_root
 from ..storage.runstore import FINISHED, RunStore
 from . import views as v
@@ -50,6 +51,9 @@ HOST = "127.0.0.1"
 PORT = 7860
 PORTS = range(7860, 7870)
 ALL_STEPS = "All steps"
+ALL_PHASES = "All phases"
+REACH_CAPTION = ("Hand positions relative to the worker's own body, so camera movement does not matter. "
+                 "Units: torso lengths.")
 STAGE_NAMES = {"ingest": "Ingest", "shots": "Shots", "reference": "Reference frames", "pose_body": "Pose",
                "tracking": "Tracking", "segmentation": "Steps (Engine A)", "metrics": "Motion metrics",
                "overlay": "Overlay video", "eval": "Evaluation"}
@@ -145,6 +149,7 @@ class GradioApp:
         self.sources = self.store.sources
         self.port = port
         self._durations: dict[tuple[str, float], float | None] = {}
+        self._reach: dict[tuple, tuple] = {}         # (run_id, phase, manifest and steps mtime) -> (png, coverage)
         # live sessions are filmed with consent and kept in the public area (data/public/live/)
         self.live = live or LiveManager(cfg, source_root("public", cfg["paths"], repo_root) / "live", port=port)
 
@@ -429,6 +434,45 @@ class GradioApp:
             out.append((f"{s['step']} {s['label']}", [vals.get(f"bend_b{b}_s") for b in range(4)]))
         return out
 
+    def reach_choices(self, run_id: str) -> list[str]:
+        labels = []
+        for s in self.store.get_segments(run_id):
+            if s["label"] != "other" and s["label"] not in labels:
+                labels.append(s["label"])
+        return [ALL_PHASES] + labels
+
+    def reach(self, run_id: str, phase: str | None = ALL_PHASES) -> tuple:
+        """Hand reach heatmap (RGB) and its coverage for one phase or all, computed
+        once from the stored KTS files and kept per run and phase."""
+        from ..analysis.motion import MotionAnalyzer
+        from ..analysis.reach import run_reach
+        from .charts import reach_heatmap
+        p = self.store.paths(run_id)
+        phase = phase or ALL_PHASES
+        stamp = tuple(f.stat().st_mtime if f.is_file() else 0.0 for f in (p.manifest, p.steps_csv))
+        key = (run_id, phase, stamp)
+        if key not in self._reach:
+            m = self.store.get_run(run_id)
+            fps = float(m["ingest"]["cfr"]["fps"])
+            subjects = MotionAnalyzer(self.cfg).load_subjects(m, p.root)
+            r = run_reach(subjects, self.store.get_segments(run_id), fps, None if phase == ALL_PHASES else {phase})
+            self._reach[key] = (reach_heatmap(r, "" if phase == ALL_PHASES else phase), r.coverage)
+        return self._reach[key]
+
+    def reach_html(self, run_id: str | None, phase: str | None = ALL_PHASES) -> str:
+        if not run_id:
+            return ""
+        try:
+            img, cov = self.reach(run_id, phase)
+        except (AvError, OSError, KeyError, ValueError) as e:
+            text = _err_text(e) if isinstance(e, AvError) else "the keypoint series of this run could not be read"
+            return v.note(f"No hand reach heatmap: {text}.")
+        out = f"<p class='av-hint'>Coverage {100 * cov:.0f} % (share of the frames used).</p>"
+        if cov < 0.5:
+            out += v.note(f"Coverage is low ({100 * cov:.0f} %): the wrists, shoulders or hips were often not "
+                          "seen, so the map shows only part of the work.")
+        return out + v.img_html(img, "Hand reach heatmap")
+
     def baseline_table(self, run_id: str) -> list[list]:
         return [[b["label"], b["n"], _fmt(b["median_s"], "s"), _fmt(b["q1_s"], "s"), _fmt(b["q3_s"], "s"),
                  b.get("flags", "")] for b in self.store.get_baseline(run_id)]
@@ -506,7 +550,8 @@ class GradioApp:
         except StopIteration:
             return v.page_header("Results", run_id)
         bits = [self.run_label(r), f"model {r['variant']}" if r.get("variant") else "", v.utc_date(r["created_utc"])]
-        return v.page_header("Results", ", ".join(b for b in bits if b))
+        head = v.page_header("Results", ", ".join(b for b in bits if b))
+        return head + (v.banner(PUBLIC_NOTE) if r["source"] == "public" else "")
 
     def results(self, run_id: str | None) -> dict:
         """Everything of the Results page for one run (TC-APP-10: reads only)."""
@@ -687,6 +732,13 @@ class GradioApp:
                                                           scale=0)
                                 metrics_html = gr.HTML()
                             bend_img = gr.HTML(elem_classes=["av-card"])
+                            with gr.Column(elem_classes=["av-card"]):
+                                gr.HTML(v.section_title("Hand reach heatmap", REACH_CAPTION))
+                                with gr.Row():
+                                    reach_dd = gr.Dropdown(label="Phase", choices=[ALL_PHASES], value=ALL_PHASES,
+                                                           elem_classes=["av-plain", "av-field"], min_width=280,
+                                                           scale=0)
+                                reach_html = gr.HTML()
                             eval_html = gr.HTML(elem_classes=["av-card"])
                             notices_html = gr.HTML(elem_classes=["av-card"])
 
@@ -718,9 +770,11 @@ class GradioApp:
                                         "orange B2, red B3. The angle depends on the camera view.")
                         + (v.img_html(r["bending"], "Back bending per step") if r["bending"] is not None
                            else v.note("No back bending values for this run.")),
+                        gr.update(choices=self.reach_choices(run_id) if run_id else [ALL_PHASES], value=ALL_PHASES),
+                        self.reach_html(run_id),
                         r["eval_html"], r["notices_html"], self.run_id_html(run_id)]
             results_out = [res_head, res_kpis, note, video_card, overlay, timeline_img, steps_html, step_dd,
-                           metrics_html, bend_img, eval_html, notices_html, run_id_box]
+                           metrics_html, bend_img, reach_dd, reach_html, eval_html, notices_html, run_id_box]
 
             def fill_results(run_id):
                 try:
@@ -808,6 +862,7 @@ class GradioApp:
             open_btn.click(on_open, job, [run_dd, *nav_out])
             open_box.input(on_open_box, open_box, [run_dd, *nav_out])
             step_dd.change(self.metrics_html, [run_dd, step_dd], metrics_html, show_progress="hidden")
+            reach_dd.input(self.reach_html, [run_dd, reach_dd], reach_html, show_progress="hidden")
         self.demo = demo
         return demo
 

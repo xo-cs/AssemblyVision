@@ -28,14 +28,15 @@ class RunStoreTest(unittest.TestCase):
         self.assertEqual([r["run_id"] for r in self.store.list_runs()], [RID])
         segs = self.store.get_segments(RID)
         self.assertEqual([(s["seg"], s["step"], s["label"]) for s in segs],
-                         [(1, 0, "other"), (2, 1, "Removal"), (3, 0, "other"), (4, 2, "Cleaning")])
+                         [(1, 0, "other"), (2, 1, "Phase 1"), (3, 0, "other"), (4, 2, "Phase 2")])   # public: display names
         rows = self.store.get_metrics(RID)
         self.assertEqual(len(rows), 12)
         null = [r for r in rows if r["metric"] == "two_hand_simultaneous"][0]
         self.assertIsNone(null["value"])
         self.assertEqual(null["flags"], "low_coverage")
         self.assertEqual(self.store.get_eval(RID)["metrics"]["f1_50"], 50.0)
-        self.assertEqual(self.store.get_baseline(RID)[0]["label"], "Removal")
+        self.assertEqual(self.store.get_baseline(RID)[0]["label"], "Phase 1")
+        self.assertEqual({r["label"] for r in rows}, {"Phase 1", "Phase 2"})
         ref = self.store.reference_items(RID)[0]
         self.assertEqual((ref["subject_box"], ref["box_frame"]), ([10, 20, 60, 110], 5))
 

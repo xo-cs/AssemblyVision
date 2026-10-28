@@ -24,6 +24,7 @@ from pathlib import Path
 import numpy as np
 
 from ..errors import AvError
+from ..phases import public_label_map
 from .files import REPO_ROOT, RUN_ID_RE, SOURCES, RunPaths, source_root, utc_now, write_atomic
 
 VIDEO_DIRS = ("videos", "input")          # data/<source>/videos (stored), data/<source>/input (uploads)
@@ -124,19 +125,32 @@ class RunStore:
     def get_shots(self, run_id: str) -> list[dict]:
         return self.get_run(run_id).get("shots", {}).get("items", [])
 
-    def get_segments(self, run_id: str, engine: str = "A") -> list[dict]:
-        """Steps of steps.csv (engine A), with their duration; [] if not stored."""
+    def _stored_steps(self, run_id: str) -> list:
         p = self.paths(run_id).steps_csv
         if not p.is_file():
             return []
         from ..evaluation.steps_io import read_steps_csv
+        return read_steps_csv(p)
+
+    def label_map(self, run_id: str) -> dict[str, str]:
+        """Display names of the stored step labels: public runs show Phase 1..N
+        whatever their steps.csv says (older public runs carry QiSens names);
+        QiSens runs keep their labels (empty map)."""
+        if self._locate(run_id)[0] != "public":
+            return {}
+        return public_label_map([s.label for s in self._stored_steps(run_id)])
+
+    def get_segments(self, run_id: str, engine: str = "A") -> list[dict]:
+        """Steps of steps.csv (engine A), with their duration; [] if not stored.
+        Labels are display names (label_map)."""
+        names = self.label_map(run_id)
         out, k = [], 0
-        for i, s in enumerate(read_steps_csv(p)):
+        for i, s in enumerate(self._stored_steps(run_id)):
             if s.label != "other":
                 k += 1
             # seg: index of the step in the run counting other too, as segment_id and
             # the step column of metrics.csv; step: number among the real steps (steps.csv)
-            out.append({"seg": i + 1, "step": k if s.label != "other" else 0, "label": s.label,
+            out.append({"seg": i + 1, "step": k if s.label != "other" else 0, "label": names.get(s.label, s.label),
                         "start_s": s.start_s, "end_s": s.end_s, "duration_s": round(s.end_s - s.start_s, 3),
                         "source": s.source, "score": s.score})
         return out
@@ -152,10 +166,15 @@ class RunStore:
             for k in ("value", "coverage", "start_s", "end_s"):
                 r[k] = float(r[k]) if r.get(k) not in (None, "") else None
             r["step"] = int(r["step"])
+        names = self.label_map(run_id)
+        for r in rows:
+            r["label"] = names.get(r.get("label"), r.get("label"))
         return rows
 
     def get_baseline(self, run_id: str) -> list[dict]:
-        return self.get_run(run_id).get("metrics", {}).get("baseline", [])
+        names = self.label_map(run_id)
+        return [{**b, "label": names.get(b["label"], b["label"])}
+                for b in self.get_run(run_id).get("metrics", {}).get("baseline", [])]
 
     def get_eval(self, run_id: str) -> dict | None:
         p = self.paths(run_id).eval_json

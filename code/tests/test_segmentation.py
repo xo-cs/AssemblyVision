@@ -250,7 +250,7 @@ class StoredRunTest(unittest.TestCase):
         from assemblyvision.tools.run_pose import stage_segmentation
         tmp = fake_root()
         try:
-            _, ctx = make_ctx(Path(tmp.name))
+            _, ctx = make_ctx(Path(tmp.name), source="qisens")      # qisens keeps the steps.toml names
             cfg = cfg_with(steps=[{"name": "A"}, {"name": "B"}])
             rid = ctx.run_id
             # shot 1: worker 0 to 60 s; shot 2: 3 s title card (no track); shot 3: worker 63 to 120 s
