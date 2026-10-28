@@ -1,15 +1,19 @@
 """Overlay of a live frame, black, white and greys: skeleton, people boxes,
 workbench zones, a top banner with the station and the current state, a bottom
-strip with the timers and a B0 to B3 bar with the current trunk band."""
+strip with the timers and a B0 to B3 bar with the current trunk band, filled in
+its traffic light colour (motion.BAND_COLORS)."""
 from __future__ import annotations
 
 import cv2
 import numpy as np
 
+from ..analysis.motion import BAND_COLORS
+
 SKELETON = [(5, 7), (7, 9), (6, 8), (8, 10), (5, 6), (5, 11), (6, 12), (11, 12), (11, 13), (13, 15), (12, 14),
             (14, 16), (0, 5), (0, 6)]
 FONT = cv2.FONT_HERSHEY_DUPLEX
 WHITE, BLACK, GREY, LIGHT = (255, 255, 255), (0, 0, 0), (128, 128, 128), (200, 200, 200)
+BAND_RGB = [tuple(int(c[i:i + 2], 16) for i in (1, 3, 5)) for c in BAND_COLORS]   # live frames are RGB
 
 
 def _text(img, txt, org, scale, color=WHITE, thick=2, outline=True):
@@ -58,8 +62,8 @@ def draw_overlay(frame: np.ndarray, boxes: np.ndarray, subject: int | None, kp: 
     for b in range(4):
         x0, y0 = x + b * cw, h - sh + (sh - ch) // 2
         filled = band == b
-        cv2.rectangle(img, (x0, y0), (x0 + cw - 4, y0 + ch), WHITE if filled else BLACK, -1)
-        cv2.rectangle(img, (x0, y0), (x0 + cw - 4, y0 + ch), WHITE, max(1, int(u)))
+        cv2.rectangle(img, (x0, y0), (x0 + cw - 4, y0 + ch), BAND_RGB[b] if filled else BLACK, -1)
+        cv2.rectangle(img, (x0, y0), (x0 + cw - 4, y0 + ch), BAND_RGB[b], max(1, int(u)))
         _text(img, f"B{b}", (x0 + int(8 * u), y0 + ch - int(7 * u)), 0.6 * u, BLACK if filled else WHITE, 1,
               outline=False)
     if notice:

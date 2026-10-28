@@ -1,4 +1,5 @@
-"""Charts and pictures of the interface, black, white and greys only. Each
+"""Charts and pictures of the interface, black, white and greys; the trunk
+bands alone use their traffic light colours (motion.BAND_COLORS). Each
 function returns an RGB array [H, W, 3] (uint8); nothing is written to disk
 here. Matplotlib runs with the Agg backend.
 
@@ -13,7 +14,8 @@ import io
 import cv2
 import numpy as np
 
-BAND_GREYS = ("#e9e9e7", "#bdbdbb", "#76767a", "#111111")     # B0 to B3
+from ..analysis.motion import BAND_COLORS
+
 INK, GREY, GRID = "#111111", "#6b6b6b", "#e5e5e5"
 FONT = 12
 SANS = ["Inter", "Helvetica Neue", "Helvetica", "Arial", "Nimbus Sans", "Liberation Sans", "DejaVu Sans"]
@@ -94,8 +96,8 @@ def bending_bars(rows: list[tuple[str, list[float | None]]], bands: list[float])
     """Stacked horizontal bar per step of the seconds in back bending bands B0
     to B3. rows: [(step name, [b0, b1, b2, b3] seconds or None when not reported)]."""
     plt = _plt()
-    names = [f"B0 < {bands[0]:g}°", f"B1 {bands[0]:g} to {bands[1]:g}°", f"B2 {bands[1]:g} to {bands[2]:g}°",
-             f"B3 ≥ {bands[2]:g}°"]
+    names = [f"B0 under {bands[0]:g}°", f"B1 {bands[0]:g} to {bands[1]:g}°", f"B2 {bands[1]:g} to {bands[2]:g}°",
+             f"B3 {bands[2]:g}° or more"]
     fig, ax = plt.subplots(figsize=(11, 0.5 * max(len(rows), 1) + 1.3))
     for y, (_, vals) in enumerate(rows):
         if any(v is None for v in vals):
@@ -103,7 +105,7 @@ def bending_bars(rows: list[tuple[str, list[float | None]]], bands: list[float])
             continue
         left = 0.0
         for b, v in enumerate(vals):
-            ax.barh(y, v, left=left, height=0.6, color=BAND_GREYS[b], edgecolor="white", linewidth=1.0)
+            ax.barh(y, v, left=left, height=0.6, color=BAND_COLORS[b], edgecolor="white", linewidth=1.0)
             left += v
     ax.set_yticks(range(len(rows)), [r[0] for r in rows])
     ax.set_ylim(len(rows) - 0.5, -0.5)
@@ -111,7 +113,7 @@ def bending_bars(rows: list[tuple[str, list[float | None]]], bands: list[float])
     ax.set_xlim(0, 1.05 * max(longest, 1.0))
     ax.set_xlabel("time in band (s)")
     _style(ax)
-    handles = [plt.Rectangle((0, 0), 1, 1, facecolor=c, edgecolor="none") for c in BAND_GREYS]
+    handles = [plt.Rectangle((0, 0), 1, 1, facecolor=c, edgecolor="none") for c in BAND_COLORS]
     ax.legend(handles, names, loc="lower left", bbox_to_anchor=(0.0, 1.0), ncol=4, handlelength=1.0,
               handleheight=1.0, columnspacing=1.6, labelcolor=GREY)
     return _to_rgb(fig)

@@ -125,6 +125,8 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "live.min_free_mb": (lambda v: v >= 0, ">= 0"),
     "live.warn_fps": (lambda v: v >= 0, ">= 0"),
     "live.model_keep_s": (lambda v: v >= 0, ">= 0"),
+    "live.lift_knee_conf": (lambda v: 0 <= v <= 1, "0 to 1"),
+    "live.lift_knee_seen": (lambda v: 0 <= v <= 1, "0 to 1"),
     "ui.poll_s": (lambda v: 0.5 <= v <= 60, "0.5 to 60"),
     "ui.max_upload_mb": (lambda v: v >= 1, ">= 1"),
 }

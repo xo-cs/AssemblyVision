@@ -45,6 +45,12 @@ def knee_angle(kp: np.ndarray, conf: np.ndarray, ok: np.ndarray) -> float | None
     return val
 
 
+def knee_conf(conf: np.ndarray) -> float:
+    """Confidence of the better seen leg: the lowest of its hip, knee and ankle."""
+    c = np.nan_to_num(conf)
+    return float(max(min(c[L_HIP], c[L_KNEE], c[L_ANK]), min(c[R_HIP], c[R_KNEE], c[R_ANK])))
+
+
 class Hold:
     """A boolean that changes only after the new value held for hold_s (irregular time)."""
 

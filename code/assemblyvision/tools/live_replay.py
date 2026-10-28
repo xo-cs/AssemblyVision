@@ -3,7 +3,7 @@ exactly as the Live tab pushes camera frames (LiveManager.push).
 
     source ~/AssemblyVision/av.sh && cd ~/AssemblyVision/code
     python -m assemblyvision.tools.live_replay --video ../data/public/videos/process_480p30.mp4 \
-        --template workbench [--device gpu|cpu] [--pace realtime|fast] [--fps 10] [--start 0] [--seconds 60]
+        [--template combined] [--cycles] [--device gpu|cpu] [--pace realtime|fast] [--fps 10] [--start 0] [--seconds 60]
 
 --pace realtime sends frames at --fps on the wall clock (frames are dropped if
 processing is slower, as live); fast waits for each frame to be processed
@@ -27,7 +27,8 @@ from pathlib import Path
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="python -m assemblyvision.tools.live_replay")
     p.add_argument("--video", type=Path, required=True)
-    p.add_argument("--template", default="workbench")
+    p.add_argument("--template", default="combined", help="combined (the Live page view) or an old station")
+    p.add_argument("--cycles", action="store_true", help="combined: count cycles with the default zones")
     p.add_argument("--device", choices=("gpu", "cpu"), default="cpu")
     p.add_argument("--pace", choices=("realtime", "fast"), default="realtime")
     p.add_argument("--fps", type=float, default=10.0)
@@ -69,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     n_total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     t_load = time.monotonic()
     try:
-        sid = lm.start(args.template, False)
+        sid = lm.start(args.template, False, None, args.cycles)
     except AvError as e:
         print(f"{e.code}: {e.text}" + (f" ({e.detail})" if e.detail else ""), file=sys.stderr)
         return 1

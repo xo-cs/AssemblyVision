@@ -1,5 +1,6 @@
 /* AssemblyVision interface. One stylesheet for the whole page (GradioApp.build).
-   Black, white and greys only; colour appears only inside video and pictures.
+   Black, white and greys. The only colours: the sidebar status dots (green,
+   amber, red) and the trunk band colours B0 to B3 (green, yellow, orange, red).
    Classes: av-* are ours; Gradio parts are reached through our elem_id and
    elem_classes. Nothing is loaded from the internet. */
 
@@ -18,6 +19,9 @@
   --av-radius-s: 10px;
   --av-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif;
   --av-mono: "SF Mono", ui-monospace, Menlo, "DejaVu Sans Mono", monospace;
+  --av-border: #141414;
+  --av-row: #ececec;
+  --av-side-w: 260px;
 }
 
 /* --- page frame -------------------------------------------------------------------- */
@@ -29,24 +33,28 @@ body, gradio-app, .gradio-container, .main, .wrap.app { background: var(--av-bg)
   -webkit-font-smoothing: antialiased;
 }
 .gradio-container > .main > .wrap, .gradio-container .contain { padding: 0 !important; max-width: none !important; }
-footer, .built-with, .show-api, .settings-button { display: none !important; }
+/* Gradio's own footer stays (Built with Gradio), next to the fixed sidebar */
+.gradio-container footer { margin-left: var(--av-side-w) !important; width: auto !important; }
 
 #av-shell { gap: 0 !important; flex-wrap: nowrap !important; align-items: stretch; min-height: 100vh; }
 
 /* --- sidebar ------------------------------------------------------------------------ */
 
+/* fixed to the window: the nav and the server pill stay visible while the main
+   area scrolls; a sidebar taller than the window scrolls on its own */
 #av-sidebar {
-  flex: 0 0 260px !important; width: 260px !important; max-width: 260px; min-width: 260px !important;
+  position: fixed !important; top: 0; left: 0; bottom: 0; z-index: 30;
+  width: var(--av-side-w) !important; max-width: var(--av-side-w); min-width: var(--av-side-w) !important;
+  height: 100vh; overflow-y: auto; overscroll-behavior: contain;
   background: #fff; border-right: 1px solid var(--av-line);
-  position: sticky; top: 0; height: 100vh; overflow-y: auto;
   padding: 26px 16px 18px 16px !important; gap: 4px !important;
-  display: flex; flex-direction: column;
+  display: flex; flex-direction: column; flex-wrap: nowrap !important;
 }
 .av-brand { padding: 0 10px 22px 10px; }
 .av-brand b { display: block; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: var(--av-ink); }
 .av-brand span {
-  display: block; margin-top: 4px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.12em;
-  text-transform: uppercase; color: var(--av-grey-2);
+  display: block; margin-top: 6px; font-size: 12.5px; font-weight: 400; line-height: 1.4;
+  letter-spacing: 0; text-transform: none; color: #6b6b6b;
 }
 
 #av-sidebar button.av-nav {
@@ -74,12 +82,28 @@ footer, .built-with, .show-api, .settings-button { display: none !important; }
   display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--av-line);
   border-radius: 999px; font-size: 12px; color: var(--av-grey); background: #fff;
 }
-.av-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--av-ink); flex: 0 0 7px; }
-.av-dot.av-dot-busy { background: #fff; border: 1.5px solid var(--av-ink); }
+.av-dot { width: 8px; height: 8px; border-radius: 50%; background: #16a34a; flex: 0 0 8px; }
+.av-dot.av-dot-busy { background: #d97706; }
+
+/* Live nav dot: red and blinking while a live session runs (the flag sits in
+   the server pill, refreshed every 5 s and at Start and Stop), else light grey */
+#nav-live::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #d4d4d2;
+  margin-left: auto; flex: 0 0 7px; }
+#av-shell:has(.av-live-flag.on) #nav-live::after { background: #dc2626; animation: av-live-dot 1s ease-in-out infinite; }
+@keyframes av-live-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+@media (prefers-reduced-motion: reduce) { #av-shell:has(.av-live-flag.on) #nav-live::after { animation: none; } }
 
 /* --- main area ---------------------------------------------------------------------- */
 
-#av-main { padding: 34px 40px 60px 40px !important; min-width: 0 !important; background: var(--av-bg); }
+#av-main { padding: 34px 40px 60px 40px !important; min-width: 0 !important; background: var(--av-bg);
+  margin-left: var(--av-side-w) !important; }
+@media (max-width: 760px) {
+  #av-sidebar { position: static !important; height: auto; width: 100% !important; max-width: none;
+    min-width: 0 !important; border-right: none; border-bottom: 1px solid var(--av-line); }
+  #av-shell { flex-wrap: wrap !important; }
+  #av-main, .gradio-container footer { margin-left: 0 !important; }
+  #av-main { padding: 24px 16px 40px 16px !important; }
+}
 #av-main > * { max-width: 1240px; }
 #av-pages > .tab-wrapper, #av-pages > div > .tab-wrapper, #av-pages .tab-container { display: none !important; }
 #av-pages, #av-pages > .tabitem, #av-pages .tabitem { border: none !important; padding: 0 !important;
@@ -167,21 +191,39 @@ footer, .built-with, .show-api, .settings-button { display: none !important; }
 }
 .gradio-container .av-card input[type="checkbox"] { accent-color: #000; }
 
+/* every dropdown, text and number input: 1 px dark border, radius 10 px, white */
+.gradio-container .wrap:has(> .wrap-inner) {
+  border: 1px solid var(--av-border) !important; border-radius: 10px !important; background: #fff !important;
+  box-shadow: none !important;
+}
+.gradio-container .wrap:has(> .wrap-inner):focus-within { box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08) !important; }
+.gradio-container .wrap-inner { padding-right: 44px !important; min-height: 40px; }   /* room for the arrow */
+.gradio-container .wrap-inner input { text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
+  min-width: 0 !important; }
+.gradio-container .wrap .icon-wrap { right: 14px !important; margin: 0 !important; }
+.gradio-container textarea, .gradio-container input[type="number"],
+.gradio-container input[type="text"]:not(.wrap-inner input), .gradio-container input[type="password"] {
+  border: 1px solid var(--av-border) !important; border-radius: 10px !important; background: #fff !important;
+  box-shadow: none !important;
+}
+.gradio-container .av-field { max-width: 360px; }
+
 /* toggle switch (gr.Checkbox with class av-switch) */
 .av-switch label { display: inline-flex !important; align-items: center; gap: 10px; cursor: pointer;
-  background: transparent !important; border: none !important; padding: 0 !important; }
+  background: #fff !important; border: 1px solid var(--av-border) !important; border-radius: 10px !important;
+  padding: 8px 12px !important; }
 .av-switch input[type="checkbox"] {
   appearance: none; -webkit-appearance: none; width: 38px !important; height: 22px !important;
-  border-radius: 999px !important; background: var(--av-line-strong) !important; position: relative;
-  border: none !important; cursor: pointer; transition: background 0.15s; margin: 0 !important;
+  border-radius: 999px !important; background: #d4d4d2 !important; position: relative;
+  border: 1px solid var(--av-border) !important; cursor: pointer; transition: background 0.15s; margin: 0 !important;
   background-image: none !important;
 }
 .av-switch input[type="checkbox"]::after {
-  content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%;
+  content: ""; position: absolute; top: 1px; left: 1px; width: 18px; height: 18px; border-radius: 50%;
   background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); transition: left 0.15s;
 }
 .av-switch input[type="checkbox"]:checked { background: #000 !important; }
-.av-switch input[type="checkbox"]:checked::after { left: 18px; }
+.av-switch input[type="checkbox"]:checked::after { left: 17px; }
 .av-switch label span { font-size: 14px; color: var(--av-ink); }
 
 /* --- pills, notes, KPI cards ------------------------------------------------------- */
@@ -219,24 +261,36 @@ footer, .built-with, .show-api, .settings-button { display: none !important; }
 .av-kpi-sub { font-size: 12px; color: var(--av-grey-2); margin-top: 2px; }
 
 /* --- tables ------------------------------------------------------------------------- */
+/* gr.HTML puts tables inside .prose, whose own table rules (cell borders, a dark
+   outer frame) are overridden here with a more specific selector */
 
 .av-table-wrap { overflow-x: auto; }
-.av-table { width: 100%; border-collapse: collapse; font-size: 14px; color: var(--av-ink); }
-.av-table th {
-  text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--av-grey-2); padding: 0 12px 10px 0; border-bottom: 1px solid var(--av-line); white-space: nowrap;
-  background: none;
+.av-table-wrap.av-scroll, .av-scroll { max-height: 460px; overflow: auto; }
+.gradio-container .prose table.av-table, .gradio-container table.av-table {
+  width: 100%; border-collapse: separate !important; border-spacing: 0 !important; border: none !important;
+  font-size: 14px; color: var(--av-ink); margin: 0 !important; background: transparent !important;
 }
-.av-table td { padding: 11px 12px 11px 0; border-bottom: 1px solid var(--av-line); vertical-align: top; }
-.av-table tr:last-child td { border-bottom: none; }
-.av-table .av-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gradio-container .prose table.av-table th, .gradio-container .prose table.av-table td,
+.gradio-container table.av-table th, .gradio-container table.av-table td {
+  border: none !important; border-bottom: 1px solid var(--av-row) !important; border-radius: 0 !important;
+  padding: 10px 12px !important; background: #fff; vertical-align: top; text-align: left;
+}
+.gradio-container .prose table.av-table th, .gradio-container table.av-table th {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--av-grey-2);
+  border-bottom: 1px solid var(--av-line) !important; white-space: nowrap; position: sticky; top: 0; z-index: 1;
+}
+.gradio-container table.av-table tr:last-child td { border-bottom: none !important; }
+.gradio-container table.av-table .av-num { text-align: right; font-variant-numeric: tabular-nums;
+  white-space: nowrap; }
 .av-table td .av-pill { margin: 0 4px 2px 0; }
 .av-table button.av-open {
   background: #fff; border: 1px solid var(--av-line-strong); border-radius: 8px; padding: 4px 12px;
   font-size: 13px; font-weight: 500; color: var(--av-ink); cursor: pointer; font-family: var(--av-sans);
 }
 .av-table button.av-open:hover { background: var(--av-fill); }
-.av-table tr.av-current td { background: #fbfbfa; }
+.gradio-container table.av-table tr.av-current td { background: #fbfbfa; }
+.av-band-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px;
+  vertical-align: 1px; }
 
 /* --- progress and stages ------------------------------------------------------------- */
 
@@ -290,12 +344,16 @@ img.av-chart { width: 100%; height: auto; display: block; }
 .av-count { font-variant-numeric: tabular-nums; color: var(--av-grey); font-size: 13px; }
 .av-notice ul { margin: 0 0 12px 0; padding: 0 0 0 18px; color: var(--av-grey); font-size: 13px; line-height: 1.6; }
 
-/* Results header: run picker */
-.av-head-row { align-items: flex-end !important; gap: 12px !important; justify-content: space-between; }
-.av-picker { max-width: 520px; }
-.av-picker .wrap-inner, .av-picker .secondary-wrap { background: #fff !important; }
-.av-picker .block, .av-picker { background: transparent !important; border: none !important; box-shadow: none !important; }
-.av-picker input { font-family: var(--av-mono) !important; font-size: 13px !important; }
+/* Results header: run picker (at least 420 px) with Refresh inline, the run ID under it */
+.av-head-row { align-items: flex-end !important; gap: 16px !important; justify-content: space-between;
+  flex-wrap: wrap !important; }
+.av-picker-col { flex: 0 1 560px !important; min-width: min(100%, 520px) !important; gap: 4px !important; }
+.av-picker-row { flex-wrap: nowrap !important; gap: 8px !important; align-items: stretch !important; }
+.av-picker { min-width: 420px !important; flex: 1 1 auto !important; background: transparent !important;
+  border: none !important; box-shadow: none !important; }
+.av-picker input { font-size: 14px !important; }
+.av-picker-btn { min-height: 42px !important; align-self: stretch !important; }
+.av-run-id { font-size: 11.5px; color: var(--av-grey-2); padding-left: 2px; min-height: 16px; }
 
 /* --- Live ------------------------------------------------------------------------------ */
 
@@ -306,8 +364,10 @@ img.av-chart { width: 100%; height: auto; display: block; }
 .lv-big small { font-size: 26px; font-weight: 500; color: var(--av-grey); margin-left: 10px; }
 .lv-sub { font-size: 13px; color: var(--av-grey); margin: 10px 0 0 0; }
 .lv-bands { margin-top: 12px; }
-.lv-bands .av-kpi.on { background: var(--av-ink); border-color: var(--av-ink); }
-.lv-bands .av-kpi.on .av-kpi-label, .lv-bands .av-kpi.on .av-kpi-value { color: #fff; }
+.lv-bands .lv-band { position: relative; overflow: hidden; padding-top: 19px; }
+.lv-bands .lv-band::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  background: var(--band); }
+.lv-bands .lv-band.on { border-color: var(--av-ink); box-shadow: inset 0 0 0 1px var(--av-ink); }
 .lv-card { display: grid; grid-template-columns: 1.2fr 1fr 1fr; border: 1px solid var(--av-line);
   border-radius: var(--av-radius); overflow: hidden; margin: 16px 0 0 0; background: #fff; }
 .lv-card div { padding: 12px 18px; border-bottom: 1px solid var(--av-line); }
@@ -318,7 +378,20 @@ img.av-chart { width: 100%; height: auto; display: block; }
   letter-spacing: -0.02em; }
 .lv-card .lbl { font-size: 15px; color: var(--av-grey); display: flex; align-items: center; }
 .lv-notes { margin-top: 14px; }
-.lv-media { gap: 18px !important; }
-.lv-media > .av-card { flex: 1 1 0 !important; min-width: 0 !important; }
-.lv-media img, .lv-media video { border-radius: 10px; }
-.lv-media .image-container, .lv-media .image-frame { background: var(--av-fill) !important; border-radius: 10px; }
+.lv-top { gap: 18px !important; align-items: stretch !important; }
+.lv-actions { flex-wrap: wrap !important; row-gap: 10px !important; }
+.lv-inline-label { margin: 0 0 0 8px !important; white-space: nowrap; }
+.lv-cam { flex: 0 0 240px !important; width: 240px !important; max-width: 240px; padding: 16px !important; }
+.lv-cam img, .lv-cam video { border-radius: 8px; max-height: 180px; object-fit: contain; }
+.lv-cam .image-container, .lv-cam .image-frame { background: var(--av-fill) !important; border-radius: 8px;
+  min-height: 0 !important; }
+.lv-overlay img { width: 100% !important; height: auto !important; max-height: 78vh; object-fit: contain;
+  border-radius: 10px; }
+.lv-overlay .image-container, .lv-overlay .image-frame { background: var(--av-fill) !important;
+  border-radius: 10px; min-height: 360px; }
+.lv-extra { gap: 18px !important; }
+.lv-tips { display: flex; flex-direction: column; }
+.lv-tip { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--av-row); font-size: 14px; }
+.lv-tip:last-child { border-bottom: none; }
+.lv-tip b { flex: 0 0 92px; font-weight: 600; color: var(--av-ink); }
+.lv-tip span { color: var(--av-grey); }

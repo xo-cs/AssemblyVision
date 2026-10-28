@@ -63,6 +63,11 @@ def trunk_angle(sho, hip) -> np.ndarray:
     return np.degrees(np.arctan2(np.abs(v[..., 0]), -v[..., 1]))
 
 
+# traffic light colours of the trunk bands B0 to B3, the same on every chart,
+# table and live tile: green, yellow, orange, red
+BAND_COLORS = ("#22C55E", "#EAB308", "#F97316", "#DC2626")
+
+
 def band_of(angle, edges) -> np.ndarray:
     """0 for B0 (< edges[0]), 1 for B1, 2 for B2, 3 for B3 (>= edges[2])."""
     return np.searchsorted(np.asarray(edges, np.float64), angle, side="right")

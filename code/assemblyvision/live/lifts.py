@@ -9,8 +9,12 @@ angle alone. Dips shorter than lift.min_lift_s are not lifts.
 
 At the lowest point of the lift (the frame with the mid hip lowest in the
 image) the knee angle decides the type: below lift.squat_knee_max_deg it is a
-squat, otherwise a stoop. Per lift: peak trunk angle, knee angle at the lowest
-point, seconds in bands B2 and B3 (motion.angle_bands) and duration.
+squat, otherwise a stoop. With lift.knee_seen_min set (the combined live
+view), a lift only counts when the knee was seen, its leg at lift.knee_conf_min
+or better, in that share of the lift frames; otherwise it is dropped and
+counted in rejected (a bent back in a front view is not a lift). Per lift:
+peak trunk angle, knee angle at the lowest point, seconds in bands B2 and B3
+(motion.angle_bands) and duration.
 """
 from __future__ import annotations
 
@@ -20,7 +24,7 @@ from dataclasses import asdict, dataclass
 import numpy as np
 
 from ..analysis.motion import band_of
-from .body import Hold, knee_angle, mid_hip, trunk
+from .body import Hold, knee_angle, knee_conf, mid_hip, trunk
 
 
 @dataclass
@@ -48,6 +52,7 @@ class LiftDetector:
         self.knee_hold = Hold(params["hold_s"])
         self.end_hold = Hold(params["hold_s"])
         self.lifts: list[Lift] = []
+        self.rejected = 0
         self.cur: dict | None = None
         self.last_t: float | None = None
         self.now = {"trunk_deg": None, "knee_deg": None, "in_lift": False}
@@ -60,6 +65,7 @@ class LiftDetector:
         self.last_t = t
         a, k = trunk(kp, ok), knee_angle(kp, conf, ok)
         hip = mid_hip(kp, ok)
+        seen = k is not None and knee_conf(conf) >= self.p.get("knee_conf_min", 0.0)
         self.now = {"trunk_deg": a, "knee_deg": k, "in_lift": self.cur is not None}
         p = self.p
         if self.cur is None:
@@ -69,7 +75,8 @@ class LiftDetector:
             if down_t or down_k:
                 hs = [h.changed_at for h in (self.trunk_hold, self.knee_hold) if h.value and h.changed_at is not None]
                 start = min(hs) if hs else t - p["hold_s"]
-                self.cur = {"start": start, "peak": a or 0.0, "low_y": -np.inf, "knee": k, "b2": 0.0, "b3": 0.0}
+                self.cur = {"start": start, "peak": a or 0.0, "low_y": -np.inf, "knee": k, "b2": 0.0, "b3": 0.0,
+                            "n": 1, "n_knee": int(seen)}
                 for tt, aa, dd in self._hist:          # the frames of the hold belong to the lift
                     if tt > start and aa is not None:
                         b = int(band_of(aa, self.bands))
@@ -81,6 +88,8 @@ class LiftDetector:
                 self.now["in_lift"] = True
             return None
         c = self.cur
+        c["n"] += 1
+        c["n_knee"] += int(seen)
         if a is not None:
             c["peak"] = max(c["peak"], a)
             b = int(band_of(a, self.bands))
@@ -105,6 +114,9 @@ class LiftDetector:
         self.trunk_hold, self.knee_hold = Hold(self.p["hold_s"]), Hold(self.p["hold_s"])
         self.now["in_lift"] = False
         if end - c["start"] < self.p["min_lift_s"]:
+            return None
+        if c["n_knee"] < self.p.get("knee_seen_min", 0.0) * c["n"]:
+            self.rejected += 1
             return None
         kind = "squat" if c["knee"] is not None and c["knee"] < self.p["squat_knee_max_deg"] else "stoop"
         lift = Lift(len(self.lifts) + 1, kind, round(c["start"], 3), round(end, 3), round(c["peak"], 1),

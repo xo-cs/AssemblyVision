@@ -45,7 +45,7 @@ from .draw import draw_overlay
 from .filters import OneEuro
 from .perception import Detections, LiveTracker
 from .recorder import Recorder
-from .stations import Station
+from .stations import COMBINED, CombinedStation, Station
 from .templates import load_template
 
 NO_FRAME_S = 5.0          # AV-LIV-001 when no frame arrived this long after Start
@@ -95,7 +95,8 @@ class Slot:
 
 
 class LiveSession:
-    def __init__(self, sid: str, cfg, backend, template_name: str, borders, folder: Path, save_recording: bool):
+    def __init__(self, sid: str, cfg, backend, template_name: str, borders, folder: Path, save_recording: bool,
+                 cycles: bool = False):
         self.id = sid
         self.cfg = cfg
         self.live = cfg["live"]
@@ -126,6 +127,7 @@ class LiveSession:
         self.filter = None
         self.stations: list[Station] = []
         self.borders = borders
+        self.cycles = cycles
         self.lock = threading.Lock()
         self.latest_overlay: np.ndarray | None = None
         self.latest_boxes = np.zeros((0, 4))
@@ -148,7 +150,15 @@ class LiveSession:
         self.notices.append((round(self.now_s(), 1), text))
 
     def switch_station(self, name: str | None, borders=None, t: float | None = None) -> None:
+        """Start a new station block; name 'combined' is the one view of the Live page."""
         t = self.now_s() if t is None else t
+        if name == COMBINED:
+            with self.lock:
+                if self.stations:
+                    self.stations[-1].close(t, "switch")
+                self.stations.append(CombinedStation(self.cfg, len(self.stations) + 1, t, self.cycles, borders))
+                self.filter = None
+            return
         template = None
         if name:
             try:
@@ -166,9 +176,23 @@ class LiveSession:
     def set_borders(self, b1: float, b2: float) -> None:
         with self.lock:
             st = self.stations[-1]
-            if st.t is not None and st.kind == "workbench":
+            if isinstance(st, CombinedStation):
+                if st.cycles_on:
+                    st.set_cycles(True, (b1, b2))
+                self.borders = (b1, b2)
+            elif st.t is not None and st.kind == "workbench":
                 st.set_template(st.t.with_borders(b1, b2))
                 self.borders = (b1, b2)
+
+    def set_cycles(self, on: bool, borders=None) -> None:
+        """Cycle counting of the combined view on or off (zone borders as image x fractions)."""
+        with self.lock:
+            st = self.stations[-1]
+            if isinstance(st, CombinedStation):
+                st.set_cycles(on, borders or self.borders)
+            self.cycles = on
+            if borders:
+                self.borders = borders
 
     def lock_subject(self, x: float, y: float) -> bool:
         """Lock the person whose box contains (x, y) in frame pixels (AV-LIV-009 if none)."""
@@ -297,7 +321,7 @@ class LiveSession:
         panel = station.panel(ts)
         c4 = time.monotonic()
         banner, sub, strip = overlay_texts(panel)
-        zones = station.t.zones if station.t is not None and station.kind == "workbench" else None
+        zones = station.draw_zones()
         notice = ""
         if subj is None:
             notice = "No person visible" if not len(det.conf) else "Waiting for the selected person"
@@ -367,9 +391,11 @@ class LiveSession:
             st = self.stations[-1]
             p = st.panel(t)
             log = st.log_rows()
+            steps = st.step_rows() if isinstance(st, CombinedStation) else []
         p50, p95 = self.delay_ms()
         fps = self.fps()
         return {"session_id": self.id, "status": self.status, "elapsed_s": round(t), "station": p, "log": log,
+                "steps": steps,
                 "fps": None if fps is None else round(fps, 1), "delay_p50_ms": p50, "delay_p95_ms": p95,
                 "frames_in": self.frames_in, "processed": self.processed, "dropped": self.dropped,
                 "paused": self.paused, "recording": self.recorder is not None,
@@ -393,6 +419,22 @@ class LiveSession:
 def overlay_texts(p: dict) -> tuple[str, str, str]:
     """Banner, sub line and bottom strip of the overlay for a station panel."""
     trunk = "trunk n/a" if p["trunk_deg"] is None else f"trunk {p['trunk_deg']} deg"
+    if p["kind"] == COMBINED:
+        ps = p["posture"]
+        state = "LIFTING" if p.get("in_lift") else f"BENT {ps['current_s']:.1f} s" if ps["current_s"] > 0 \
+            else "UPRIGHT"
+        lifts = p.get("lifts", [])
+        n_st = sum(1 for x in lifts if x["kind"] == "stoop")
+        lift_txt = f"lifts {len(lifts)} (stoop {n_st}, squat {len(lifts) - n_st})" if p.get("lifts_ready") or lifts \
+            else "lifts need a side view"
+        idle = p.get("idle_time_s")
+        sub = f"{lift_txt} | longest bent {ps['longest_s']:.1f} s | idle {'n/a' if idle is None else f'{idle:.0f} s'}"
+        if p.get("cycles_on"):
+            last = "n/a" if p.get("last_cycle_s") is None else f"{p['last_cycle_s']:.1f} s"
+            sub = f"cycles {p.get('cycles', 0)} | last {last} | " + sub
+        both = p.get("two_hand_simultaneous")
+        knee = "" if p.get("knee_deg") is None else f"  knee {p['knee_deg']} deg"
+        return (f"LIVE | {state}", sub, f"{trunk}{knee}  both hands {'n/a' if both is None else f'{100 * both:.0f} %'}")
     if p["kind"] == "workbench":
         step = (p.get("step") or "waiting").upper()
         step_s = f" {p['step_s']:.1f} s" if p.get("step_s") is not None else ""
@@ -460,7 +502,8 @@ class LiveManager:
             self._gpu_lock.close()
             self._gpu_lock = None
 
-    def start(self, template: str, save_recording: bool = False, borders=None) -> str:
+    def start(self, template: str = COMBINED, save_recording: bool = False, borders=None,
+              cycles: bool = False) -> str:
         with self._mutex:
             if self.session is not None and self.session.status == "running":
                 raise AvError("AV-LIV-002")
@@ -474,7 +517,8 @@ class LiveManager:
                         raise AvError("AV-LIV-005", free=free, need=self.live["min_free_mb"])
                     self._backend = self.backend_factory()
                 sid = new_session_id()
-                s = LiveSession(sid, self.cfg, self._backend, template, borders, self.root / sid, save_recording)
+                s = LiveSession(sid, self.cfg, self._backend, template, borders, self.root / sid, save_recording,
+                                cycles)
             except BaseException:
                 self._release_lock()
                 raise

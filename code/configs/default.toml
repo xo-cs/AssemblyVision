@@ -152,3 +152,5 @@ min_free_mb = 1500           # free GPU memory needed to start (MB)
 warn_fps = 5.0               # panel warning below this processed frame rate
 default_template = "workbench"
 model_keep_s = 600.0         # the model is released after this long without a session (s)
+lift_knee_conf = 0.5         # combined live view: a leg (hip, knee, ankle) counts as seen at this confidence
+lift_knee_seen = 0.6         # ... and a lift counts only when the knee was seen in this share of its frames

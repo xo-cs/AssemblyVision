@@ -1,6 +1,7 @@
 """HTML building blocks of the interface (page headers, cards, KPI cards,
 tables, pills, notes) and the pure helpers behind them: notice grouping,
-readable metric names, the neutral QiSens video name and the GPU state.
+readable metric names, the neutral QiSens video name, the trunk band colours,
+which runs the page lists and the GPU and live state of the sidebar.
 
 Everything returns HTML strings for gr.HTML; the look lives in style.css
 (classes av-*). Text from runs is always escaped here.
@@ -15,6 +16,8 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
+
+from ..analysis.motion import BAND_COLORS
 
 # readable names of metrics.csv keys (motion.MotionAnalyzer); the key itself is
 # shown beside the name in small mono text
@@ -150,6 +153,30 @@ def utc_date(text: str | None) -> str:
     return t.strftime("%d %b %Y, %H:%M")
 
 
+def utc_short(text: str | None) -> str:
+    """'2026-10-26T12:38:31Z' -> '26 Oct, 12:38'."""
+    try:
+        t = datetime.strptime(text or "", "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return ""
+    return f"{t.day} {t:%b}, {t:%H:%M}"
+
+
+def run_option(label: str, created_utc: str | None, variant: str | None, status: str = "done") -> str:
+    """Text of one run in the Results picker: 'process_480p30.mp4 · 26 Oct, 12:38 · m'."""
+    bits = [label, utc_short(created_utc), variant or ""]
+    if status in ("queued", "running"):
+        bits.append(STATUS_WORDS[status].lower())
+    return " · ".join(b for b in bits if b)
+
+
+def listed_runs(runs: list[dict]) -> list[dict]:
+    """Runs the page lists: those with steps (steps.csv), and those still queued
+    or running. Early runs from before Engine A have no steps and are left out
+    of the list only; their folders stay as they are."""
+    return [r for r in runs if r.get("has_steps") or r.get("status") in ("queued", "running")]
+
+
 def utc_seconds(a: str | None, b: str | None) -> float | None:
     try:
         ta = datetime.strptime(a or "", "%Y-%m-%dT%H:%M:%SZ")
@@ -258,9 +285,10 @@ def kpi_cards(items: list[tuple[str, str] | tuple[str, str, str]]) -> str:
 
 
 def table(head: list[str], rows: list[list], num: set[int] | None = None, raw: set[int] | None = None,
-          empty: str = "Nothing to show.") -> str:
+          empty: str = "Nothing to show.", scroll: bool = False) -> str:
     """Table with thin row dividers. Columns in num are right aligned with
-    tabular figures; cells of columns in raw are HTML already."""
+    tabular figures; cells of columns in raw are HTML already. A scroll table
+    keeps its height (about 460 px) and scrolls under a sticky header row."""
     if not rows:
         return note(empty)
     num, raw = num or set(), raw or set()
@@ -270,7 +298,8 @@ def table(head: list[str], rows: list[list], num: set[int] | None = None, raw: s
         tds = "".join(f"<td class='{'av-num' if i in num else ''}'>{c if i in raw else esc(c)}</td>"
                       for i, c in enumerate(r))
         body.append(f"<tr>{tds}</tr>")
-    return f"<div class='av-table-wrap'><table class='av-table'><thead><tr>{th}</tr></thead>" \
+    wrap = "av-table-wrap av-scroll" if scroll else "av-table-wrap"
+    return f"<div class='{wrap}'><table class='av-table'><thead><tr>{th}</tr></thead>" \
            f"<tbody>{''.join(body)}</tbody></table></div>"
 
 
@@ -289,6 +318,24 @@ def img_html(rgb: np.ndarray | None, alt: str) -> str:
         return ""
     return (f"<img class='av-chart' alt='{esc(alt)}' "
             f"src='data:image/png;base64,{base64.b64encode(buf.tobytes()).decode()}'>")
+
+
+# --- trunk band colours ------------------------------------------------------------------
+
+
+def band_color(band: int) -> str:
+    """Traffic light colour of trunk band B0 to B3 (green, yellow, orange, red)."""
+    return BAND_COLORS[int(band)]
+
+
+def band_dot(band: int) -> str:
+    return f"<span class='av-band-dot' style='background:{band_color(band)}'></span>"
+
+
+def metric_band(key: str) -> int | None:
+    """Band of a bend_bN_s metric key, else None."""
+    m = re.fullmatch(r"bend_b([0-3])_s", key)
+    return int(m.group(1)) if m else None
 
 
 # --- GPU state for the sidebar ------------------------------------------------------------
@@ -324,8 +371,15 @@ def gpu_busy(lock_dir: Path, gpus=(0, 1), proc_locks: str | None = None) -> dict
     return out
 
 
-def server_pill(busy: dict[int, bool]) -> str:
+def server_dot(busy: dict[int, bool]) -> str:
+    """'free' (green dot) when no GPU lock is held, else 'busy' (amber)."""
+    return "busy" if any(busy.values()) else "free"
+
+
+def server_pill(busy: dict[int, bool], live_on: bool = False) -> str:
+    """Sidebar server pill; it also carries the live flag that the Live nav dot
+    reads through CSS (#av-shell:has(.av-live-flag.on))."""
     parts = ", ".join(f"GPU{g} {'busy' if b else 'free'}" for g, b in sorted(busy.items()))
-    any_busy = any(busy.values())
-    return (f"<div class='av-server'><span class='av-dot{' av-dot-busy' if any_busy else ''}'></span>"
-            f"<span>QiSens server, {esc(parts)}</span></div>")
+    return (f"<div class='av-server'><span class='av-dot av-dot-{server_dot(busy)}'></span>"
+            f"<span>QiSens server, {esc(parts)}</span>"
+            f"<span class='av-live-flag{' on' if live_on else ''}' hidden></span></div>")

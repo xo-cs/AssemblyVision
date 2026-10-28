@@ -195,5 +195,98 @@ class LiveElapsedTest(unittest.TestCase):
         self.assertNotIn("live", h.split("elapsed")[1].split("delay")[0].replace("live_", ""))
 
 
+class DotStateTest(unittest.TestCase):
+    def test_dot_from_lock_files(self):
+        import fcntl
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "gpu1.lock").touch()
+            busy = v.gpu_busy(Path(d))
+            self.assertEqual(v.server_dot(busy), "free")
+            self.assertIn("av-dot-free", v.server_pill(busy))
+            with open(Path(d) / "gpu1.lock", "a+") as f:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                busy = v.gpu_busy(Path(d))
+                self.assertEqual(v.server_dot(busy), "busy")
+                h = v.server_pill(busy)
+                self.assertIn("av-dot-busy", h)
+                self.assertIn("GPU1 busy", h)
+            self.assertEqual(v.server_dot(v.gpu_busy(Path(d))), "free")
+
+    def test_live_flag(self):
+        self.assertIn("av-live-flag on", v.server_pill({0: False, 1: True}, live_on=True))
+        self.assertNotIn("av-live-flag on", v.server_pill({0: False, 1: False}))
+
+
+class BandColorTest(unittest.TestCase):
+    def test_traffic_light_mapping(self):
+        from assemblyvision.analysis.motion import band_of
+        from assemblyvision.live.draw import BAND_RGB
+        expect = {5: "#22C55E", 30: "#EAB308", 50: "#F97316", 75: "#DC2626", 20: "#EAB308", 60: "#DC2626"}
+        for deg, color in expect.items():
+            self.assertEqual(v.band_color(int(band_of(deg, [20, 45, 60]))), color)
+        self.assertEqual(BAND_RGB[0], (0x22, 0xC5, 0x5E))           # the overlay uses the same colours (RGB)
+        self.assertEqual([v.metric_band(f"bend_b{i}_s") for i in range(4)], [0, 1, 2, 3])
+        self.assertIsNone(v.metric_band("bend_mean_deg"))
+        self.assertIn("#DC2626", v.band_dot(3))
+
+
+class RunListTest(unittest.TestCase):
+    def setUp(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent))
+        from ui_helpers import make_root, make_run
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        cfg = make_root(self.root)
+        make_run(self.root, cfg, "run_20261026_010203_aa01")                                 # with steps
+        old = make_run(self.root, cfg, "run_20261020_010203_aa02", with_results=False)       # before Engine A
+        make_run(self.root, cfg, "run_20261027_010203_aa03", status="running", with_results=False)
+        self.old = old
+        from assemblyvision.ui.app import GradioApp
+        self.app = GradioApp(cfg, ["public"], self.root, worker_cmd=["true"])
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_runs_without_steps_are_hidden_not_removed(self):
+        ids = [r["run_id"] for r in self.app.listed_runs()]
+        self.assertEqual(ids, ["run_20261027_010203_aa03", "run_20261026_010203_aa01"])
+        self.assertEqual([c[1] for c in self.app.run_choices()], ids)
+        h = self.app.runs_html()
+        self.assertNotIn("aa02", h)
+        self.assertIn("aa03", h)
+        self.assertIn("av-scroll", h)
+        self.assertTrue(self.old.manifest.is_file())                 # the folder is left as it is
+        self.assertEqual(len(self.app.store.list_runs()), 3)
+
+    def test_picker_label(self):
+        self.assertEqual(v.run_option("process_480p30.mp4", "2026-10-26T12:38:31Z", "m"),
+                         "process_480p30.mp4 · 26 Oct, 12:38 · m")
+        self.assertEqual(v.run_option("a.mp4", "2026-10-27T01:02:03Z", "s", "running"),
+                         "a.mp4 · 27 Oct, 01:02 · s · running")
+        self.assertEqual(dict((b, a) for a, b in self.app.run_choices())["run_20261026_010203_aa01"],
+                         "clip.mp4 · 26 Oct, 00:00 · m")
+
+    def test_steps_carry_the_cycles(self):
+        h = self.app.steps_html("run_20261026_010203_aa01")
+        self.assertIn("CYCLES".lower(), h.lower())
+        self.assertNotIn("Median", h)
+        self.assertIn("Each phase occurs once in this video", h)
+        import json
+        m = json.loads((self.app.store.paths("run_20261026_010203_aa01").manifest).read_text())
+        m["metrics"]["baseline"] = [{"label": "Removal", "n": 3, "median_s": 8.0, "q1_s": 7.5, "q3_s": 9.0}]
+        self.app.store.paths("run_20261026_010203_aa01").manifest.write_text(json.dumps(m))
+        h = self.app.steps_html("run_20261026_010203_aa01")
+        self.assertIn("Median", h)
+        self.assertIn("Range (Q1 to Q3)", h)
+        self.assertIn("7.5 s to 9 s", h)
+        self.assertNotIn("Each phase occurs once", h)
+
+    def test_metric_rows_get_band_dots(self):
+        h = self.app.metrics_html("run_20261026_010203_aa01", None)
+        self.assertEqual(h.count("av-band-dot"), 8)                  # four bands, two steps
+        self.assertIn("av-scroll", h)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -120,7 +120,7 @@ def _theme(gr):
         block_shadow="none", block_label_background_fill="transparent", block_label_border_width="0px",
         block_label_text_color="#6b6b6b", block_title_text_color="#6b6b6b", block_title_text_weight="600",
         block_padding="0px", layout_gap="14px", panel_background_fill="transparent", panel_border_width="0px",
-        input_background_fill="#ffffff", input_border_color="#e0e0de", input_border_color_focus="#111111",
+        input_background_fill="#ffffff", input_border_color="#141414", input_border_width="1px", input_border_color_focus="#111111",
         input_shadow="none", input_shadow_focus="0 0 0 3px rgba(0,0,0,0.08)", input_radius="10px",
         checkbox_background_color_selected="#111111", checkbox_border_color_selected="#111111",
         checkbox_label_background_fill="transparent", checkbox_label_background_fill_selected="transparent",
@@ -180,9 +180,14 @@ class GradioApp:
 
     # data for the page (plain functions, tested without a browser) -----------------
 
+    def listed_runs(self) -> list[dict]:
+        """Runs shown on the page: with steps, or still queued or running (views.listed_runs)."""
+        return v.listed_runs(self.store.list_runs())
+
     def run_choices(self) -> list[tuple[str, str]]:
-        return [(f"{r['run_id']}, {self.run_label(r)}, {v.STATUS_WORDS.get(r['status'], r['status']).lower()}",
-                 r["run_id"]) for r in self.store.list_runs()]
+        """Results picker: 'process_480p30.mp4 · 26 Oct, 12:38 · m', the run ID as value."""
+        return [(v.run_option(self.run_label(r), r["created_utc"], r.get("variant"), r["status"]), r["run_id"])
+                for r in self.listed_runs()]
 
     def video_choices(self) -> list[tuple[str, str]]:
         runs = None
@@ -205,7 +210,7 @@ class GradioApp:
         active = self.store.active_run()
         if active:
             return active
-        runs = self.store.list_runs()
+        runs = self.listed_runs()
         return runs[0]["run_id"] if runs else None
 
     def status_html(self, run_id: str | None) -> tuple[str, bool]:
@@ -341,13 +346,32 @@ class GradioApp:
                 for s in self.store.get_segments(run_id) if s["label"] != "other"]
 
     def steps_html(self, run_id: str) -> str:
-        rows = [[s["step"], v.esc(s["label"]), v.clock(s["start_s"]), v.clock(s["end_s"]),
-                 f"{s['duration_s']:.1f} s", v.pill(s["source"].replace("engine_", "Engine ").replace("_", " "),
-                                                    "muted")]
-                for s in self.store.get_segments(run_id) if s["label"] != "other"]
-        return v.section_title("Steps", "Phases found by Engine A, in video time (min:s).") + \
-            v.table(["Step", "Phase", "Start", "End", "Duration", "Source"], rows, num={0, 2, 3, 4}, raw={1, 5},
-                    empty="No steps were stored for this run.")
+        """Steps with the cycle count of their phase; median and range (the cycle
+        baseline, FR-SEG-03) once some phase repeats."""
+        base = {b["label"]: b for b in self.store.get_baseline(run_id)}
+        spread = any((b.get("n") or 0) >= 2 for b in base.values())
+        rows = []
+        for s in self.store.get_segments(run_id):
+            if s["label"] == "other":
+                continue
+            b = base.get(s["label"], {})
+            row = [s["step"], v.esc(s["label"]), v.clock(s["start_s"]), v.clock(s["end_s"]),
+                   f"{s['duration_s']:.1f} s", b.get("n", ""),
+                   v.pill(s["source"].replace("engine_", "Engine ").replace("_", " "), "muted")]
+            if spread:
+                rng = f"{_fmt(b['q1_s'], 's')} to {_fmt(b['q3_s'], 's')}" \
+                    if (b.get("n") or 0) >= 2 and b.get("q1_s") is not None else ""
+                row[6:6] = [_fmt(b.get("median_s"), "s") if (b.get("n") or 0) >= 2 else "", rng]
+            rows.append(row)
+        head = ["Step", "Phase", "Start", "End", "Duration", "Cycles"] + \
+            (["Median", "Range (Q1 to Q3)"] if spread else []) + ["Source"]
+        out = v.section_title("Steps", "Phases found by Engine A, in video time (min:s).") + \
+            v.table(head, rows, num={0, 2, 3, 4, 5, 6, 7} if spread else {0, 2, 3, 4, 5},
+                    raw={1, len(head) - 1}, empty="No steps were stored for this run.")
+        if rows and not spread:
+            out += ("<p class='av-hint'>Each phase occurs once in this video, so there is no spread to show yet. "
+                    "The median and range appear when a phase repeats.</p>")
+        return out
 
     def _step_names(self, run_id: str) -> dict[int, str]:
         """segment index (metrics.csv step column) -> 'N label' as in steps.csv."""
@@ -385,12 +409,13 @@ class GradioApp:
             rows = [r for r in rows if r["step"] == int(step)]
         names, bands = self._step_names(run_id), self._bands(run_id)
         out = [[v.esc(names.get(r["step"], r["label"])),
-                f"{v.esc(v.metric_label(r['metric'], bands))}<code class='av-key av-mono'>{v.esc(r['metric'])}</code>",
+                ("" if v.metric_band(r["metric"]) is None else v.band_dot(v.metric_band(r["metric"])))
+                + f"{v.esc(v.metric_label(r['metric'], bands))}<code class='av-key av-mono'>{v.esc(r['metric'])}</code>",
                 v.metric_value(r["value"], r["unit"]),
                 "" if r["coverage"] is None else f"{100 * r['coverage']:.0f} %", v.flag_pills(r["flags"])]
                for r in rows]
         return v.table(["Step", "Metric", "Value", "Coverage", "Flags"], out, num={2, 3}, raw={0, 1, 4},
-                       empty="No motion metrics for this run.")
+                       empty="No motion metrics for this run.", scroll=True)
 
     def bending_rows(self, run_id: str) -> list[tuple[str, list]]:
         rows = self.store.get_metrics(run_id)
@@ -452,7 +477,7 @@ class GradioApp:
         notes = self.store.get_run(run_id).get("notices", [])
         sub = f"{len(notes)} notices in {len(v.group_notices(notes))} groups. Open a group for the full list." \
             if notes else ""
-        return v.section_title("Notices", sub) + v.notices_html(notes)
+        return v.section_title("Notices", sub) + "<div class='av-scroll'>" + v.notices_html(notes) + "</div>"
 
     def results_kpis(self, run_id: str) -> str:
         m = self.store.get_run(run_id)
@@ -510,17 +535,25 @@ class GradioApp:
     def runs_html(self, current: str | None = None) -> str:
         """The Runs page table, newest first, with an Open button per run."""
         rows = []
-        for r in self.store.list_runs():
+        for r in self.listed_runs():
             took = v.utc_seconds(r["created_utc"], r.get("finished_utc"))
             btn = f"<button class='av-open' data-open-run='{v.esc(r['run_id'])}'>Open</button>"
             rows.append([f"<span class='av-mono'>{v.esc(r['run_id'])}</span>", v.pill(r["source"]),
-                         v.esc(self.run_label(r)), v.esc(r.get("variant") or ""), v.esc(v.utc_date(r["created_utc"])),
+                         v.esc(self.run_label(r)), v.pill(r["variant"], "outline", mono=True) if r.get("variant") else "",
+                         v.esc(v.utc_date(r["created_utc"])),
                          v.span(took) if took is not None else "", v.status_pill(r["status"]), btn])
         return v.table(["Run ID", "Data", "Video", "Model", "Date (UTC)", "Duration", "Status", ""], rows,
-                       num={5}, raw={0, 1, 2, 6, 7}, empty="No runs yet. Start one on New analysis.")
+                       num={5}, raw={0, 1, 2, 3, 6, 7}, empty="No runs yet. Start one on New analysis.", scroll=True)
+
+    def live_running(self) -> bool:
+        s = self.live.session
+        return s is not None and s.status == "running"
 
     def server_html(self) -> str:
-        return v.server_pill(v.gpu_busy(self.repo_root / ".locks"))
+        return v.server_pill(v.gpu_busy(self.repo_root / ".locks"), self.live_running())
+
+    def run_id_html(self, run_id: str | None) -> str:
+        return f"<div class='av-run-id av-mono'>{v.esc(run_id or '')}</div>"
 
     # actions --------------------------------------------------------------------
 
@@ -572,7 +605,8 @@ class GradioApp:
             job_timer = gr.Timer(poll_s, active=False)
             with gr.Row(elem_id="av-shell", equal_height=False):
                 with gr.Column(elem_id="av-sidebar", scale=0, min_width=260):
-                    gr.HTML("<div class='av-brand'><b>AssemblyVision</b><span>Motion analysis, Team 4</span></div>")
+                    gr.HTML("<div class='av-brand'><b>AssemblyVision</b><span>AI Based Motion Analysis and Process "
+                            "Improvements in Train Assembly</span></div>")
                     navs = [gr.Button(title, elem_id=f"nav-{key}", size="md",
                                       elem_classes=["av-nav"] + (["av-active"] if key == "new" else []))
                             for key, title in PAGES]
@@ -627,11 +661,14 @@ class GradioApp:
                         with gr.Tab("Results", id="results"), gr.Column(elem_classes=["av-page"]):
                             with gr.Row(elem_classes=["av-head-row"], equal_height=False):
                                 res_head = gr.HTML(self.results_head(None))
-                                with gr.Row(elem_classes=["av-actions", "av-fit"]):
-                                    run_dd = gr.Dropdown(label="Run", show_label=False, choices=[], value=None,
-                                                         allow_custom_value=False, container=False, min_width=380,
-                                                         elem_classes=["av-picker"])
-                                    refresh = gr.Button("Refresh", variant="secondary", elem_classes=["av-fit"])
+                                with gr.Column(elem_classes=["av-picker-col"], scale=0, min_width=520):
+                                    with gr.Row(elem_classes=["av-picker-row"], equal_height=True):
+                                        run_dd = gr.Dropdown(label="Run", show_label=False, choices=[], value=None,
+                                                             allow_custom_value=False, container=False,
+                                                             min_width=420, elem_classes=["av-picker"])
+                                        refresh = gr.Button("Refresh", variant="secondary",
+                                                            elem_classes=["av-fit", "av-picker-btn"])
+                                    run_id_box = gr.HTML(self.run_id_html(None))
                             res_kpis = gr.HTML()
                             note = gr.HTML()
                             with gr.Column(elem_classes=["av-card"]) as video_card:
@@ -644,11 +681,12 @@ class GradioApp:
                             with gr.Column(elem_classes=["av-card"]):
                                 gr.HTML(v.section_title("Motion metrics per step", "Every value with its coverage, "
                                                         "the share of frames that had the keypoints it needs."))
-                                step_dd = gr.Dropdown(label="Step", choices=[ALL_STEPS], value=ALL_STEPS,
-                                                      elem_classes=["av-plain"], min_width=240)
+                                with gr.Row():
+                                    step_dd = gr.Dropdown(label="Step", choices=[ALL_STEPS], value=ALL_STEPS,
+                                                          elem_classes=["av-plain", "av-field"], min_width=280,
+                                                          scale=0)
                                 metrics_html = gr.HTML()
                             bend_img = gr.HTML(elem_classes=["av-card"])
-                            base_html = gr.HTML(elem_classes=["av-card"])
                             eval_html = gr.HTML(elem_classes=["av-card"])
                             notices_html = gr.HTML(elem_classes=["av-card"])
 
@@ -661,7 +699,7 @@ class GradioApp:
 
                         # --- Live ---------------------------------------------------------
                         with gr.Tab("Live", id="live"), gr.Column(elem_classes=["av-page"]):
-                            live_load, live_out = build_live_tab(self, gr, job, job_timer)
+                            live_load, live_out = build_live_tab(self, gr, job, job_timer, server)
             server_timer = gr.Timer(5.0)
 
             def goto(key: str) -> list:
@@ -676,13 +714,13 @@ class GradioApp:
                         + (v.img_html(r["timeline"], "Process timeline") if r["timeline"] is not None
                            else v.note("No steps were stored for this run.")),
                         r["steps_html"], gr.update(choices=r["steps_choices"], value=ALL_STEPS), r["metrics_html"],
-                        v.section_title("Back bending", "Seconds per trunk angle band and step. The angle depends "
-                                        "on the camera view.")
+                        v.section_title("Back bending", "Seconds per trunk angle band and step: green B0, yellow B1, "
+                                        "orange B2, red B3. The angle depends on the camera view.")
                         + (v.img_html(r["bending"], "Back bending per step") if r["bending"] is not None
                            else v.note("No back bending values for this run.")),
-                        r["baseline_html"], r["eval_html"], r["notices_html"]]
+                        r["eval_html"], r["notices_html"], self.run_id_html(run_id)]
             results_out = [res_head, res_kpis, note, video_card, overlay, timeline_img, steps_html, step_dd,
-                           metrics_html, bend_img, base_html, eval_html, notices_html]
+                           metrics_html, bend_img, eval_html, notices_html, run_id_box]
 
             def fill_results(run_id):
                 try:

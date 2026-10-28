@@ -109,7 +109,8 @@ class RunStore:
                             "status": m.get("status", "?"), "created_utc": m.get("created_utc", ""),
                             "finished_utc": m.get("finished_utc"), "variant": m.get("variant"),
                             "video_s": (ing.get("cfr") or {}).get("duration_s")
-                            or (ing.get("input") or {}).get("duration_s"), "video_path": m.get("video", "")})
+                            or (ing.get("input") or {}).get("duration_s"), "video_path": m.get("video", ""),
+                            "has_steps": (d / "steps.csv").is_file()})
         return sorted(out, key=lambda r: r["run_id"], reverse=True)
 
     def get_run(self, run_id: str) -> dict:
