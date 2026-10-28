@@ -39,6 +39,7 @@ import os
 import statistics
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 from ..config import DEFAULT_LAYERS, VARIANTS, Config
 from ..errors import AvError
@@ -434,6 +435,30 @@ class GradioApp:
             out.append((f"{s['step']} {s['label']}", [vals.get(f"bend_b{b}_s") for b in range(4)]))
         return out
 
+    def compare_source(self, run_id: str) -> tuple[str, float] | None:
+        """URL of the run's constant frame rate video, served like the overlay
+        (Gradio file route, data area in allowed_paths), and the time in it of
+        the overlay's first frame. The file is never opened here."""
+        p = self.store.paths(run_id)
+        if not p.cfr.is_file() or self.store.overlay_path(run_id) is None:
+            return None
+        m = self.store.get_run(run_id)
+        fps = float(m.get("ingest", {}).get("cfr", {}).get("fps") or 0)
+        first = min((i["start_frame"] for i in m.get("shots", {}).get("items", [])), default=0)
+        return "gradio_api/file=" + quote(str(p.cfr)), (first / fps if fps else 0.0)
+
+    def video_head_html(self, run_id: str | None) -> str:
+        """Overlay video card header; with a raw video, the Comparison mode button on the right."""
+        title = v.section_title("Overlay video", "Tracks and skeletons drawn on the video; "
+                                "S is the worker the analysis follows.")
+        try:
+            src = self.compare_source(run_id) if run_id else None
+        except AvError:
+            src = None
+        if src is None:
+            return title
+        return v.head_with_action(title, v.compare_button(*src))
+
     def reach_choices(self, run_id: str) -> list[str]:
         labels = []
         for s in self.store.get_segments(run_id):
@@ -636,7 +661,7 @@ class GradioApp:
         poll_s = self.cfg["ui"]["poll_s"]
         variant0 = self.cfg["pose"]["variant"]
         css = (UI_DIR / "style.css").read_text()
-        js = (UI_DIR / "app.js").read_text()
+        js = (UI_DIR / "app.js").read_text().replace("/*COMPARE_SYNC*/", (UI_DIR / "compare_sync.js").read_text())
         keys = [k for k, _ in PAGES]
 
         # matplotlib and its font list load once here, not on the first Results view
@@ -717,10 +742,10 @@ class GradioApp:
                             res_kpis = gr.HTML()
                             note = gr.HTML()
                             with gr.Column(elem_classes=["av-card"]) as video_card:
-                                gr.HTML(v.section_title("Overlay video", "Tracks and skeletons drawn on the video; "
-                                                        "S is the worker the analysis follows."))
+                                video_head = gr.HTML(self.video_head_html(None))
                                 overlay = gr.Video(label="Overlay video", show_label=False, interactive=False,
-                                                   elem_classes=["av-video"], show_download_button=True)
+                                                   elem_id="av-overlay", elem_classes=["av-video"],
+                                                   show_download_button=True)
                             timeline_img = gr.HTML(label="Process timeline (Engine A)", elem_classes=["av-card"])
                             steps_html = gr.HTML(elem_classes=["av-card"])
                             with gr.Column(elem_classes=["av-card"]):
@@ -761,7 +786,8 @@ class GradioApp:
 
             def results_out_values(run_id):
                 r = self.results(run_id)
-                return [r["head"], r["kpis"], r["note_html"], gr.Column(visible=bool(r["overlay"])), r["overlay"],
+                return [r["head"], r["kpis"], r["note_html"], gr.Column(visible=bool(r["overlay"])),
+                        self.video_head_html(run_id if r["overlay"] else None), r["overlay"],
                         v.section_title("Process timeline", "When each phase happens in the video (Engine A).")
                         + (v.img_html(r["timeline"], "Process timeline") if r["timeline"] is not None
                            else v.note("No steps were stored for this run.")),
@@ -773,7 +799,7 @@ class GradioApp:
                         gr.update(choices=self.reach_choices(run_id) if run_id else [ALL_PHASES], value=ALL_PHASES),
                         self.reach_html(run_id),
                         r["eval_html"], r["notices_html"], self.run_id_html(run_id)]
-            results_out = [res_head, res_kpis, note, video_card, overlay, timeline_img, steps_html, step_dd,
+            results_out = [res_head, res_kpis, note, video_card, video_head, overlay, timeline_img, steps_html, step_dd,
                            metrics_html, bend_img, reach_dd, reach_html, eval_html, notices_html, run_id_box]
 
             def fill_results(run_id):

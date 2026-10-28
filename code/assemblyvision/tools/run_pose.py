@@ -235,21 +235,11 @@ def stage_overlay(ctx: RunContext, cfg: Config, steps: list | None) -> Path:
     shots = _shots_from_manifest(ctx.manifest)
     from ..phases import display_steps
     steps = display_steps(steps, ctx.source)      # older public runs: burn in Phase 1..N, not QiSens names
-    return render_track_overlay(paths.cfr, shots, items, paths.tracks_overlay, fps, cfg, ctx, steps=steps,
-                                trunk=run_trunk(ctx, cfg, max(s.end_frame for s in shots) + 1))
-
-
-def run_trunk(ctx: RunContext, cfg: Config, n_frames: int):
-    """Subject trunk angle per run frame (NaN where not valid), from the stored
-    KTS files with the rule of the bending metrics (motion.subject_trunk)."""
-    import numpy as np
-    from ..analysis.motion import MotionAnalyzer, subject_trunk
-    out = np.full(n_frames, np.nan)
-    for sub in MotionAnalyzer(cfg).load_subjects(ctx.manifest, ctx.paths.root):
-        f, ang = subject_trunk(sub.cs)
-        keep = (f >= 0) & (f < n_frames)
-        out[f[keep]] = ang[keep]
-    return out
+    from ..analysis.motion import MotionAnalyzer
+    from ..output.overlay import overlay_series
+    subjects = MotionAnalyzer(cfg).load_subjects(ctx.manifest, ctx.paths.root)
+    hud = overlay_series(subjects, max(s.end_frame for s in shots) + 1, fps, cfg)
+    return render_track_overlay(paths.cfr, shots, items, paths.tracks_overlay, fps, cfg, ctx, steps=steps, hud=hud)
 
 
 def _stored_steps(ctx: RunContext) -> list | None:

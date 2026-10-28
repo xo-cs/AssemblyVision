@@ -276,6 +276,22 @@ def section_title(title: str, sub: str = "") -> str:
             + (f"<p>{esc(sub)}</p>" if sub else "") + "</div>")
 
 
+def head_with_action(head_html: str, action_html: str) -> str:
+    """A card header with a control on the right."""
+    return f"<div class='av-head-action'>{head_html}{action_html}</div>"
+
+
+_COMPARE_ICON = ("<svg width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='currentColor' "
+                 "stroke-width='1.5' aria-hidden='true'><rect x='1' y='3' width='6' height='10' rx='1.2'/>"
+                 "<rect x='9' y='3' width='6' height='10' rx='1.2'/></svg>")
+
+
+def compare_button(raw_url: str, offset_s: float) -> str:
+    """Secondary button that opens the fullscreen comparison (app.js, data-compare-raw)."""
+    return (f"<button type='button' class='av-compare-btn' data-compare-raw='{esc(raw_url)}' "
+            f"data-compare-offset='{offset_s:.3f}'>{_COMPARE_ICON}<span>Comparison mode</span></button>")
+
+
 def kpi_cards(items: list[tuple[str, str] | tuple[str, str, str]]) -> str:
     """Row of KPI cards: (label, value) or (label, value, small note under the value)."""
     out = ["<div class='av-kpis'>"]

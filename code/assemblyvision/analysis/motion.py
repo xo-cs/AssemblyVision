@@ -165,6 +165,36 @@ def speed(p: np.ndarray, ok: np.ndarray, fps: float) -> np.ndarray:
     return s
 
 
+def wrist_speeds(xy: np.ndarray, valid: np.ndarray, torso: float, fps: float) -> tuple[np.ndarray, np.ndarray]:
+    """Left and right wrist speed relative to the mid hip (torso lengths/s) per row
+    of cleaned keypoints [T,17,2]; NaN where the wrist or a hip is not valid in
+    this or the previous row. The input of two_hand (FR-MOTION-07)."""
+    xy = np.asarray(xy, np.float64)
+    hip = (xy[:, L_HIP] + xy[:, R_HIP]) / 2
+    a = speed((xy[:, L_WRI] - hip) / torso, valid[:, [L_WRI, L_HIP, R_HIP]].all(1), fps)
+    b = speed((xy[:, R_WRI] - hip) / torso, valid[:, [R_WRI, L_HIP, R_HIP]].all(1), fps)
+    return a, b
+
+
+def rolling_both_share(al: np.ndarray, ar: np.ndarray, ok: np.ndarray, window: int,
+                       min_valid: float = 0.5) -> np.ndarray:
+    """two_hand_simultaneous over the last `window` frames, for every frame:
+    frames with both hands active / frames with at least one active, counted on
+    frames where both wrist speeds are known (ok). NaN when fewer than min_valid
+    of the window (of the frames so far, at the start) is ok or no hand was active."""
+    def last(x):
+        c = np.concatenate([[0], np.cumsum(x, dtype=np.int64)])
+        i = np.arange(1, len(x) + 1)
+        return c[i] - c[np.maximum(i - window, 0)]
+    al, ar, ok = (np.asarray(v, bool) for v in (al, ar, ok))
+    both, either, n_ok = last(al & ar & ok), last((al | ar) & ok), last(ok)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        out = both / either
+    span = np.minimum(np.arange(1, len(ok) + 1), window)
+    out[(either == 0) | (n_ok < min_valid * span)] = np.nan
+    return out
+
+
 # pieces of a step --------------------------------------------------------------------
 
 @dataclass
@@ -466,9 +496,8 @@ class MotionAnalyzer:
             meas += int(p.meas(L_WRI, R_WRI, L_HIP, R_HIP).sum())
             if p.torso is None:
                 continue
-            hip = p.hip()
-            a = speed((p.xy(L_WRI) - hip) / p.torso, p.val(L_WRI, L_HIP, R_HIP), sv.fps)
-            b = speed((p.xy(R_WRI) - hip) / p.torso, p.val(R_WRI, L_HIP, R_HIP), sv.fps)
+            cs = p.sub.cs
+            a, b = wrist_speeds(cs.xy[p.lo:p.hi], cs.valid[p.lo:p.hi], p.torso, sv.fps)
             both = np.isfinite(a) & np.isfinite(b)
             sl.append(a[both])
             sr.append(b[both])

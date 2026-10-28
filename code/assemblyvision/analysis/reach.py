@@ -60,21 +60,38 @@ class Reach:
         return self.used / self.frames if self.frames else 0.0
 
 
+def _torso_ok(xy: np.ndarray, measured: np.ndarray) -> np.ndarray:
+    L = body_axes(xy)[3]
+    return measured[:, list(TORSO)].all(1) & np.isfinite(L) & (L > 0)
+
+
+def frame_points(xy: np.ndarray, measured: np.ndarray) -> np.ndarray:
+    """[T,2,2] left and right wrist of every row in the body frame (torso lengths),
+    NaN where the torso or that wrist is not measured (the reach rule)."""
+    xy = np.asarray(xy, np.float64)
+    measured = np.asarray(measured, bool)
+    out = np.full((len(xy), 2, 2), np.nan)
+    torso = _torso_ok(xy, measured)
+    hip, ex, ey, L = body_axes(xy)
+    for k, j in enumerate((L_WRI, R_WRI)):
+        ok = torso & measured[:, j]
+        if ok.any():
+            out[ok, k] = to_body(xy[ok, j], hip[ok], ex[ok], ey[ok], L[ok])
+    return out
+
+
 def reach_samples(xy: np.ndarray, measured: np.ndarray, rows: np.ndarray | None = None) -> tuple[np.ndarray, int, dict]:
     """Wrist points, the number of frames used and the body reference sums of one
     track. xy [T,17,2], measured bool [T,17]; rows (bool [T]) limits the frames."""
     xy = np.asarray(xy, np.float64)
     measured = np.asarray(measured, bool)
     sel = np.ones(len(xy), bool) if rows is None else np.asarray(rows, bool)
-    torso = measured[:, list(TORSO)].all(1) & sel
+    fp = frame_points(xy, measured)
+    torso = _torso_ok(xy, measured) & sel
     hip, ex, ey, L = body_axes(xy)
-    torso &= np.isfinite(L) & (L > 0)
-    pts, used = [], np.zeros(len(xy), bool)
-    for j in (L_WRI, R_WRI):
-        ok = torso & measured[:, j]
-        if ok.any():
-            pts.append(to_body(xy[ok, j], hip[ok], ex[ok], ey[ok], L[ok]))
-            used |= ok
+    ok_lr = np.isfinite(fp).all(-1) & sel[:, None]
+    pts = [fp[ok_lr[:, k], k] for k in (0, 1) if ok_lr[:, k].any()]
+    used = ok_lr.any(1)
     ref = {}
     if torso.any():
         t = torso

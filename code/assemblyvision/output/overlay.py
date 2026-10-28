@@ -154,12 +154,24 @@ def trunk_readout(angle: float | None, edges) -> tuple[str, int | None]:
     return f"Trunk {int(round(float(angle)))}", int(band_of(float(angle), edges))
 
 
+def trunk_size(scale: float = 0.55, margin: int = 8) -> tuple[int, int]:
+    """Fixed width and height of the trunk readout (widest text 'Trunk 188°'), so
+    the box does not change size from frame to frame."""
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    (tw, tht), base = cv2.getTextSize("Trunk 188", font, scale, 1)
+    deg_r = max(2, round(2.5 * scale / 0.55))
+    seg_h = max(4, round(6 * scale / 0.55))
+    return tw + 2 * deg_r + 4 + 2 * margin, tht + base + seg_h + 3 * margin
+
+
 def draw_trunk(img: np.ndarray, angle: float | None, edges, scale: float = 0.55, alpha: float = 0.7,
-               margin: int = 8, avoid: tuple[int, int, int, int] | None = None) -> tuple[int, int, int, int]:
-    """Small dark box bottom right: 'Trunk 34°' with a border in the band colour
-    and a 4 segment B0 to B3 indicator, the current band filled; grey 'Trunk n/a'
-    without a valid angle. avoid (a box, the header) is never covered: the
-    readout moves up above it when both would meet. Returns the box."""
+               margin: int = 8, avoid: tuple[int, int, int, int] | None = None,
+               box: tuple[int, int, int, int] | None = None) -> tuple[int, int, int, int]:
+    """Small dark box: 'Trunk 34°' with a border in the band colour and a 4
+    segment B0 to B3 indicator, the current band filled; grey 'Trunk n/a'
+    without a valid angle. box gives the place (hud.hud_layout); without it the
+    readout goes bottom right, moved up above `avoid` (the header) when both
+    would meet. Returns the box."""
     text, band = trunk_readout(angle, edges)
     color = band_bgr(band) if band is not None else _NA_GREY
     font, th = cv2.FONT_HERSHEY_SIMPLEX, 1
@@ -167,14 +179,17 @@ def draw_trunk(img: np.ndarray, angle: float | None, edges, scale: float = 0.55,
     deg_r = max(2, round(2.5 * scale / 0.55))
     seg_h = max(4, round(6 * scale / 0.55))
     seg_gap = max(2, round(2 * scale / 0.55))
-    bw = tw + (2 * deg_r + 4 if band is not None else 0) + 2 * margin
-    bh = tht + base + seg_h + 3 * margin
     h, w = img.shape[:2]
-    x1, y1 = w - margin, h - margin
-    x0, y0 = max(0, x1 - bw), max(0, y1 - bh)
-    if avoid is not None and x0 < avoid[2] + margin and y1 > avoid[1] - margin:
-        y1 = max(bh, avoid[1] - margin)
-        y0 = max(0, y1 - bh)
+    if box is None:
+        bw, bh = trunk_size(scale, margin)
+        x1, y1 = w - margin, h - margin
+        x0, y0 = max(0, x1 - bw), max(0, y1 - bh)
+        if avoid is not None and x0 < avoid[2] + margin and y1 > avoid[1] - margin:
+            y1 = max(bh, avoid[1] - margin)
+            y0 = max(0, y1 - bh)
+    else:
+        x0, y0, x1, y1 = (int(v) for v in box)
+        x0, y0, x1, y1 = max(0, x0), max(0, y0), min(w, x1), min(h, y1)
     roi = img[y0:y1, x0:x1]
     roi[:] = (roi.astype(np.float32) * (1 - alpha)).astype(np.uint8)
     lw = max(1, round(2 * scale / 0.55))
@@ -197,6 +212,36 @@ def draw_trunk(img: np.ndarray, angle: float | None, edges, scale: float = 0.55,
     return x0, y0, x1, y1
 
 
+def overlay_series(subjects: list, n_frames: int, fps: float, cfg: Config, window_s: float = 10.0) -> dict:
+    """Per run frame inputs of the readouts, from the cleaned subject tracks
+    (motion.Subject): trunk angle (NaN = not valid, the bending rule), both
+    wrists in the body frame [N,2,2] (the reach rule), the both hands share of
+    the last window_s (two_hand_simultaneous), and the reference figure."""
+    from ..analysis.motion import rolling_both_share, subject_trunk, wrist_speeds
+    from ..analysis.reach import combine, frame_points, reach_samples
+    trunk = np.full(n_frames, np.nan)
+    wrists = np.full((n_frames, 2, 2), np.nan)
+    al, ar, ok = (np.zeros(n_frames, bool) for _ in range(3))
+    thr = cfg["motion"]["hand_active"]
+    parts = []
+    for sub in subjects:
+        cs = sub.cs
+        f, ang = subject_trunk(cs)
+        keep = (f >= 0) & (f < n_frames)
+        trunk[f[keep]] = ang[keep]
+        wrists[f[keep]] = frame_points(cs.xy, cs.measured)[keep]
+        if cs.torso:
+            a, b = wrist_speeds(cs.xy, cs.valid, cs.torso, fps)
+            k = np.isfinite(a) & np.isfinite(b) & keep
+            ok[f[k]] = True
+            al[f[k]] = a[k] >= thr
+            ar[f[k]] = b[k] >= thr
+        parts.append(reach_samples(cs.xy, cs.measured))
+    return {"trunk": trunk, "wrists": wrists, "fps": fps, "window_s": window_s,
+            "both": rolling_both_share(al, ar, ok, max(1, round(window_s * fps))),
+            "skeleton": combine(parts, n_frames).skeleton}
+
+
 def step_at(steps: list | None, t: float) -> str | None:
     """Label of the step covering time t (steps sorted, end exclusive)."""
     for s in steps or ():
@@ -207,13 +252,14 @@ def step_at(steps: list | None, t: float) -> str | None:
 
 def render_track_overlay(video: Path, shots: list, items: dict, out_path: Path, fps: float,
                          cfg: Config, ctx: RunContext, steps: list | None = None,
-                         trunk: np.ndarray | None = None) -> Path:
+                         hud: dict | None = None) -> Path:
     """Overlay of all shots: stored tracks in their own colour with label tNN
     (subject marked S), short tracks orange, untracked rows grey, suppressed
     duplicates red. items[shot_id] = {"det": path, "assign": path, "subject": n or None}.
     steps (optional, Step objects) adds the current step label to the header.
-    trunk (optional, subject trunk angle per run frame, NaN = not valid) adds
-    the trunk readout bottom right."""
+    hud (optional, overlay_series) adds the readouts: the mini hand reach map
+    above the header, the both hands chip right of it, the trunk bottom right."""
+    from .hud import MiniReach, both_text, chip_size, draw_chip, hud_layout, mini_size
     from ..perception.tracker import SHORT, SUPPRESSED, UNTRACKED, load_assign
     t0 = time.monotonic()
     ocfg = cfg["overlay"]
@@ -235,6 +281,11 @@ def render_track_overlay(video: Path, shots: list, items: dict, out_path: Path, 
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     shots = sorted(shots, key=lambda s: s.start_frame)
     n_out, k, cur = 0, -1, None
+    hs = 0.55 * max(1.0, oh / 480)
+    mini = MiniReach(hud["fps"], hud["skeleton"], hud["window_s"]) if hud is not None else None
+    if hud is not None:
+        twh, mwh = trunk_size(hs), mini_size(oh)[:2]
+        n_hud = len(hud["trunk"])
     total = max(1, shots[-1].end_frame - shots[0].start_frame)
     try:
         for idx, frame in iter_frames(video, shots[0].start_frame, shots[-1].end_frame):
@@ -273,10 +324,16 @@ def render_track_overlay(video: Path, shots: list, items: dict, out_path: Path, 
             label = step_at(steps, idx / fps)
             if label is not None:
                 header += f"  step: {label}"
-            box = draw_header(img, header, scale=0.55 * max(1.0, oh / 480))
-            if trunk is not None:
-                draw_trunk(img, trunk[idx] if 0 <= idx < len(trunk) else None, cfg["motion"]["angle_bands"],
-                           scale=0.55 * max(1.0, oh / 480), avoid=box)
+            box = draw_header(img, header, scale=hs)
+            if hud is not None:
+                inside = 0 <= idx < n_hud
+                mini.push(hud["wrists"][idx] if inside else np.full((2, 2), np.nan))
+                text, ok = both_text(hud["both"][idx] if inside else None)
+                lay = hud_layout(ow, oh, box, (chip_size(text, hs)[0], box[3] - box[1]), twh, mwh)
+                mini.draw(img, lay["map"])
+                draw_chip(img, text, lay["chip"], hs, ok)
+                draw_trunk(img, hud["trunk"][idx] if inside else None, cfg["motion"]["angle_bands"], scale=hs,
+                           box=lay["trunk"])
             proc.stdin.write(np.ascontiguousarray(img).tobytes())
             n_out += 1
             if n_out % 30 == 0:
@@ -298,8 +355,8 @@ def render_track_overlay(video: Path, shots: list, items: dict, out_path: Path, 
     ctx.manifest["overlay"] = {"path": ctx.rel(out_path), "frames": n_out, "width": ow, "height": oh,
                                "legend": "tNN colour = stored track (S = subject), orange = short track, "
                                          "grey = untracked, red crossed = suppressed duplicate"
-                                         + (", bottom right = subject trunk angle and band" if trunk is not None
-                                            else ""),
+                                         + (", bottom: hand reach of the last 10 s, both hands share, "
+                                            "trunk angle and band" if hud is not None else ""),
                                "seconds": round(time.monotonic() - t0, 2)}
     ctx.log.info("overlay written: %s (%d frames, %dx%d)", ctx.rel(out_path), n_out, ow, oh)
     return out_path

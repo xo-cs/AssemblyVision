@@ -50,6 +50,76 @@
     },
   };
 
+  // --- comparison mode (Results, Overlay video card) ------------------------------------
+  // Raw footage (the run's constant frame rate video) left and the overlay right,
+  // fullscreen, one control bar; the overlay follows the raw video within 0.1 s.
+  // The normal player and its own fullscreen button are not touched.
+  /*COMPARE_SYNC*/
+  const openCompare = (rawSrc, offset) => {
+    const normal = document.querySelector("#av-overlay video");
+    if (!normal || document.getElementById("av-compare")) return;
+    const t0 = normal.currentTime || 0;
+    normal.pause();
+    const box = document.createElement("div");
+    box.id = "av-compare";
+    box.innerHTML =
+      '<button class="av-cmp-close" type="button" title="Close (Esc)" aria-label="Close comparison">&#x2715;</button>' +
+      '<div class="av-cmp-panes">' +
+      '<figure><figcaption>Raw footage</figcaption><video class="av-cmp-lead" preload="auto" playsinline muted></video></figure>' +
+      '<figure><figcaption>AssemblyVision analysis</figcaption><video class="av-cmp-follow" preload="auto" playsinline muted></video></figure>' +
+      "</div>" +
+      '<div class="av-cmp-bar"><button class="av-cmp-play" type="button">Play</button>' +
+      '<input class="av-cmp-seek" type="range" min="0" max="0" step="0.01" value="0" aria-label="Seek">' +
+      '<span class="av-cmp-time">0:00 / 0:00</span></div>';
+    document.body.appendChild(box);
+    const lead = box.querySelector(".av-cmp-lead"), follow = box.querySelector(".av-cmp-follow");
+    const play = box.querySelector(".av-cmp-play"), seek = box.querySelector(".av-cmp-seek");
+    const clock = box.querySelector(".av-cmp-time");
+    let raf = 0, dragging = false;
+    const sync = () => {
+      const t = avSyncTime(lead.currentTime, follow.currentTime, offset, 0.1);
+      if (t !== null && !follow.seeking) follow.currentTime = t;
+    };
+    const show = () => {
+      const t = Math.max(0, lead.currentTime - offset), d = follow.duration || 0;
+      if (!dragging) seek.value = t;
+      clock.textContent = avClock(t) + " / " + avClock(d);
+      play.textContent = lead.paused ? "Play" : "Pause";
+    };
+    const loop = () => { sync(); show(); raf = lead.paused ? 0 : requestAnimationFrame(loop); };
+    lead.addEventListener("play", () => { sync(); follow.play().catch(() => {}); if (!raf) raf = requestAnimationFrame(loop); show(); });
+    lead.addEventListener("pause", () => { follow.pause(); sync(); show(); });
+    lead.addEventListener("seeked", () => { sync(); show(); });
+    lead.addEventListener("timeupdate", () => { sync(); show(); });
+    follow.addEventListener("loadedmetadata", () => { seek.max = follow.duration || 0; show(); });
+    play.addEventListener("click", () => { if (lead.paused) lead.play().catch(() => {}); else lead.pause(); });
+    seek.addEventListener("input", () => { dragging = true; lead.currentTime = parseFloat(seek.value) + offset; });
+    seek.addEventListener("change", () => { dragging = false; sync(); });
+    const close = () => {
+      document.removeEventListener("fullscreenchange", onFs);
+      document.removeEventListener("keydown", onKey, true);
+      if (raf) cancelAnimationFrame(raf);
+      for (const v of [lead, follow]) { v.pause(); v.removeAttribute("src"); v.load(); }
+      if (document.fullscreenElement === box) document.exitFullscreen().catch(() => {});
+      box.remove();
+    };
+    const onFs = () => { if (document.fullscreenElement !== box) close(); };
+    const onKey = (e) => { if (e.key === "Escape") close(); };
+    box.querySelector(".av-cmp-close").addEventListener("click", close);
+    document.addEventListener("keydown", onKey, true);
+    lead.src = rawSrc;
+    follow.src = normal.currentSrc || normal.src;
+    lead.currentTime = t0 + offset;
+    follow.currentTime = t0;
+    if (box.requestFullscreen) {
+      box.requestFullscreen().then(() => document.addEventListener("fullscreenchange", onFs)).catch(() => {});
+    }
+  };
+  document.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-compare-raw]");
+    if (btn) openCompare(btn.dataset.compareRaw, parseFloat(btn.dataset.compareOffset || "0") || 0);
+  });
+
   // --- frame rate -----------------------------------------------------------------------
   // The webcam offers a frame every stream_every (0.04 s); only as many as the
   // session accepts (data-live-rate in the live panel, stepped down by the server)
