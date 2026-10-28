@@ -794,7 +794,13 @@ class GradioApp:
                     btn.click(lambda k=key: goto(k), None, nav_out, show_progress="hidden")
             run_dd.change(fill_results, run_dd, results_out)
             job_timer.tick(on_poll, [job, run_dd], [*job_out, run_dd, *results_out], show_progress="hidden")
-            server_timer.tick(self.server_html, None, server, show_progress="hidden")
+            server_shown = gr.State(self.server_html())
+
+            def on_server(last):
+                """The sidebar pill only when it changed, so it never redraws for nothing."""
+                h = self.server_html()
+                return (gr.skip(), last) if h == last else (h, h)
+            server_timer.tick(on_server, server_shown, [server, server_shown], show_progress="hidden")
             refresh.click(on_refresh, run_dd, [run_dd, video_dd, runs_html])
             start_btn.click(on_start, [video_dd, variant], [job, msg, *job_out])
             mode.change(on_mode, mode, [video_dd, up_col])

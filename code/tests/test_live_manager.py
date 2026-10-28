@@ -78,6 +78,7 @@ class ManagerTest(unittest.TestCase):
     def test_push_never_waits_and_latest_wins(self):   # TC-LIV-05
         self.pose.delay = 0.05
         self.lm.start("side_work")
+        self.lm.session.rate.steps = [1000]                        # no pacing: this test is about the slot
         took = []
         for i in range(50):
             t0 = time.perf_counter()

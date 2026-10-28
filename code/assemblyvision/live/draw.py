@@ -1,7 +1,9 @@
 """Overlay of a live frame, black, white and greys: skeleton, people boxes,
 workbench zones, a top banner with the station and the current state, a bottom
 strip with the timers and a B0 to B3 bar with the current trunk band, filled in
-its traffic light colour (motion.BAND_COLORS)."""
+its traffic light colour (motion.BAND_COLORS). The subject has a thick white box
+with an S label; other people get a thin bright red box with their track
+number, so they are easy to tell apart and to click."""
 from __future__ import annotations
 
 import cv2
@@ -12,7 +14,8 @@ from ..analysis.motion import BAND_COLORS
 SKELETON = [(5, 7), (7, 9), (6, 8), (8, 10), (5, 6), (5, 11), (6, 12), (11, 12), (11, 13), (13, 15), (12, 14),
             (14, 16), (0, 5), (0, 6)]
 FONT = cv2.FONT_HERSHEY_DUPLEX
-WHITE, BLACK, GREY, LIGHT = (255, 255, 255), (0, 0, 0), (128, 128, 128), (200, 200, 200)
+WHITE, BLACK, LIGHT = (255, 255, 255), (0, 0, 0), (200, 200, 200)
+OTHER_RGB = (255, 59, 48)              # #FF3B30, people who are not the subject (frames are RGB)
 BAND_RGB = [tuple(int(c[i:i + 2], 16) for i in (1, 3, 5)) for c in BAND_COLORS]   # live frames are RGB
 
 
@@ -22,9 +25,19 @@ def _text(img, txt, org, scale, color=WHITE, thick=2, outline=True):
     cv2.putText(img, txt, org, FONT, scale, color, thick, cv2.LINE_AA)
 
 
+def _tag(img, txt, x, y, u, bg, fg) -> None:
+    """A small filled label on the top left corner of a box."""
+    scale = 0.6 * u
+    (tw, th), _ = cv2.getTextSize(txt, FONT, scale, 1)
+    pad = int(5 * u)
+    y0 = max(y - th - 2 * pad, 0)
+    cv2.rectangle(img, (x, y0), (x + tw + 2 * pad, y0 + th + 2 * pad), bg, -1)
+    cv2.putText(img, txt, (x + pad, y0 + th + pad), FONT, scale, fg, 1, cv2.LINE_AA)
+
+
 def draw_overlay(frame: np.ndarray, boxes: np.ndarray, subject: int | None, kp: np.ndarray | None,
                  ok: np.ndarray | None, zones: dict | None, banner: str, sub: str, strip: str,
-                 band: int | None, notice: str = "") -> np.ndarray:
+                 band: int | None, notice: str = "", ids: np.ndarray | None = None) -> np.ndarray:
     img = np.ascontiguousarray(frame.copy())
     h, w = img.shape[:2]
     u = max(1.0, h / 480)                                   # scale for line widths and text
@@ -35,10 +48,13 @@ def draw_overlay(frame: np.ndarray, boxes: np.ndarray, subject: int | None, kp: 
     for i, b in enumerate(boxes):
         x1, y1, x2, y2 = (int(v) for v in b)
         if i == subject:
-            cv2.rectangle(img, (x1, y1), (x2, y2), BLACK, int(5 * u))
-            cv2.rectangle(img, (x1, y1), (x2, y2), WHITE, int(2 * u))
+            cv2.rectangle(img, (x1, y1), (x2, y2), BLACK, int(6 * u))
+            cv2.rectangle(img, (x1, y1), (x2, y2), WHITE, int(3 * u))
+            _tag(img, "S", x1, y1, u, WHITE, BLACK)
         else:
-            cv2.rectangle(img, (x1, y1), (x2, y2), GREY, max(1, int(u)))
+            cv2.rectangle(img, (x1, y1), (x2, y2), OTHER_RGB, max(2, int(2 * u)))
+            if ids is not None and i < len(ids) and ids[i] > 0:
+                _tag(img, str(int(ids[i])), x1, y1, u, OTHER_RGB, WHITE)
     if kp is not None and ok is not None:
         for a, b in SKELETON:
             if ok[a] and ok[b]:

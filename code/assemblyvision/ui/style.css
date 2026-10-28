@@ -235,12 +235,10 @@ body, gradio-app, .gradio-container, .main, .wrap.app { background: var(--av-bg)
 }
 .av-pill i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: inline-block; }
 .av-pill-live { background: var(--av-ink); color: #fff; }
-.av-pill-live i { animation: av-blink 1.4s ease-in-out infinite; }
+/* no animation here: the Live dot in the sidebar is the only thing that blinks */
 .av-pill-strong { background: var(--av-ink); color: #fff; }
 .av-pill-outline { background: #fff; box-shadow: inset 0 0 0 1px var(--av-line-strong); }
 .av-pill-muted { background: var(--av-fill); color: var(--av-grey); }
-@keyframes av-blink { 50% { opacity: 0.25; } }
-@media (prefers-reduced-motion: reduce) { .av-pill-live i { animation: none; } }
 .av-mono, code.av-key { font-family: var(--av-mono) !important; font-size: 11.5px; }
 .av-key { color: var(--av-grey-2); display: block; margin-top: 2px; background: none; padding: 0; }
 .av-pills { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -385,10 +383,31 @@ img.av-chart { width: 100%; height: auto; display: block; }
 .lv-cam img, .lv-cam video { border-radius: 8px; max-height: 180px; object-fit: contain; }
 .lv-cam .image-container, .lv-cam .image-frame { background: var(--av-fill) !important; border-radius: 8px;
   min-height: 0 !important; }
-.lv-overlay img { width: 100% !important; height: auto !important; max-height: 78vh; object-fit: contain;
-  border-radius: 10px; }
-.lv-overlay .image-container, .lv-overlay .image-frame { background: var(--av-fill) !important;
-  border-radius: 10px; min-height: 360px; }
+/* Gradio's webcam buttons (record, stop, source): white pills with a dark border */
+.lv-cam .button-wrap { background: #fff !important; border: 1px solid var(--av-border) !important;
+  border-radius: 999px !important; box-shadow: none !important; padding: 4px 10px !important; }
+.lv-cam .button-wrap button, .lv-cam .button-wrap .icon-with-text, .lv-cam .button-wrap .icon {
+  color: #111 !important; background: transparent !important; font-size: 12.5px; font-weight: 500; }
+.lv-cam .button-wrap svg { color: #111 !important; fill: currentColor; }
+.lv-cam [title="grant webcam access"] { cursor: pointer; }
+
+/* the live overlay fills the card width (aspect kept, at most 75 % of the window
+   height); Gradio's own rule scale-down would keep it at the camera's 640 px */
+.lv-overlay .image-container, .lv-overlay .image-frame { width: 100% !important; height: auto !important;
+  background: var(--av-fill) !important; border-radius: 10px; min-height: 360px; }
+.lv-overlay img { width: 100% !important; height: auto !important; max-height: 75vh !important;
+  max-width: 100% !important; object-fit: contain !important; border-radius: 10px; display: block; }
+.lv-overlay .image-container:fullscreen, .lv-overlay .block.fullscreen .image-container,
+.lv-overlay .block.fullscreen .image-frame { width: 100vw !important; height: 100vh !important;
+  background: #000 !important; border-radius: 0; }
+.lv-overlay .image-container:fullscreen img, .lv-overlay .block.fullscreen img {
+  width: 100vw !important; height: 100vh !important; max-height: 100vh !important; max-width: 100vw !important;
+  object-fit: contain !important; border-radius: 0; }
+
+/* Clear: an x icon before the word */
+#lv-clear::before { content: ""; width: 14px; height: 14px; margin-right: 6px; background-color: currentColor;
+  -webkit-mask: var(--x) center / contain no-repeat; mask: var(--x) center / contain no-repeat; }
+#lv-clear { --x: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E"); }
 .lv-extra { gap: 18px !important; }
 .lv-tips { display: flex; flex-direction: column; }
 .lv-tip { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--av-row); font-size: 14px; }

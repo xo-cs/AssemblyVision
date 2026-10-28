@@ -126,6 +126,12 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "live.warn_fps": (lambda v: v >= 0, ">= 0"),
     "live.model_keep_s": (lambda v: v >= 0, ">= 0"),
     "live.lift_knee_conf": (lambda v: 0 <= v <= 1, "0 to 1"),
+    "live.rate_steps": (lambda v: len(v) >= 1 and all(1 <= x <= 60 for x in v)
+                        and list(v) == sorted(v, reverse=True), "1 to 60 fps, highest first"),
+    "live.rate_p95_ms": (lambda v: v > 0, "> 0"),
+    "live.rate_drop_max": (lambda v: 0 < v <= 1, "0 to 1"),
+    "live.rate_hold_s": (lambda v: v >= 0, ">= 0"),
+    "live.rate_up_s": (lambda v: v > 0, "> 0"),
     "live.lift_knee_seen": (lambda v: 0 <= v <= 1, "0 to 1"),
     "ui.poll_s": (lambda v: 0.5 <= v <= 60, "0.5 to 60"),
     "ui.max_upload_mb": (lambda v: v >= 1, ">= 1"),

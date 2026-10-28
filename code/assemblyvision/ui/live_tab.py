@@ -5,7 +5,12 @@ workbench zones is switched on in its own section. Controls in one row: Start
 live, Stop, Save recording, Model for analysis, Analyse recording and the
 planned Improvement suggestions. The overlay is the one big picture; the
 webcam input stays as a small Camera source tile, since Gradio needs a visible
-webcam component to capture frames.
+webcam component to capture frames. Start live also starts the webcam stream
+and Stop ends it (app.js, window.avCam); Clear empties the page again.
+
+No flicker: the panel and log are pushed only when their HTML changed
+(panel_update), at most every PANEL_S, and every periodic event hides
+Gradio's progress animation.
 
 The camera is the browser webcam through Gradio 5 streaming: the webcam
 component lists every camera the browser sees (a USB camera or an iPhone by
@@ -163,12 +168,16 @@ def comparison_card(cmp_: dict) -> str:
 
 
 def status_pills(p: dict) -> str:
-    """Session, elapsed, fps, delay, frames and dropped as one row of pills; the
-    state pill always matches the session status."""
+    """Session, elapsed, rate, fps, delay, frames and dropped as one row of pills;
+    the state pill always matches the session status. data-live-rate tells the
+    page how many frames per second to send (app.js)."""
     running = p["status"] == "running"
     pills = [v.pill(p["session_id"], mono=True), v.pill(f"elapsed {v.clock(p['elapsed_s'])}")]
     if running:
         pills.append(v.pill("camera paused", "outline") if p["paused"] else v.pill("live", "live", dot=True))
+        if p.get("rate_fps"):
+            pills.append(f"<span class='av-pill av-pill-outline' data-live-rate='{int(p['rate_fps'])}'>"
+                         f"rate {int(p['rate_fps'])} fps</span>")
         pills.append(v.pill(_v(p["fps"], "fps")))
     else:
         pills.append(v.pill("stopped", "strong"))
@@ -190,7 +199,7 @@ def panel_html(p: dict | None, port: int = 7860) -> str:
                          "source picture.") + "</div>")
     st = p["station"]
     running = p["status"] == "running"
-    body = ["<div class='av-card'>", status_pills(p), f"<div class='lv-title'>{v.esc(st['title'])}</div>"]
+    body = [f"<div class='av-card' data-live-status='{v.esc(p['status'])}'>", status_pills(p), f"<div class='lv-title'>{v.esc(st['title'])}</div>"]
     if not running:
         body.append(_big("STOPPED", f"after {v.span(p['elapsed_s'])}"))
     if st["kind"] == COMBINED:
@@ -299,11 +308,33 @@ def summary_html(s: dict | None) -> str:
     return "".join(out)
 
 
+def panel_update(p: dict | None, shown: dict, port: int = 7860) -> tuple[str | None, str | None, dict]:
+    """New panel and log HTML for the page, None for each one that equals what
+    the page shows already (shown, kept per browser in a gr.State), and the new
+    shown dict. The page then gets gr.skip() and nothing is redrawn."""
+    panel, log = panel_html(p, port), log_html(p)
+    new = {"panel": panel, "log": log}
+    return (None if shown.get("panel") == panel else panel, None if shown.get("log") == log else log, new)
+
+
+def save_label(on: bool) -> str:
+    return f"Save recording: {'on' if on else 'off'}"
+
+
+def clear_values(live) -> dict:
+    """What Clear puts on the page (no session running): empty overlay, the
+    'No live session' panel, no log or summary, the camera tile reset."""
+    if not live.clear():
+        return {}
+    return {"overlay": None, "panel": panel_html(None), "log": "", "summary": "", "camera": None}
+
+
 def build_live_tab(app, gr, job, job_timer, server=None):
     """The Live page inside the Blocks of GradioApp.build(). job and job_timer
     belong to New analysis: Analyse recording hands its batch run over there.
     server is the sidebar pill, refreshed at Start and Stop for the Live dot."""
     live = app.live
+    live_running = live.session is not None and live.session.status == "running"
     gr.HTML(v.page_header("Live", "Pose analysis of a camera on your computer, about 10 frames per second. "
                           "The pose model runs on GPU1."))
     with gr.Row(elem_classes=["lv-top"], equal_height=False):
@@ -313,8 +344,10 @@ def build_live_tab(app, gr, job, job_timer, server=None):
             with gr.Row(elem_classes=["av-actions", "lv-actions"]):
                 start = gr.Button("Start live", variant="primary", elem_classes=["av-fit"])
                 stop = gr.Button("Stop", variant="secondary", elem_classes=["av-fit"])
-                save = gr.Checkbox(False, label="Save recording", container=False,
+                save = gr.Checkbox(False, label=save_label(False), container=False,
                                    elem_classes=["av-switch", "av-fit"])
+                clear = gr.Button("Clear", variant="secondary", elem_id="lv-clear", elem_classes=["av-fit"],
+                                  interactive=not live_running)
                 gr.HTML("<div class='av-field-label lv-inline-label'>Model for analysis</div>",
                         elem_classes=["av-fit"])
                 variant = gr.Radio(list(VARIANTS), value=app.cfg["pose"]["variant"], label="Model for analysis",
@@ -330,7 +363,7 @@ def build_live_tab(app, gr, job, job_timer, server=None):
         with gr.Column(elem_classes=["av-card", "lv-cam"], scale=0, min_width=240):
             gr.HTML(v.section_title("Camera source"))
             cam = gr.Image(sources=["webcam"], streaming=True, type="numpy", label="Camera source",
-                           show_label=False, webcam_options=gr.WebcamOptions(mirror=False, constraints={
+                           show_label=False, elem_id="lv-camera", webcam_options=gr.WebcamOptions(mirror=False, constraints={
                                "video": {"width": {"ideal": 640}, "height": {"ideal": 480}}}))
     with gr.Column(elem_classes=["av-card", "lv-overlay"]):
         gr.HTML(v.section_title("Live overlay", "Click a person to follow them."))
@@ -351,6 +384,7 @@ def build_live_tab(app, gr, job, job_timer, server=None):
     log = gr.HTML()
     summary = gr.HTML()
     timer = gr.Timer(PANEL_S, active=False)
+    shown = gr.State({})                       # panel and log HTML the page shows now
     srv = [server] if server is not None else []
 
     def srv_val():
@@ -375,28 +409,45 @@ def build_live_tab(app, gr, job, job_timer, server=None):
             sid = live.start(COMBINED, rec, (x1, x2), bool(cyc))
         except AvError as e:
             return v.note(f"{e.code}: {e.text}"), gr.Timer(active=False), panel_html(live.panel()), gr.skip(), \
-                gr.skip(), *[gr.skip()] * len(srv)
-        return (note(f"Session {sid} started. Press the record button under the Camera source picture to send "
-                     "frames."), gr.Timer(active=True), panel_html(live.panel()), "", gr.Button(interactive=False),
-                *srv_val())
+                gr.skip(), gr.skip(), {}, *[gr.skip()] * len(srv)
+        rec_txt = " Recording to disk." if rec else ""
+        return (note(f"Session {sid} started.{rec_txt} The camera starts sending frames (allow camera access if "
+                     "the browser asks)."), gr.Timer(active=True), panel_html(live.panel()), "",
+                gr.Button(interactive=False), gr.Button(interactive=False), {}, *srv_val())
 
     def on_stop():
         s = live.stop()
         p = live.panel()
+        last = live.stopped_overlay()
         return (note("Stopped." if s else "No session was running."), gr.Timer(active=False), panel_html(p),
-                log_html(p), summary_html(s), gr.Button(interactive=bool(s and s.get("recording"))), *srv_val())
+                log_html(p), summary_html(s), gr.Button(interactive=bool(s and s.get("recording"))),
+                gr.Button(interactive=True), gr.skip() if last is None else last, {}, *srv_val())
 
-    def on_tick():
+    def on_tick(seen):
         p = live.panel()
         running = p is not None and p["status"] == "running"
-        out = [panel_html(p, app.port), log_html(p)]
+        panel_, log_, seen = panel_update(p, seen or {}, app.port)
+        out = [gr.skip() if panel_ is None else panel_, gr.skip() if log_ is None else log_, seen]
         if not running:                       # stopped by itself (idle or max time)
             s = live.last_summary
+            last = live.stopped_overlay()
             out += [summary_html(s), gr.Timer(active=False), gr.Button(interactive=bool(s and s.get("recording"))),
-                    *srv_val()]
+                    gr.Button(interactive=True), gr.skip() if last is None else last, *srv_val()]
         else:
-            out += [gr.skip(), gr.skip(), gr.skip(), *[gr.skip()] * len(srv)]
+            out += [gr.skip()] * (5 + len(srv))
         return out
+
+    def on_save(on):
+        s = live.session
+        txt = note("Save recording applies from the next session.") \
+            if s is not None and s.status == "running" else gr.skip()
+        return gr.Checkbox(label=save_label(bool(on))), txt
+
+    def on_clear():
+        vals = clear_values(live)
+        if not vals:
+            return [note("Stop the session first.")] + [gr.skip()] * 6
+        return ["", vals["overlay"], vals["panel"], vals["log"], vals["summary"], vals["camera"], {}]
 
     def on_frame(frame):
         img = live.push(frame)
@@ -430,17 +481,25 @@ def build_live_tab(app, gr, job, job_timer, server=None):
         running = p is not None and p["status"] == "running"
         s = live.last_summary
         cyc = bool(running and live.session.cycles)
-        return panel_html(p, app.port), log_html(p), summary_html(None if running else s), \
-            gr.Timer(active=running), gr.Button(interactive=bool(not running and s and s.get("recording"))), cyc
+        return panel_html(p, app.port), log_html(p), summary_html(None if running or live.cleared else s), \
+            gr.Timer(active=running), gr.Button(interactive=bool(not running and s and s.get("recording"))), cyc, \
+            gr.Button(interactive=not running), {}
 
     cycles.change(on_cycles, [cycles, b1, b2], panel, show_progress="hidden")
     b1.release(on_borders, [b1, b2], None)
     b2.release(on_borders, [b1, b2], None)
-    start.click(on_start, [save, cycles, b1, b2], [msg, timer, panel, summary, analyse, *srv])
-    stop.click(on_stop, None, [msg, timer, panel, log, summary, analyse, *srv])
-    timer.tick(on_tick, None, [panel, log, summary, timer, analyse, *srv], show_progress="hidden")
+    start.click(on_start, [save, cycles, b1, b2], [msg, timer, panel, summary, analyse, clear, shown, *srv],
+                js="(...a) => { window.avCam && window.avCam.access(); return a; }", show_progress="hidden") \
+        .then(None, None, None, js="() => { window.avCam && window.avCam.recordIfLive(); }")
+    stop.click(on_stop, None, [msg, timer, panel, log, summary, analyse, clear, overlay, shown, *srv],
+               js="() => { window.avCam && window.avCam.stop(); }", show_progress="hidden")
+    timer.tick(on_tick, shown, [panel, log, shown, summary, timer, analyse, clear, overlay, *srv],
+               show_progress="hidden")
+    save.change(on_save, save, [save, msg], show_progress="hidden")
+    clear.click(on_clear, None, [msg, overlay, panel, log, summary, cam, shown],
+                js="() => { window.avCam && window.avCam.stop(); }", show_progress="hidden")
     cam.stream(on_frame, cam, overlay, stream_every=app.cfg["live"]["stream_every_s"], time_limit=None,
                concurrency_limit=1, show_progress="hidden", trigger_mode="always_last")
-    overlay.select(on_click, None, msg)
+    overlay.select(on_click, None, msg, show_progress="hidden")
     analyse.click(on_analyse, variant, [msg, job, job_timer])
-    return on_load, [panel, log, summary, timer, analyse, cycles]
+    return on_load, [panel, log, summary, timer, analyse, cycles, clear, shown]

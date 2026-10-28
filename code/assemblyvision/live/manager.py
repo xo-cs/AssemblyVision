@@ -9,6 +9,14 @@ box), smooths its keypoints with the One Euro filter and updates the current
 station. The page never waits for the GPU, so the delay stays bounded
 (NFR-REL-08).
 
+Frame rate: the browser offers up to 25 frames per second (live.stream_every_s)
+and the session accepts live.rate_steps[k] of them (RateControl): when the
+server delay p95 or the share of dropped frames gets too high it steps down
+(25, 20, 15, 10 fps) and later up again. push() skips frames that come faster
+than the current rate (paced, not counted as dropped); the page reads the rate
+from the panel and throttles its own sends to it (app.js), so the tunnel only
+carries frames that are used.
+
 Reload and stream drop: the session lives in this process, not in the page. A
 reloaded page finds it and continues when frames arrive again. With no frame
 for live.lost_s the camera counts as paused (open steps and lifts end as lost,
@@ -62,6 +70,52 @@ def elapsed_s(t0: float, now: float, ended: float | None = None) -> float:
     return max(0.0, (now if ended is None else min(now, ended)) - t0)
 
 
+class RateControl:
+    """Accepted frame rate of a session, one step of rate_steps at a time.
+
+    update() is called with the server delay p95 (ms) and the share of dropped
+    frames over the recent window. Down one step when p95 > p95_max_ms or the
+    drop share > drop_max; up one step after up_s of good windows (p95 under
+    half the limit and drop share under drop_max / 5). Two changes are at
+    least hold_s apart, so the rate does not flap."""
+
+    def __init__(self, steps, p95_max_ms: float, drop_max: float, hold_s: float, up_s: float):
+        self.steps = [int(x) for x in steps]
+        self.p95_max, self.drop_max, self.hold_s, self.up_s = p95_max_ms, drop_max, hold_s, up_s
+        self.k = 0
+        self.changed_at: float | None = None
+        self.good_since: float | None = None
+
+    @property
+    def fps(self) -> int:
+        return self.steps[self.k]
+
+    def update(self, now: float, p95_ms: float | None, drop_share: float | None) -> int:
+        if p95_ms is None and drop_share is None:
+            return self.fps
+        bad = (p95_ms is not None and p95_ms > self.p95_max) or (drop_share is not None and drop_share > self.drop_max)
+        good = (p95_ms is None or p95_ms < self.p95_max / 2) and (drop_share is None or drop_share < self.drop_max / 5)
+        held = self.changed_at is None or now - self.changed_at >= self.hold_s
+        if bad:
+            self.good_since = None
+            if held and self.k < len(self.steps) - 1:
+                self.k += 1
+                self.changed_at = now
+        elif good:
+            self.good_since = now if self.good_since is None else self.good_since
+            if held and self.k > 0 and now - self.good_since >= self.up_s:
+                self.k -= 1
+                self.changed_at = now
+                self.good_since = None
+        else:
+            self.good_since = None
+        return self.fps
+
+
+RATE_WINDOW_S = 3.0       # delay p95 and drop share over this window
+RATE_EVERY_S = 1.0        # the rate is checked this often
+
+
 def gpu_free_mb(index: int) -> int | None:
     """Free memory of one GPU (PCI bus order, as nvidia-smi counts) or None."""
     try:
@@ -106,7 +160,13 @@ class LiveSession:
         self.t0 = time.monotonic()
         self.t_end: float | None = None           # set at Stop, so the elapsed time stops counting
         self.slot = Slot()
-        self.frames_in = self.processed = self.dropped = 0
+        self.frames_in = self.processed = self.dropped = self.paced = 0
+        live_ = cfg["live"]
+        self.rate = RateControl(live_["rate_steps"], live_["rate_p95_ms"], live_["rate_drop_max"],
+                                live_["rate_hold_s"], live_["rate_up_s"])
+        self.last_accept: float | None = None
+        self.recent: deque = deque()              # (time, kind) of accepted frames: 'in', 'drop', 'done:<delay>'
+        self._rate_check = 0.0
         self.delays: deque = deque(maxlen=600)
         self.parts: dict = {k: deque(maxlen=600) for k in ("wait", "resize", "pose", "track", "station", "draw")}
         self.done_t: deque = deque(maxlen=600)
@@ -207,13 +267,42 @@ class LiveSession:
         return True
 
     def push(self, frame: np.ndarray, t: float):
-        """Never blocks: store the frame and return the latest overlay."""
-        self.frames_in += 1
+        """Never blocks: store the frame and return the latest overlay. A frame
+        that comes sooner than the current rate allows is skipped (paced)."""
         if self.recorder is not None:
             self.recorder.write(frame, t)
-        if self.slot.put((frame, t)):
-            self.dropped += 1
+        if self.last_accept is not None and t - self.last_accept < 0.8 / self.rate.fps:
+            self.paced += 1
+            return self.latest_overlay
+        self.last_accept = t
+        self.frames_in += 1
+        dropped = self.slot.put((frame, t))
+        with self.lock:
+            self.recent.append((t, "in"))
+            if dropped:
+                self.dropped += 1
+                self.recent.append((t, "drop"))
         return self.latest_overlay
+
+    def check_rate(self, now: float) -> int:
+        """Window stats to RateControl (about once per RATE_EVERY_S)."""
+        if now - self._rate_check < RATE_EVERY_S:
+            return self.rate.fps
+        self._rate_check = now
+        with self.lock:
+            while self.recent and self.recent[0][0] < now - RATE_WINDOW_S:
+                self.recent.popleft()
+            n_in = sum(1 for _, k in self.recent if k == "in")
+            n_drop = sum(1 for _, k in self.recent if k == "drop")
+            delays = [d for x, d in zip(self.done_t, self.delays) if x >= now - RATE_WINDOW_S]
+        if n_in < 5:
+            return self.rate.fps
+        p95 = 1000 * float(np.percentile(delays, 95)) if delays else None
+        before = self.rate.fps
+        fps = self.rate.update(now, p95, n_drop / n_in)
+        if fps != before:
+            self.notice(f"Frame rate {'down' if fps < before else 'up'} to {fps} fps.")
+        return fps
 
     def stop(self, reason: str = "stopped") -> None:
         self._stop.set()
@@ -325,7 +414,7 @@ class LiveSession:
         notice = ""
         if subj is None:
             notice = "No person visible" if not len(det.conf) else "Waiting for the selected person"
-        img = draw_overlay(frame, det.boxes, subj, kp, ok, zones, banner, sub, strip, panel["band"], notice)
+        img = draw_overlay(frame, det.boxes, subj, kp, ok, zones, banner, sub, strip, panel["band"], notice, ids)
         done = time.monotonic()
         for k, v in (("wait", c0 - t), ("resize", c1 - c0), ("pose", c2 - c1), ("track", c3 - c2),
                      ("station", c4 - c3), ("draw", done - c4)):
@@ -336,6 +425,7 @@ class LiveSession:
             self.processed += 1
             self.delays.append(done - t)
             self.done_t.append(done)
+        self.check_rate(done)
         fps = self.fps()
         if self.processed > 50 and fps is not None and fps < live["warn_fps"] and self.processed % 50 == 0:
             self.notice(AvError("AV-LIV-006", fps=f"{fps:.1f}").text)
@@ -398,7 +488,7 @@ class LiveSession:
                 "steps": steps,
                 "fps": None if fps is None else round(fps, 1), "delay_p50_ms": p50, "delay_p95_ms": p95,
                 "frames_in": self.frames_in, "processed": self.processed, "dropped": self.dropped,
-                "paused": self.paused, "recording": self.recorder is not None,
+                "rate_fps": self.rate.fps, "paused": self.paused, "recording": self.recorder is not None,
                 "notices": [f"{a:.0f} s: {b}" for a, b in self.notices]}
 
     def summary(self) -> dict:
@@ -409,7 +499,8 @@ class LiveSession:
             stations = [s.summary(t) for s in self.stations]
         return {"session_id": self.id, "started_utc": self.started_utc, "ended_utc": utc_now(),
                 "duration_s": round(t, 1), "stop_reason": self.stop_reason, "frames_in": self.frames_in,
-                "processed": self.processed, "dropped": self.dropped,
+                "processed": self.processed, "dropped": self.dropped, "paced": self.paced,
+                "rate_fps_end": self.rate.fps,
                 "fps_mean": round(self.processed / t, 2) if t > 0 else None, "delay_p50_ms": p50,
                 "delay_p95_ms": p95, "stage_ms": self.stage_ms(), "recording": str(rec) if rec.is_file() else None,
                 "recording_error": self.recording_error, "stations": stations,
@@ -461,6 +552,19 @@ def overlay_texts(p: dict) -> tuple[str, str, str]:
             f"{trunk}  gaze {p.get('gaze_now') or 'n/a'}")
 
 
+def label_stopped(img: np.ndarray) -> np.ndarray:
+    """A copy with a small grey 'Stopped' pill in the top right corner."""
+    out = np.ascontiguousarray(img.copy())
+    h, w = out.shape[:2]
+    u = max(1.0, h / 480)
+    (tw, th), _ = cv2.getTextSize("Stopped", cv2.FONT_HERSHEY_DUPLEX, 0.6 * u, 1)
+    x1, y1 = w - tw - int(30 * u), int(72 * u)
+    cv2.rectangle(out, (x1, y1), (x1 + tw + int(18 * u), y1 + th + int(14 * u)), (110, 110, 110), -1)
+    cv2.putText(out, "Stopped", (x1 + int(9 * u), y1 + th + int(7 * u)), cv2.FONT_HERSHEY_DUPLEX, 0.6 * u,
+                (255, 255, 255), 1, cv2.LINE_AA)
+    return out
+
+
 class LiveManager:
     """One per interface process; at most one session at a time."""
 
@@ -475,6 +579,7 @@ class LiveManager:
         self.lock_dir = Path(lock_dir)
         self.session: LiveSession | None = None
         self.last_summary: dict | None = None
+        self.cleared = False                       # Clear pressed since the last Stop
         self._backend = None
         self._gpu_lock = None
         self._release_timer: threading.Timer | None = None
@@ -527,6 +632,7 @@ class LiveManager:
                                                                    args=(sess, reason), daemon=True).start()
             self.session = s
             self.last_summary = None
+            self.cleared = False
             s.thread.start()
             return sid
 
@@ -570,6 +676,24 @@ class LiveManager:
     def panel(self) -> dict | None:
         s = self.session
         return None if s is None else s.panel()
+
+    def clear(self) -> bool:
+        """Forget the stopped session on the page (panel, overlay, summary); the
+        summary.json and a recording stay on disk and Analyse recording still
+        works. False while a session runs."""
+        s = self.session
+        if s is not None and s.status == "running":
+            return False
+        self.session = None
+        self.cleared = True
+        return True
+
+    def stopped_overlay(self) -> np.ndarray | None:
+        """The last overlay of the stopped session with a small grey Stopped label."""
+        s = self.session
+        if s is None or s.latest_overlay is None:
+            return None
+        return label_stopped(s.latest_overlay)
 
     def to_batch(self, session_id: str, variant: str, run_manager) -> str:
         """Start a batch run on the session recording (GPU of batch pose); AV-LIV-008 without one."""

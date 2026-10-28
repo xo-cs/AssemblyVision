@@ -115,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"replay of {video.name} from {args.start:g} s: {sent} frames sent at {args.fps:g} fps ({args.pace}) "
           f"in {wall:.1f} s, processed {summary['processed']}, dropped {summary['dropped']}, "
           f"processed fps {summary['processed'] / wall:.1f}, delay p50 {summary['delay_p50_ms']} ms, "
-          f"p95 {summary['delay_p95_ms']} ms")
+          f"p95 {summary['delay_p95_ms']} ms, paced {summary['paced']}, rate at the end {summary['rate_fps_end']} fps")
     print("  time per frame, p50 / p95 ms: " + ", ".join(f"{k} {v['p50']} / {v['p95']}"
                                                          for k, v in summary["stage_ms"].items()))
     for st in summary["stations"]:
