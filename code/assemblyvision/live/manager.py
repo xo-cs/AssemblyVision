@@ -57,6 +57,11 @@ def new_session_id() -> str:
     return "live_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S") + "_" + secrets.token_hex(2)
 
 
+def elapsed_s(t0: float, now: float, ended: float | None = None) -> float:
+    """Session time from Start: frozen at Stop, never negative."""
+    return max(0.0, (now if ended is None else min(now, ended)) - t0)
+
+
 def gpu_free_mb(index: int) -> int | None:
     """Free memory of one GPU (PCI bus order, as nvidia-smi counts) or None."""
     try:
@@ -98,6 +103,7 @@ class LiveSession:
         self.folder = folder
         self.started_utc = utc_now()
         self.t0 = time.monotonic()
+        self.t_end: float | None = None           # set at Stop, so the elapsed time stops counting
         self.slot = Slot()
         self.frames_in = self.processed = self.dropped = 0
         self.delays: deque = deque(maxlen=600)
@@ -136,7 +142,7 @@ class LiveSession:
     # control ---------------------------------------------------------------------------
 
     def now_s(self) -> float:
-        return time.monotonic() - self.t0
+        return elapsed_s(self.t0, time.monotonic(), self.t_end)
 
     def notice(self, text: str) -> None:
         self.notices.append((round(self.now_s(), 1), text))
@@ -189,6 +195,7 @@ class LiveSession:
         self._stop.set()
         if threading.current_thread() is not self.thread and self.thread.is_alive():
             self.thread.join(timeout=5)
+        self.t_end = time.monotonic()
         t = self.now_s()
         with self.lock:
             if self.stations and self.stations[-1].ended_s is None:

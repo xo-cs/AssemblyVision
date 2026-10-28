@@ -1,5 +1,5 @@
-"""GradioApp (LLD 3.10): the Run, Results and Live tabs. Suggestions, Compare
-and Reports follow.
+"""GradioApp (LLD 3.10): a left sidebar and four pages, New analysis, Results,
+Runs and Live. Suggestions, Compare and Reports follow.
 
     source ~/AssemblyVision/av.sh && cd ~/AssemblyVision/code
     python -m assemblyvision.ui.app [--sources qisens,public] [--port 7860] [--config FILE]
@@ -7,7 +7,8 @@ and Reports follow.
 then, on the laptop: ssh -L 7860:127.0.0.1:7860 qisens@<server> and open
 http://127.0.0.1:7860. The page binds 127.0.0.1 only, on a port from 7860 to
 7869 (default 7860), and never makes a share link (fixed in code, AV-APP-005
-otherwise).
+otherwise). ?run=<run_id> opens that run on Results, ?page=new|results|runs|live
+opens a page.
 
 Live mode (LLD 3.12) runs inside this process on GPU live.gpu (the A4000):
 CUDA_VISIBLE_DEVICES is set to that GPU before torch is imported, so this
@@ -18,20 +19,24 @@ read; with qisens left out nothing under data/qisens/ is opened or listed.
 Gradio's own temporary files (uploads, pictures sent to the page) go to
 data/qisens/tmp/gradio when qisens is open, else to data/public/tmp/gradio, and
 run files (the overlay video) are served in place from their run folder.
-Analytics and Hugging Face calls are switched off and no web fonts are loaded.
+Charts are sent as inline PNG. Analytics and Hugging Face calls are switched
+off and no web fonts are loaded. A QiSens video is shown by a neutral name
+("QiSens video (9.9 min)"); its file name stays on disk.
 
 The page never runs analysis (NFR-PERF-04): Start asks RunManager for a
 worker process, and a timer reads the stored status every ui.poll_s. The page
-keeps only the selected run ID; a reload restores the view from the run
-folders (FR-APP-08), choosing ?run=<run_id>, else the run in progress, else the
+keeps only run IDs; a reload restores the view from the run folders
+(FR-APP-08), choosing ?run=<run_id>, else the run in progress, else the
 newest run.
+
+Look: views.py builds the HTML parts, style.css holds all styling.
 """
 from __future__ import annotations
 
 import argparse
-import html
 import ipaddress
 import os
+import statistics
 import sys
 from pathlib import Path
 
@@ -39,6 +44,7 @@ from ..config import DEFAULT_LAYERS, VARIANTS, Config
 from ..errors import AvError
 from ..storage.files import REPO_ROOT, SOURCES, source_root
 from ..storage.runstore import FINISHED, RunStore
+from . import views as v
 
 HOST = "127.0.0.1"
 PORT = 7860
@@ -47,21 +53,9 @@ ALL_STEPS = "All steps"
 STAGE_NAMES = {"ingest": "Ingest", "shots": "Shots", "reference": "Reference frames", "pose_body": "Pose",
                "tracking": "Tracking", "segmentation": "Steps (Engine A)", "metrics": "Motion metrics",
                "overlay": "Overlay video", "eval": "Evaluation"}
-
-CSS = """
-.gradio-container { max-width: 1400px !important; }
-#av-header { border-bottom: 3px solid #000; padding: 6px 0 10px 0; margin-bottom: 6px; }
-#av-header h1 { font-size: 2.1em; margin: 0; letter-spacing: 0.02em; }
-#av-header p { margin: 2px 0 0 0; color: #444; font-size: 1.05em; }
-.av-bar { border: 2px solid #000; height: 26px; background: #fff; }
-.av-bar > div { height: 100%; background: #000; }
-.av-status table { border-collapse: collapse; width: 100%; margin-top: 8px; }
-.av-status td, .av-status th { border-bottom: 1px solid #bbb; padding: 4px 8px; text-align: left; }
-.av-status .running td { font-weight: bold; }
-.av-msg { border-left: 4px solid #000; padding: 4px 10px; }
-"""
-# keep the page light even when the browser prefers dark mode
-JS_LIGHT = "() => { document.body.classList.remove('dark'); }"
+PAGES = (("new", "New analysis"), ("results", "Results"), ("runs", "Runs"), ("live", "Live"))
+UI_DIR = Path(__file__).resolve().parent
+NO_LABELS = "No hand labels for this video, so accuracy cannot be scored."
 
 
 def check_bind(host: str, share: bool, port: int = PORT) -> None:
@@ -112,27 +106,94 @@ def _err_text(e: AvError) -> str:
     return f"{e.code}: {e.text}" + (f" ({e.detail})" if e.detail else "")
 
 
+def _theme(gr):
+    sans = ["-apple-system", "BlinkMacSystemFont", gr.themes.Font("SF Pro Text"), gr.themes.Font("Inter"),
+            gr.themes.Font("Helvetica Neue"), "Arial", "sans-serif"]
+    mono = [gr.themes.Font("SF Mono"), "ui-monospace", "Menlo", gr.themes.Font("DejaVu Sans Mono"), "monospace"]
+    return gr.themes.Base(primary_hue=gr.themes.colors.neutral, neutral_hue=gr.themes.colors.neutral,
+                          text_size=gr.themes.sizes.text_md, radius_size=gr.themes.sizes.radius_lg,
+                          spacing_size=gr.themes.sizes.spacing_md, font=sans, font_mono=mono).set(
+        body_background_fill="#f7f7f5", body_text_color="#111111", body_text_color_subdued="#6b6b6b",
+        background_fill_primary="#ffffff", background_fill_secondary="#f7f7f5",
+        border_color_primary="#e5e5e5", border_color_accent="#111111", color_accent="#111111",
+        color_accent_soft="#f0f0ee", block_background_fill="transparent", block_border_width="0px",
+        block_shadow="none", block_label_background_fill="transparent", block_label_border_width="0px",
+        block_label_text_color="#6b6b6b", block_title_text_color="#6b6b6b", block_title_text_weight="600",
+        block_padding="0px", layout_gap="14px", panel_background_fill="transparent", panel_border_width="0px",
+        input_background_fill="#ffffff", input_border_color="#e0e0de", input_border_color_focus="#111111",
+        input_shadow="none", input_shadow_focus="0 0 0 3px rgba(0,0,0,0.08)", input_radius="10px",
+        checkbox_background_color_selected="#111111", checkbox_border_color_selected="#111111",
+        checkbox_label_background_fill="transparent", checkbox_label_background_fill_selected="transparent",
+        checkbox_label_border_width="0px", slider_color="#111111", loader_color="#111111",
+        button_primary_background_fill="#000000", button_primary_background_fill_hover="#2a2a2a",
+        button_primary_text_color="#ffffff", button_primary_border_color="#000000",
+        button_secondary_background_fill="#ffffff", button_secondary_background_fill_hover="#f0f0ee",
+        button_secondary_text_color="#111111", button_secondary_border_color="#d4d4d2",
+        button_large_radius="10px", button_small_radius="10px",
+        table_border_color="#e5e5e5", table_even_background_fill="#ffffff", table_odd_background_fill="#ffffff")
+
+
 class GradioApp:
     def __init__(self, cfg: Config, sources: list[str], repo_root: Path = REPO_ROOT, worker_cmd=None,
                  port: int = PORT, live=None):
         from ..live.manager import LiveManager
         from ..runs.manager import RunManager
         self.cfg = cfg
+        self.repo_root = repo_root
         self.store = RunStore(sources, cfg, repo_root)
         self.runs = RunManager(self.store, cfg, worker_cmd)
         self.sources = self.store.sources
         self.port = port
+        self._durations: dict[tuple[str, float], float | None] = {}
         # live sessions are filmed with consent and kept in the public area (data/public/live/)
         self.live = live or LiveManager(cfg, source_root("public", cfg["paths"], repo_root) / "live", port=port)
+
+    # names shown on the page (a QiSens file name never is) ----------------------------
+
+    def _video_seconds(self, path: str, runs: list[dict]) -> float | None:
+        """Duration of a video: from the manifest of a run on it, else read once from the file header."""
+        for r in runs:
+            if r.get("video_path") == path and r.get("video_s"):
+                return float(r["video_s"])
+        try:
+            key = (path, Path(path).stat().st_mtime)
+        except OSError:
+            return None
+        if key not in self._durations:
+            import cv2
+            cap = cv2.VideoCapture(path)
+            fps, n = cap.get(cv2.CAP_PROP_FPS), cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            cap.release()
+            self._durations[key] = n / fps if fps and n and fps > 0 else None
+        return self._durations[key]
+
+    def run_label(self, r: dict) -> str:
+        return v.video_label(r["source"], r["video"] or "video", r.get("video_s"))
+
+    def video_name(self, path: str) -> str:
+        """Display name of one video path."""
+        p = Path(path)
+        source = next((s for s, root in self.store.roots.items() if p.resolve().is_relative_to(root)), "public")
+        if source != "qisens":
+            return p.name
+        return v.qisens_alias(self._video_seconds(str(p), self.store.list_runs()))
 
     # data for the page (plain functions, tested without a browser) -----------------
 
     def run_choices(self) -> list[tuple[str, str]]:
-        return [(f"{r['run_id']} | {r['source']} | {r['video'] or '?'} | {r['status']}", r["run_id"])
-                for r in self.store.list_runs()]
+        return [(f"{r['run_id']}, {self.run_label(r)}, {v.STATUS_WORDS.get(r['status'], r['status']).lower()}",
+                 r["run_id"]) for r in self.store.list_runs()]
 
     def video_choices(self) -> list[tuple[str, str]]:
-        return [(label, path) for label, path in self.store.list_videos()]
+        runs = None
+        labels, paths = [], []
+        for label, path in self.store.list_videos():
+            if label.startswith("qisens/"):
+                runs = self.store.list_runs() if runs is None else runs
+                label = v.qisens_alias(self._video_seconds(path, runs))
+            labels.append(label)
+            paths.append(path)
+        return list(zip(v.unique_labels(labels), paths))
 
     def initial_run(self, query_run: str | None) -> str | None:
         if query_run:
@@ -148,36 +209,67 @@ class GradioApp:
         return runs[0]["run_id"] if runs else None
 
     def status_html(self, run_id: str | None) -> tuple[str, bool]:
-        """Progress bar, stage list, summary and error; and whether to keep polling."""
+        """Progress bar, stage list and error of one run; and whether to keep polling."""
         if not run_id:
-            return "<div class='av-status'>No run selected. Choose a video and press Start.</div>", False
+            return v.note("No analysis is running. Choose a video and press Start analysis."), False
         try:
             st = self.store.status(run_id)
+            m = self.store.get_run(run_id)
         except AvError as e:
-            return f"<div class='av-msg'>{html.escape(_err_text(e))}</div>", False
+            return v.note(_err_text(e)), False
         pct = round(100 * st.progress)
         head = {"queued": "Queued", "running": "Running", "done": "Finished", "partial": "Finished in part",
                 "failed": "Failed"}.get(st.status, st.status)
-        now = f", now: {STAGE_NAMES.get(st.stage, st.stage)}" if st.stage else ""
-        out = [f"<div class='av-status'><p><b>{html.escape(run_id)}</b> ({st.source}): <b>{head}</b>{now}, "
-               f"{pct} %</p><div class='av-bar'><div style='width:{pct}%'></div></div>"]
+        now = f", now {STAGE_NAMES.get(st.stage, st.stage).lower()}" if st.stage else ""
+        name = v.video_label(st.source, Path(m.get("video", "")).name, None if st.source != "qisens" else
+                             self._video_seconds(m.get("video", ""), self.store.list_runs()))
+        out = [f"<div class='av-job-head'><div><b>{v.esc(name)}</b> &nbsp;{v.status_pill(st.status)}</div>"
+               f"<span>{v.esc(head)}{v.esc(now)}, {pct} %</span></div>", v.progress_bar(st.progress)]
         if st.waiting:
-            out.append(f"<p class='av-msg'>{html.escape(st.waiting)}</p>")
+            out.append(f"<div class='av-job-msg'>{v.note(st.waiting)}</div>")
         if st.stages:
-            out.append("<table><tr><th>Stage</th><th>Status</th><th>Time</th></tr>")
-            for name, s, sec, frac in st.stages:
+            rows = []
+            for name_, s, sec, frac in st.stages:
                 extra = f" {round(100 * frac)} %" if s == "running" else ""
-                out.append(f"<tr class='{s}'><td>{STAGE_NAMES.get(name, name)}</td><td>{s}{extra}</td>"
-                           f"<td>{'' if sec is None else f'{sec:.1f} s'}</td></tr>")
-            out.append("</table>")
-        if st.summary:
-            out.append(f"<p><b>Summary</b><br>{html.escape(st.summary).replace(chr(10), '<br>')}</p>")
+                rows.append([STAGE_NAMES.get(name_, name_), v.status_pill(s) + v.esc(extra),
+                             "" if sec is None else v.span(sec) if sec >= 60 else f"{sec:.1f} s"])
+            out.append("<div style='margin-top:18px'>" + v.table(["Stage", "Status", "Time"], rows, num={2},
+                                                                   raw={1}) + "</div>")
         if st.error:
-            out.append(f"<p class='av-msg'><b>Error</b> {html.escape(st.error)}</p>")
+            out.append(f"<div class='av-job-msg'>{v.note(st.error)}</div>")
         if st.status not in FINISHED and not st.active:
-            out.append("<p class='av-msg'>No worker process is running for this run.</p>")
-        out.append("</div>")
+            out.append(f"<div class='av-job-msg'>{v.note('No worker process is running for this run.')}</div>")
+        out.append(f"<div class='av-job-msg'><span class='av-pill av-mono'>{v.esc(run_id)}</span></div>")
         return "".join(out), st.active
+
+    def job_kpis(self, run_id: str | None) -> str:
+        """KPI cards of a finished run (New analysis page)."""
+        if not run_id:
+            return ""
+        try:
+            st = self.store.status(run_id)
+            m = self.store.get_run(run_id)
+        except AvError:
+            return ""
+        if st.status not in FINISHED:
+            return ""
+        pb, mc = m.get("pose_body", {}), m.get("metrics", {}).get("counts", {})
+        n_rec = mc.get("records")
+        items = [("Frames", f"{pb['frames']:,}" if pb.get("frames") else "n/a"),
+                 ("Pose speed", f"{pb['pose_fps']:.0f} fps" if pb.get("pose_fps") else "n/a"),
+                 ("Peak GPU memory", f"{pb['gpu_peak_mb']:.0f} MB" if pb.get("gpu_peak_mb") else "n/a"),
+                 ("Shots", str(m.get("shots", {}).get("count", "n/a"))),
+                 ("Tracks", str(m.get("tracking", {}).get("totals", {}).get("tracks_kept", "n/a"))),
+                 ("Phases found", self._phases_found(run_id, m)),
+                 ("Metrics reported", f"{n_rec - mc.get('null', 0)} of {n_rec}" if n_rec else "n/a")]
+        return v.kpi_cards(items)
+
+    def _phases_found(self, run_id: str, m: dict) -> str:
+        seg = m.get("segmentation", {})
+        if seg.get("phases_expected"):
+            return f"{seg.get('phases_found', 0)} of {seg['phases_expected']}"
+        labels = {s["label"] for s in self.store.get_segments(run_id) if s["label"] != "other"}
+        return str(len(labels)) if labels or seg else "n/a"
 
     def subject_gallery(self, run_id: str | None) -> list:
         from .charts import mark_subject
@@ -220,9 +312,42 @@ class GradioApp:
             lines.append("- **Motion metrics** belong to an earlier step result (stale).")
         return "\n".join(lines)
 
+    def availability_html(self, run_id: str) -> str:
+        """The same as notes; evaluation has its own card and is left out here."""
+        m = self.store.get_run(run_id)
+        names = {"segmentation": "Steps", "metrics": "Motion metrics", "overlay": "The overlay video"}
+        notes = []
+        for name, title in names.items():
+            rec = m.get("stages", {}).get(name)
+            s = None if rec is None else rec.get("status")
+            if s == "failed":
+                err = rec.get("error", {})
+                notes.append(f"<b>{title}</b> could not be made. {v.esc(err.get('code', ''))} "
+                             f"{v.esc(err.get('text', ''))}")
+            elif s == "skipped":
+                notes.append(f"<b>{title}</b> were not computed in this run." if name != "overlay"
+                             else f"<b>{title}</b> was not made in this run.")
+            elif s in ("pending", "running"):
+                notes.append(f"<b>{title}</b> are still being computed." if name != "overlay"
+                             else f"<b>{title}</b> is still being made.")
+        if m.get("metrics", {}).get("stale"):
+            notes.append("<b>Motion metrics</b> belong to an earlier step result.")
+        if not notes:
+            return ""
+        return "<div class='av-note-list'>" + "".join(f"<div class='av-note'>{n}</div>" for n in notes) + "</div>"
+
     def steps_table(self, run_id: str) -> list[list]:
         return [[s["step"], s["label"], _fmt(s["start_s"]), _fmt(s["end_s"]), _fmt(s["duration_s"]), s["source"]]
                 for s in self.store.get_segments(run_id) if s["label"] != "other"]
+
+    def steps_html(self, run_id: str) -> str:
+        rows = [[s["step"], v.esc(s["label"]), v.clock(s["start_s"]), v.clock(s["end_s"]),
+                 f"{s['duration_s']:.1f} s", v.pill(s["source"].replace("engine_", "Engine ").replace("_", " "),
+                                                    "muted")]
+                for s in self.store.get_segments(run_id) if s["label"] != "other"]
+        return v.section_title("Steps", "Phases found by Engine A, in video time (min:s).") + \
+            v.table(["Step", "Phase", "Start", "End", "Duration", "Source"], rows, num={0, 2, 3, 4}, raw={1, 5},
+                    empty="No steps were stored for this run.")
 
     def _step_names(self, run_id: str) -> dict[int, str]:
         """segment index (metrics.csv step column) -> 'N label' as in steps.csv."""
@@ -244,6 +369,29 @@ class GradioApp:
                         "" if r["coverage"] is None else f"{100 * r['coverage']:.0f} %", r["flags"]])
         return out
 
+    def _bands(self, run_id: str) -> list[float]:
+        m = self.store.get_run(run_id)
+        return m.get("metrics", {}).get("params", {}).get("motion", {}).get("angle_bands") \
+            or self.cfg["motion"]["angle_bands"]
+
+    def metrics_html(self, run_id: str | None, step: str | None) -> str:
+        if not run_id:
+            return ""
+        try:
+            rows = self.store.get_metrics(run_id)
+        except AvError as e:
+            return v.note(_err_text(e))
+        if step and step != ALL_STEPS:
+            rows = [r for r in rows if r["step"] == int(step)]
+        names, bands = self._step_names(run_id), self._bands(run_id)
+        out = [[v.esc(names.get(r["step"], r["label"])),
+                f"{v.esc(v.metric_label(r['metric'], bands))}<code class='av-key av-mono'>{v.esc(r['metric'])}</code>",
+                v.metric_value(r["value"], r["unit"]),
+                "" if r["coverage"] is None else f"{100 * r['coverage']:.0f} %", v.flag_pills(r["flags"])]
+               for r in rows]
+        return v.table(["Step", "Metric", "Value", "Coverage", "Flags"], out, num={2, 3}, raw={0, 1, 4},
+                       empty="No motion metrics for this run.")
+
     def bending_rows(self, run_id: str) -> list[tuple[str, list]]:
         rows = self.store.get_metrics(run_id)
         out = []
@@ -260,6 +408,13 @@ class GradioApp:
         return [[b["label"], b["n"], _fmt(b["median_s"], "s"), _fmt(b["q1_s"], "s"), _fmt(b["q3_s"], "s"),
                  b.get("flags", "")] for b in self.store.get_baseline(run_id)]
 
+    def baseline_html(self, run_id: str) -> str:
+        rows = [[v.esc(b["label"]), b["n"], _fmt(b["median_s"], "s"), _fmt(b["q1_s"], "s"), _fmt(b["q3_s"], "s"),
+                 v.flag_pills(b.get("flags", ""))] for b in self.store.get_baseline(run_id)]
+        return v.section_title("Cycle baseline", "Duration per phase over all its cycles: median and quartiles.") \
+            + v.table(["Phase", "Cycles", "Median", "Q1", "Q3", "Flags"], rows, num={1, 2, 3, 4}, raw={0, 5},
+                      empty="No cycle baseline for this run.")
+
     def eval_text(self, run_id: str) -> str:
         ev = self.store.get_eval(run_id)
         if not ev:
@@ -273,30 +428,99 @@ class GradioApp:
                "| Measure | Value |\n|---|---|\n" + "\n".join(f"| {a} | {b} |" for a, b in rows))
         return txt
 
+    def eval_html(self, run_id: str) -> str:
+        ev = self.store.get_eval(run_id)
+        head = v.section_title("Evaluation", "Steps found by the engine against hand labels.")
+        if not ev:
+            return head + v.note(NO_LABELS)
+        m = ev.get("metrics", {})
+        items = [("Frame accuracy", _fmt(m.get("frame_accuracy"), "%") or "n/a"),
+                 ("Edit score", _fmt(m.get("edit")) or "n/a"), ("F1@10", _fmt(m.get("f1_10")) or "n/a"),
+                 ("F1@25", _fmt(m.get("f1_25")) or "n/a"), ("F1@50", _fmt(m.get("f1_50")) or "n/a"),
+                 ("Mean boundary error", _fmt(m.get("boundary_mae_s"), "s") or "n/a")]
+        sub = (f"Engine {ev.get('engine', 'A')} against {ev.get('gt_file', '?')}: {ev.get('gt_steps', '?')} "
+               f"labelled and {ev.get('pred_steps', '?')} found steps.")
+        return head + v.kpi_cards(items) + f"<p class='av-hint'>{v.esc(sub)}</p>"
+
     def notices_text(self, run_id: str) -> str:
         notes = self.store.get_run(run_id).get("notices", [])
         if not notes:
             return "No notices."
         return "\n".join(f"- {n.get('stage', '')}: {n.get('code', '')} {n.get('text', '')}" for n in notes)
 
+    def notices_html(self, run_id: str) -> str:
+        notes = self.store.get_run(run_id).get("notices", [])
+        sub = f"{len(notes)} notices in {len(v.group_notices(notes))} groups. Open a group for the full list." \
+            if notes else ""
+        return v.section_title("Notices", sub) + v.notices_html(notes)
+
+    def results_kpis(self, run_id: str) -> str:
+        m = self.store.get_run(run_id)
+        segs = [s for s in self.store.get_segments(run_id) if s["label"] != "other"]
+        dur = m.get("ingest", {}).get("cfr", {}).get("duration_s")
+        pb, mc = m.get("pose_body", {}), m.get("metrics", {}).get("counts", {})
+        n_rec = mc.get("records")
+        items = [("Video length", v.clock(dur) if dur else "n/a", "min:s"),
+                 ("Phases found", self._phases_found(run_id, m)),
+                 ("Mean phase duration", f"{statistics.mean(s['duration_s'] for s in segs):.0f} s" if segs else "n/a"),
+                 ("Frames with a person", f"{100 * pb['frames_with_person'] / pb['frames']:.0f} %"
+                  if pb.get("frames") and pb.get("frames_with_person") is not None else "n/a"),
+                 ("Metrics reported", f"{n_rec - mc.get('null', 0)} of {n_rec}" if n_rec else "n/a")]
+        ev = self.store.get_eval(run_id)
+        if ev:
+            em = ev.get("metrics", {})
+            items += [("Frame accuracy", _fmt(em.get("frame_accuracy"), "%") or "n/a"),
+                      ("Mean boundary error", _fmt(em.get("boundary_mae_s"), "s") or "n/a")]
+        return v.kpi_cards(items)
+
+    def results_head(self, run_id: str | None) -> str:
+        if not run_id:
+            return v.page_header("Results", "No run yet. Start one on New analysis.")
+        try:
+            r = next(x for x in self.store.list_runs() if x["run_id"] == run_id)
+        except StopIteration:
+            return v.page_header("Results", run_id)
+        bits = [self.run_label(r), f"model {r['variant']}" if r.get("variant") else "", v.utc_date(r["created_utc"])]
+        return v.page_header("Results", ", ".join(b for b in bits if b))
+
     def results(self, run_id: str | None) -> dict:
-        """Everything of the Results tab for one run (TC-APP-10: reads only)."""
+        """Everything of the Results page for one run (TC-APP-10: reads only)."""
         from .charts import bending_bars, timeline
         if not run_id:
             return {"note": "No run selected.", "overlay": None, "timeline": None, "steps": [], "steps_choices":
-                    [ALL_STEPS], "metrics": [], "bending": None, "baseline": [], "eval": "", "notices": ""}
+                    [ALL_STEPS], "metrics": [], "bending": None, "baseline": [], "eval": "", "notices": "",
+                    "head": self.results_head(None), "kpis": "", "note_html": "", "steps_html": "",
+                    "metrics_html": "", "baseline_html": "", "eval_html": "", "notices_html": ""}
         m = self.store.get_run(run_id)
         segs = self.store.get_segments(run_id)
         duration = float(m.get("ingest", {}).get("cfr", {}).get("duration_s") or (segs[-1]["end_s"] if segs else 0))
-        bands = m.get("metrics", {}).get("params", {}).get("motion", {}).get("angle_bands") \
-            or self.cfg["motion"]["angle_bands"]
+        bands = self._bands(run_id)
         bend = self.bending_rows(run_id)
         ov = self.store.overlay_path(run_id)
         return {"note": self.availability(run_id), "overlay": str(ov) if ov else None,
                 "timeline": timeline(segs, duration) if segs else None, "steps": self.steps_table(run_id),
                 "steps_choices": self.step_choices(run_id), "metrics": self.metrics_table(run_id, ALL_STEPS),
                 "bending": bending_bars(bend, bands) if bend else None, "baseline": self.baseline_table(run_id),
-                "eval": self.eval_text(run_id), "notices": self.notices_text(run_id)}
+                "eval": self.eval_text(run_id), "notices": self.notices_text(run_id),
+                "head": self.results_head(run_id), "kpis": self.results_kpis(run_id),
+                "note_html": self.availability_html(run_id), "steps_html": self.steps_html(run_id),
+                "metrics_html": self.metrics_html(run_id, ALL_STEPS), "baseline_html": self.baseline_html(run_id),
+                "eval_html": self.eval_html(run_id), "notices_html": self.notices_html(run_id)}
+
+    def runs_html(self, current: str | None = None) -> str:
+        """The Runs page table, newest first, with an Open button per run."""
+        rows = []
+        for r in self.store.list_runs():
+            took = v.utc_seconds(r["created_utc"], r.get("finished_utc"))
+            btn = f"<button class='av-open' data-open-run='{v.esc(r['run_id'])}'>Open</button>"
+            rows.append([f"<span class='av-mono'>{v.esc(r['run_id'])}</span>", v.pill(r["source"]),
+                         v.esc(self.run_label(r)), v.esc(r.get("variant") or ""), v.esc(v.utc_date(r["created_utc"])),
+                         v.span(took) if took is not None else "", v.status_pill(r["status"]), btn])
+        return v.table(["Run ID", "Data", "Video", "Model", "Date (UTC)", "Duration", "Status", ""], rows,
+                       num={5}, raw={0, 1, 2, 6, 7}, empty="No runs yet. Start one on New analysis.")
+
+    def server_html(self) -> str:
+        return v.server_pill(v.gpu_busy(self.repo_root / ".locks"))
 
     # actions --------------------------------------------------------------------
 
@@ -312,7 +536,7 @@ class GradioApp:
             self.runs.start(run_id)
         except AvError as e:
             return None, _err_text(e)
-        msg = f"Run {run_id} started on {Path(video).name} (model {variant}, Engine A)."
+        msg = f"Run {run_id} started on {self.video_name(video)} (model {variant}, Engine A)."
         msg += "".join(f"\n\n{_err_text(n)}" for n in notices)
         return run_id, msg
 
@@ -323,133 +547,231 @@ class GradioApp:
             dest = self.store.save_upload(file, Path(file).name, source)
         except AvError as e:
             return None, _err_text(e)
+        if source == "qisens":
+            return str(dest), "Uploaded to the QiSens area. It is selected below."
         return str(dest), f"Uploaded to {source}/input/{dest.name}."
 
     # page ----------------------------------------------------------------------------
 
     def build(self):
         import gradio as gr
-        font = [gr.themes.Font("DejaVu Sans"), gr.themes.Font("Arial"), "sans-serif"]
-        theme = gr.themes.Base(primary_hue=gr.themes.colors.neutral, neutral_hue=gr.themes.colors.neutral,
-                               text_size=gr.themes.sizes.text_lg, radius_size=gr.themes.sizes.radius_none,
-                               font=font, font_mono=[gr.themes.Font("DejaVu Sans Mono"), "monospace"]).set(
-            body_background_fill="white", body_text_color="black", block_border_color="#999999",
-            button_primary_background_fill="black", button_primary_text_color="white",
-            button_primary_background_fill_hover="#333333", button_secondary_background_fill="white",
-            button_secondary_border_color="black", button_secondary_text_color="black")
         poll_s = self.cfg["ui"]["poll_s"]
         variant0 = self.cfg["pose"]["variant"]
+        css = (UI_DIR / "style.css").read_text()
+        js = (UI_DIR / "app.js").read_text()
+        keys = [k for k, _ in PAGES]
 
+        # matplotlib and its font list load once here, not on the first Results view
+        from .charts import _plt
+        from .live_tab import build_live_tab
+        _plt()
         # delete_cache: every hour, Gradio's temp files older than a day are removed
-        from .live_tab import LIVE_CSS, build_live_tab
-        with gr.Blocks(title="AssemblyVision", theme=theme, css=CSS + LIVE_CSS, js=JS_LIGHT, analytics_enabled=False,
-                       delete_cache=(3600, 86400)) as demo:
-            gr.HTML("<div id='av-header'><h1>AssemblyVision</h1><p>Team 4, QiSens capstone: motion analysis of "
-                    "train assembly work</p></div>")
-            with gr.Row():
-                run_dd = gr.Dropdown(label="Run", choices=[], value=None, scale=6, allow_custom_value=False)
-                refresh = gr.Button("Refresh list", scale=1)
-            timer = gr.Timer(poll_s, active=False)
-            with gr.Tabs():
-                with gr.Tab("Run"):
-                    with gr.Row():
-                        with gr.Column(scale=3):
-                            video_dd = gr.Dropdown(label="Video", choices=self.video_choices(), value=None)
-                            with gr.Row():
-                                upload = gr.File(label="Upload a video (mp4 or avi)", file_types=[".mp4", ".avi"],
-                                                 type="filepath", scale=3)
-                                up_src = gr.Radio(self.sources, value=self.sources[0], label="Upload to",
-                                                  visible=len(self.sources) > 1, scale=1)
-                        with gr.Column(scale=2):
-                            variant = gr.Radio(list(VARIANTS), value=variant0, label="Pose model variant")
-                            gr.Radio(["A"], value="A", label="Step engine", interactive=False,
-                                     info="Engine B is not trained yet")
-                            start_btn = gr.Button("Start", variant="primary")
-                    msg = gr.Markdown()
-                    status = gr.HTML()
-                    gallery = gr.Gallery(label="Subject per shot (S = the worker the analysis follows)",
-                                         columns=3, height="auto", object_fit="contain", allow_preview=True)
-                with gr.Tab("Results"):
-                    note = gr.Markdown()
-                    overlay = gr.Video(label="Overlay video", interactive=False, height=520)
-                    timeline_img = gr.Image(label="Process timeline (Engine A)", interactive=False,
-                                            type="numpy", format="png")
-                    gr.Markdown("### Steps")
-                    steps_df = gr.Dataframe(headers=["Step", "Label", "Start s", "End s", "Duration s", "Source"],
-                                            interactive=False, wrap=True)
-                    gr.Markdown("### Motion metrics per step")
-                    step_dd = gr.Dropdown(label="Step", choices=[ALL_STEPS], value=ALL_STEPS)
-                    metrics_df = gr.Dataframe(headers=["Step", "Metric", "Value", "Coverage", "Flags"],
-                                              interactive=False, wrap=True, max_height=520)
-                    bend_img = gr.Image(label="Back bending: time per band and step", interactive=False,
-                                        type="numpy", format="png")
-                    gr.Markdown("### Cycle baseline")
-                    base_df = gr.Dataframe(headers=["Label", "n", "Median", "Q1", "Q3", "Flags"],
-                                           interactive=False)
-                    gr.Markdown("### Evaluation")
-                    eval_md = gr.Markdown()
-                    with gr.Accordion("Notices of this run", open=False):
-                        notices_md = gr.Markdown()
-                live_load, live_out = build_live_tab(self, gr, run_dd)
+        with gr.Blocks(title="AssemblyVision", theme=_theme(gr), css=css, js=js, analytics_enabled=False,
+                       delete_cache=(3600, 86400), fill_width=True) as demo:
+            job = gr.State(None)                       # the run followed on New analysis
+            job_timer = gr.Timer(poll_s, active=False)
+            with gr.Row(elem_id="av-shell", equal_height=False):
+                with gr.Column(elem_id="av-sidebar", scale=0, min_width=260):
+                    gr.HTML("<div class='av-brand'><b>AssemblyVision</b><span>Motion analysis, Team 4</span></div>")
+                    navs = [gr.Button(title, elem_id=f"nav-{key}", size="md",
+                                      elem_classes=["av-nav"] + (["av-active"] if key == "new" else []))
+                            for key, title in PAGES]
+                    with gr.Column(elem_classes=["av-side-foot"]):
+                        server = gr.HTML(self.server_html())
+                with gr.Column(elem_id="av-main", scale=1):
+                    with gr.Tabs(elem_id="av-pages", selected="new") as pages:
+                        # --- New analysis -------------------------------------------------
+                        with gr.Tab("New analysis", id="new"), gr.Column(elem_classes=["av-page"]):
+                            gr.HTML(v.page_header("New analysis", "Choose a video and a pose model, then start. "
+                                                  "The analysis runs on the server, so this page may be closed."))
+                            with gr.Column(elem_classes=["av-card"]):
+                                gr.HTML(v.section_title("Video", "An mp4 or avi file from the data folders, "
+                                                        "or a new upload."))
+                                mode = gr.Radio(["Existing video", "Upload a video"], value="Existing video",
+                                                show_label=False, container=False, elem_classes=["av-seg"])
+                                video_dd = gr.Dropdown(label="Video", choices=self.video_choices(), value=None,
+                                                       elem_classes=["av-plain"])
+                                with gr.Column(visible=False) as up_col:
+                                    up_src = gr.Radio(self.sources, value=self.sources[0], label="Save to",
+                                                      visible=len(self.sources) > 1, elem_classes=["av-seg"])
+                                    upload = gr.File(label="Video file (mp4 or avi)", file_types=[".mp4", ".avi"],
+                                                     type="filepath", height=120)
+                            with gr.Column(elem_classes=["av-card"]):
+                                gr.HTML(v.section_title("Settings"))
+                                variant = gr.Radio(list(VARIANTS), value=variant0, label="Pose model",
+                                                   elem_classes=["av-seg"])
+                                gr.HTML("<div class='av-hint' style='margin-top:-6px'>n, s, m, l: smaller is faster, "
+                                        "larger is more accurate.</div>"
+                                        "<div class='av-field-label' style='margin-top:18px'>Step engine</div>"
+                                        "<div class='av-seg-static'><span class='on'>Engine A</span>"
+                                        "<span>Engine B</span></div><div class='av-hint'>Engine B is not trained "
+                                        "yet, so Engine A finds the steps.</div>")
+                            with gr.Row(elem_classes=["av-actions"]):
+                                start_btn = gr.Button("Start analysis", variant="primary", elem_classes=["av-fit"])
+                                msg = gr.HTML()
+                            with gr.Column(elem_classes=["av-card"]):
+                                gr.HTML(v.section_title("Progress"))
+                                status = gr.HTML(self.status_html(None)[0])
+                            job_kpis = gr.HTML()
+                            with gr.Row(elem_classes=["av-actions"]):
+                                open_btn = gr.Button("Open results", variant="secondary", visible=False,
+                                                     elem_classes=["av-fit"])
+                            with gr.Accordion("Subject per shot", open=False, elem_classes=["av-accordion"]):
+                                gr.HTML("<div class='av-hint' style='margin:0 0 12px 0'>S marks the worker the "
+                                        "analysis follows in each shot.</div>")
+                                gallery = gr.Gallery(show_label=False, columns=3, height="auto", object_fit="contain",
+                                                     allow_preview=True, elem_classes=["av-gallery"],
+                                                     show_share_button=False, show_download_button=False)
 
-            results_out = [note, overlay, timeline_img, steps_df, step_dd, metrics_df, bend_img, base_df, eval_md,
-                           notices_md]
+                        # --- Results ------------------------------------------------------
+                        with gr.Tab("Results", id="results"), gr.Column(elem_classes=["av-page"]):
+                            with gr.Row(elem_classes=["av-head-row"], equal_height=False):
+                                res_head = gr.HTML(self.results_head(None))
+                                with gr.Row(elem_classes=["av-actions", "av-fit"]):
+                                    run_dd = gr.Dropdown(label="Run", show_label=False, choices=[], value=None,
+                                                         allow_custom_value=False, container=False, min_width=380,
+                                                         elem_classes=["av-picker"])
+                                    refresh = gr.Button("Refresh", variant="secondary", elem_classes=["av-fit"])
+                            res_kpis = gr.HTML()
+                            note = gr.HTML()
+                            with gr.Column(elem_classes=["av-card"]) as video_card:
+                                gr.HTML(v.section_title("Overlay video", "Tracks and skeletons drawn on the video; "
+                                                        "S is the worker the analysis follows."))
+                                overlay = gr.Video(label="Overlay video", show_label=False, interactive=False,
+                                                   elem_classes=["av-video"], show_download_button=True)
+                            timeline_img = gr.HTML(label="Process timeline (Engine A)", elem_classes=["av-card"])
+                            steps_html = gr.HTML(elem_classes=["av-card"])
+                            with gr.Column(elem_classes=["av-card"]):
+                                gr.HTML(v.section_title("Motion metrics per step", "Every value with its coverage, "
+                                                        "the share of frames that had the keypoints it needs."))
+                                step_dd = gr.Dropdown(label="Step", choices=[ALL_STEPS], value=ALL_STEPS,
+                                                      elem_classes=["av-plain"], min_width=240)
+                                metrics_html = gr.HTML()
+                            bend_img = gr.HTML(elem_classes=["av-card"])
+                            base_html = gr.HTML(elem_classes=["av-card"])
+                            eval_html = gr.HTML(elem_classes=["av-card"])
+                            notices_html = gr.HTML(elem_classes=["av-card"])
+
+                        # --- Runs ---------------------------------------------------------
+                        with gr.Tab("Runs", id="runs"), gr.Column(elem_classes=["av-page"]):
+                            gr.HTML(v.page_header("Runs", "Every analysis on this server, newest first."))
+                            runs_html = gr.HTML(elem_classes=["av-card"])
+                            open_box = gr.Textbox(elem_id="av-open-run", elem_classes=["av-hidden"],
+                                                  show_label=False, container=False)
+
+                        # --- Live ---------------------------------------------------------
+                        with gr.Tab("Live", id="live"), gr.Column(elem_classes=["av-page"]):
+                            live_load, live_out = build_live_tab(self, gr, job, job_timer)
+            server_timer = gr.Timer(5.0)
+
+            def goto(key: str) -> list:
+                return [gr.Tabs(selected=key)] + [gr.Button(elem_classes=["av-nav"] + (["av-active"] if k == key
+                                                                                       else [])) for k in keys]
+            nav_out = [pages, *navs]
+
+            def results_out_values(run_id):
+                r = self.results(run_id)
+                return [r["head"], r["kpis"], r["note_html"], gr.Column(visible=bool(r["overlay"])), r["overlay"],
+                        v.section_title("Process timeline", "When each phase happens in the video (Engine A).")
+                        + (v.img_html(r["timeline"], "Process timeline") if r["timeline"] is not None
+                           else v.note("No steps were stored for this run.")),
+                        r["steps_html"], gr.update(choices=r["steps_choices"], value=ALL_STEPS), r["metrics_html"],
+                        v.section_title("Back bending", "Seconds per trunk angle band and step. The angle depends "
+                                        "on the camera view.")
+                        + (v.img_html(r["bending"], "Back bending per step") if r["bending"] is not None
+                           else v.note("No back bending values for this run.")),
+                        r["baseline_html"], r["eval_html"], r["notices_html"]]
+            results_out = [res_head, res_kpis, note, video_card, overlay, timeline_img, steps_html, step_dd,
+                           metrics_html, bend_img, base_html, eval_html, notices_html]
 
             def fill_results(run_id):
-                r = self.results(run_id)
-                return [r["note"], r["overlay"], r["timeline"], r["steps"],
-                        gr.update(choices=r["steps_choices"], value=ALL_STEPS), r["metrics"], r["bending"],
-                        r["baseline"], r["eval"], r["notices"]]
-
-            def on_select(run_id):
                 try:
-                    html_, active = self.status_html(run_id)
-                    return [html_, self.subject_gallery(run_id), gr.Timer(active=active), *fill_results(run_id)]
+                    return results_out_values(run_id)
                 except AvError as e:
-                    return [f"<div class='av-msg'>{html.escape(_err_text(e))}</div>", [], gr.Timer(active=False),
-                            *[gr.skip()] * len(results_out)]
+                    return [self.results_head(None), "", v.note(_err_text(e)), *[gr.skip()] * (len(results_out) - 3)]
 
-            def on_poll(run_id):
-                self.runs.reap()
+            def job_values(run_id):
                 html_, active = self.status_html(run_id)
-                if active or not run_id:
-                    return [html_, gr.skip(), gr.Timer(active=active), *[gr.skip()] * len(results_out)]
-                # finished: fill everything once and stop the timer (TC-APP-07)
-                return [html_, self.subject_gallery(run_id), gr.Timer(active=False), *fill_results(run_id)]
+                done = bool(run_id) and not active and self._finished(run_id)
+                return [html_, self.job_kpis(run_id) if done else "", gr.Button(visible=done),
+                        self.subject_gallery(run_id), gr.Timer(active=active)]
+            job_out = [status, job_kpis, open_btn, gallery, job_timer]
 
             def on_load(request):
                 q = dict(request.query_params) if request is not None else {}
                 run_id = self.initial_run(q.get("run"))
-                return gr.update(choices=self.run_choices(), value=run_id)
+                active = self.store.active_run()
+                page = q.get("page") if q.get("page") in keys else ("results" if q.get("run") else "new")
+                return [gr.update(choices=self.run_choices(), value=run_id), active, *job_values(active),
+                        self.runs_html(run_id), *goto(page)]
             on_load.__annotations__["request"] = gr.Request     # a real type, so Gradio passes the request
+
+            def on_poll(job_id, shown):
+                self.runs.reap()
+                vals = job_values(job_id)
+                if vals[-1].active or not job_id:
+                    return [*vals, gr.skip(), *[gr.skip()] * len(results_out)]
+                # finished: fill the summary once, stop the timer (TC-APP-07), refresh Results if it shows this run
+                same = shown == job_id
+                return [*vals, gr.update(choices=self.run_choices(), value=shown),
+                        *(fill_results(job_id) if same else [gr.skip()] * len(results_out))]
 
             def on_refresh(run_id):
                 return gr.update(choices=self.run_choices(), value=run_id), \
-                    gr.update(choices=self.video_choices())
+                    gr.update(choices=self.video_choices()), self.runs_html(run_id)
 
             def on_start(video, var):
                 run_id, text = self.start(video, var)
                 if run_id is None:
-                    return gr.skip(), f"<div class='av-msg'>{html.escape(text)}</div>"
-                return gr.update(choices=self.run_choices(), value=run_id), text
+                    return [gr.skip(), v.note(text), *[gr.skip()] * len(job_out)]
+                return [run_id, f"<span class='av-hint'>{v.esc(text.split(chr(10))[0])}</span>", *job_values(run_id)]
+
+            def on_mode(m):
+                return gr.update(visible=m == "Existing video"), gr.Column(visible=m != "Existing video")
 
             def on_upload(file, src):
                 dest, text = self.upload(file, src)
                 if dest is None:
-                    return gr.skip(), text, None
-                return gr.update(choices=self.video_choices(), value=dest), text, None
+                    return gr.skip(), v.note(text), None, gr.skip(), gr.skip()
+                return (gr.update(choices=self.video_choices(), value=dest, visible=True),
+                        f"<span class='av-hint'>{v.esc(text)}</span>", None, "Existing video",
+                        gr.Column(visible=False))
 
-            sel_out = [status, gallery, timer, *results_out]
-            demo.load(on_load, None, run_dd)
+            def on_open(run_id):
+                return [gr.update(choices=self.run_choices(), value=run_id), *goto("results")]
+
+            def on_open_box(text):
+                run_id = (text or "").split("|", 1)[0]
+                if not run_id:
+                    return [gr.skip()] * (1 + len(nav_out))
+                return on_open(run_id)
+
+            demo.load(on_load, None, [run_dd, job, *job_out, runs_html, *nav_out])
             demo.load(live_load, None, live_out)
-            run_dd.change(on_select, run_dd, sel_out)
-            timer.tick(on_poll, run_dd, sel_out)
-            refresh.click(on_refresh, run_dd, [run_dd, video_dd])
-            start_btn.click(on_start, [video_dd, variant], [run_dd, msg])
-            upload.upload(on_upload, [upload, up_src], [video_dd, msg, upload])
-            step_dd.change(lambda r, s: self.metrics_table(r, s) if r else [], [run_dd, step_dd], metrics_df)
+            for key, btn in zip(keys, navs):
+                if key == "runs":
+                    btn.click(lambda r: [self.runs_html(r), *goto("runs")], run_dd, [runs_html, *nav_out],
+                              show_progress="hidden")
+                else:
+                    btn.click(lambda k=key: goto(k), None, nav_out, show_progress="hidden")
+            run_dd.change(fill_results, run_dd, results_out)
+            job_timer.tick(on_poll, [job, run_dd], [*job_out, run_dd, *results_out], show_progress="hidden")
+            server_timer.tick(self.server_html, None, server, show_progress="hidden")
+            refresh.click(on_refresh, run_dd, [run_dd, video_dd, runs_html])
+            start_btn.click(on_start, [video_dd, variant], [job, msg, *job_out])
+            mode.change(on_mode, mode, [video_dd, up_col])
+            upload.upload(on_upload, [upload, up_src], [video_dd, msg, upload, mode, up_col])
+            open_btn.click(on_open, job, [run_dd, *nav_out])
+            open_box.input(on_open_box, open_box, [run_dd, *nav_out])
+            step_dd.change(self.metrics_html, [run_dd, step_dd], metrics_html, show_progress="hidden")
         self.demo = demo
         return demo
+
+    def _finished(self, run_id: str) -> bool:
+        try:
+            return self.store.status(run_id).status in FINISHED
+        except AvError:
+            return False
 
     def launch(self, host: str = HOST, port: int | None = None, share: bool = False) -> None:
         port = getattr(self, "port", PORT) if port is None else port
