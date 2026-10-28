@@ -1,15 +1,22 @@
-"""Overlay of a live frame, black, white and greys: skeleton, people boxes,
-workbench zones, a top banner with the station and the current state, a bottom
-strip with the timers and a B0 to B3 bar with the current trunk band, filled in
-its traffic light colour (motion.BAND_COLORS). The subject has a thick white box
-with an S label; other people get a thin bright red box with their track
-number, so they are easy to tell apart and to click."""
+"""Overlay of a live frame: skeleton and people boxes on the picture (the
+subject in a thick white box with an S label, other people in a thin bright
+red box with their track number, so they are easy to tell apart and to click),
+workbench zones, and at the bottom exactly the readouts of the batch overlay,
+drawn by the same code (output.overlay.draw_bottom): the header with LIVE, the
+state and the elapsed time, the mini hand reach map of the last 10 s, the both
+hands chip and the trunk readout. The top of the picture stays free.
+
+LiveHud keeps the rolling windows of those readouts. They are time based (the
+frame timestamps), so they stay right when the adaptive frame rate changes."""
 from __future__ import annotations
 
 import cv2
 import numpy as np
 
-from ..analysis.motion import BAND_COLORS
+from ..analysis.motion import BAND_COLORS, BothHandsWindow
+from ..analysis.reach import frame_points, reach_samples
+from ..output.hud import MiniReach
+from ..output.overlay import draw_bottom
 
 SKELETON = [(5, 7), (7, 9), (6, 8), (8, 10), (5, 6), (5, 11), (6, 12), (11, 12), (11, 13), (13, 15), (12, 14),
             (14, 16), (0, 5), (0, 6)]
@@ -35,16 +42,55 @@ def _tag(img, txt, x, y, u, bg, fg) -> None:
     cv2.putText(img, txt, (x + pad, y0 + th + pad), FONT, scale, fg, 1, cv2.LINE_AA)
 
 
+class LiveHud:
+    """Rolling 10 s state of the bottom readouts for one live session: the mini
+    hand reach map (same body frame and confidence rule as the batch map,
+    clean.body_conf_min), the both hands share (motion.BothHandsWindow with the
+    live per frame hand activity), and the reference figure, a running mean
+    over the session (batch: over the run)."""
+
+    def __init__(self, cfg, window_s: float = 10.0):
+        self.mini = MiniReach(None, window_s)
+        self.both = BothHandsWindow(window_s)
+        self.conf_min = cfg["clean"]["body_conf_min"]
+        self.edges = cfg["motion"]["angle_bands"]
+        self._sk: dict[str, list] = {}
+        self.layout: dict | None = None          # boxes of the last drawn frame (draw_bottom)
+
+    def push(self, t: float, kp: np.ndarray | None, conf: np.ndarray | None,
+             active: tuple[bool, bool] | None) -> None:
+        """One processed frame at time t (s): the subject's smoothed keypoints and
+        their confidence (None without a subject), its hand activity or None."""
+        pts = np.full((2, 2), np.nan)
+        if kp is not None and conf is not None:
+            kp = np.asarray(kp, np.float64)[None]
+            meas = ((np.nan_to_num(np.asarray(conf, np.float64)) >= self.conf_min) & np.isfinite(kp[0]).all(1))[None]
+            pts = frame_points(kp, meas)[0]
+            for name, (sm, n) in reach_samples(kp, meas)[2].items():
+                acc = self._sk.setdefault(name, [np.zeros(2), 0])
+                acc[0] = acc[0] + sm
+                acc[1] += n
+            self.mini.skeleton = {k: v[0] / v[1] for k, v in self._sk.items() if v[1]}
+        self.mini.push(pts, t)
+        self.both.push(t, active)
+
+
+def live_header(state: str, elapsed_s: float) -> str:
+    s = max(0, int(elapsed_s))
+    return f"LIVE  {state}  {s // 60}:{s % 60:02d}"
+
+
 def draw_overlay(frame: np.ndarray, boxes: np.ndarray, subject: int | None, kp: np.ndarray | None,
-                 ok: np.ndarray | None, zones: dict | None, banner: str, sub: str, strip: str,
-                 band: int | None, notice: str = "", ids: np.ndarray | None = None) -> np.ndarray:
+                 ok: np.ndarray | None, zones: dict | None, header: str, hud: LiveHud | None = None,
+                 trunk_deg: float | None = None, ids: np.ndarray | None = None) -> np.ndarray:
+    """RGB frame in, RGB overlay out; hud must already hold this frame (LiveHud.push)."""
     img = np.ascontiguousarray(frame.copy())
     h, w = img.shape[:2]
     u = max(1.0, h / 480)                                   # scale for line widths and text
     for name, z in (zones or {}).items():
         x0, x1 = int(z[0] * w), int(z[2] * w)
         cv2.rectangle(img, (x0, int(z[1] * h)), (x1 - 1, int(z[3] * h) - 1), LIGHT, max(1, int(u)))
-        _text(img, name.upper(), (x0 + int(8 * u), int(h - 70 * u)), 0.6 * u, LIGHT, 1)
+        _text(img, name.upper(), (x0 + int(8 * u), int(28 * u)), 0.6 * u, LIGHT, 1)
     for i, b in enumerate(boxes):
         x1, y1, x2, y2 = (int(v) for v in b)
         if i == subject:
@@ -64,24 +110,6 @@ def draw_overlay(frame: np.ndarray, boxes: np.ndarray, subject: int | None, kp: 
         for j in np.flatnonzero(ok):
             cv2.circle(img, tuple(int(v) for v in kp[j]), int(4 * u), WHITE, -1, cv2.LINE_AA)
             cv2.circle(img, tuple(int(v) for v in kp[j]), int(4 * u), BLACK, 1, cv2.LINE_AA)
-    # top banner
-    bh = int(62 * u)
-    cv2.rectangle(img, (0, 0), (w, bh), BLACK, -1)
-    _text(img, banner, (int(10 * u), int(30 * u)), 0.9 * u, WHITE, 2, outline=False)
-    _text(img, sub, (int(10 * u), int(54 * u)), 0.6 * u, LIGHT, 1, outline=False)
-    # bottom strip with the band bar on the right
-    sh = int(44 * u)
-    cv2.rectangle(img, (0, h - sh), (w, h), BLACK, -1)
-    _text(img, strip, (int(10 * u), h - int(14 * u)), 0.7 * u, WHITE, 2, outline=False)
-    cw, ch = int(46 * u), int(28 * u)
-    x = w - 4 * cw - int(10 * u)
-    for b in range(4):
-        x0, y0 = x + b * cw, h - sh + (sh - ch) // 2
-        filled = band == b
-        cv2.rectangle(img, (x0, y0), (x0 + cw - 4, y0 + ch), BAND_RGB[b] if filled else BLACK, -1)
-        cv2.rectangle(img, (x0, y0), (x0 + cw - 4, y0 + ch), BAND_RGB[b], max(1, int(u)))
-        _text(img, f"B{b}", (x0 + int(8 * u), y0 + ch - int(7 * u)), 0.6 * u, BLACK if filled else WHITE, 1,
-              outline=False)
-    if notice:
-        _text(img, notice, (int(10 * u), bh + int(30 * u)), 0.7 * u, WHITE, 2)
+    if hud is not None:
+        hud.layout = draw_bottom(img, header, hud.mini, hud.both.share(), trunk_deg, hud.edges, rgb=True)
     return img

@@ -176,22 +176,51 @@ def wrist_speeds(xy: np.ndarray, valid: np.ndarray, torso: float, fps: float) ->
     return a, b
 
 
+class BothHandsWindow:
+    """two_hand_simultaneous over the last window_s seconds, updated one frame at
+    a time (batch overlay and live overlay): frames with both hands active /
+    frames with at least one active, counted on frames where both wrist speeds
+    are known. None when fewer than min_valid of the frames in the window had
+    them, or no hand was active. Time based, so a changing frame rate is fine."""
+
+    def __init__(self, window_s: float, min_valid: float = 0.5):
+        from collections import deque
+        self.window_s, self.min_valid = float(window_s), min_valid
+        self.q = deque()
+        self.n = self.n_ok = self.both = self.either = 0
+
+    def push(self, t: float, active: tuple[bool, bool] | None) -> None:
+        """active: (left, right) hand active, or None when the speeds are not known."""
+        ok = active is not None
+        al, ar = (bool(active[0]), bool(active[1])) if ok else (False, False)
+        rec = (float(t), ok, ok and al and ar, ok and (al or ar))
+        self.q.append(rec)
+        self._add(rec, 1)
+        while self.q and self.q[0][0] <= t - self.window_s:
+            self._add(self.q.popleft(), -1)
+
+    def _add(self, rec, k: int) -> None:
+        self.n += k
+        self.n_ok += k * rec[1]
+        self.both += k * rec[2]
+        self.either += k * rec[3]
+
+    def share(self) -> float | None:
+        if not self.either or self.n_ok < self.min_valid * self.n:
+            return None
+        return self.both / self.either
+
+
 def rolling_both_share(al: np.ndarray, ar: np.ndarray, ok: np.ndarray, window: int,
                        min_valid: float = 0.5) -> np.ndarray:
-    """two_hand_simultaneous over the last `window` frames, for every frame:
-    frames with both hands active / frames with at least one active, counted on
-    frames where both wrist speeds are known (ok). NaN when fewer than min_valid
-    of the window (of the frames so far, at the start) is ok or no hand was active."""
-    def last(x):
-        c = np.concatenate([[0], np.cumsum(x, dtype=np.int64)])
-        i = np.arange(1, len(x) + 1)
-        return c[i] - c[np.maximum(i - window, 0)]
-    al, ar, ok = (np.asarray(v, bool) for v in (al, ar, ok))
-    both, either, n_ok = last(al & ar & ok), last((al | ar) & ok), last(ok)
-    with np.errstate(invalid="ignore", divide="ignore"):
-        out = both / either
-    span = np.minimum(np.arange(1, len(ok) + 1), window)
-    out[(either == 0) | (n_ok < min_valid * span)] = np.nan
+    """BothHandsWindow over every frame of a run (window in frames); NaN where it gives None."""
+    w = BothHandsWindow(window, min_valid)
+    out = np.full(len(ok), np.nan)
+    for i, (a, b, k) in enumerate(zip(np.asarray(al, bool), np.asarray(ar, bool), np.asarray(ok, bool))):
+        w.push(i, (a, b) if k else None)
+        v = w.share()
+        if v is not None:
+            out[i] = v
     return out
 
 

@@ -49,7 +49,7 @@ import numpy as np
 
 from ..errors import AvError
 from ..storage.files import REPO_ROOT, utc_now
-from .draw import draw_overlay
+from .draw import LiveHud, draw_overlay, live_header
 from .filters import OneEuro
 from .perception import Detections, LiveTracker
 from .recorder import Recorder
@@ -185,6 +185,7 @@ class LiveSession:
         self.paused = False
         self.last_frame_mono: float | None = None
         self.filter = None
+        self.hud = LiveHud(cfg)                   # rolling 10 s readouts at the bottom of the overlay
         self.stations: list[Station] = []
         self.borders = borders
         self.cycles = cycles
@@ -385,7 +386,8 @@ class LiveSession:
         c3 = time.monotonic()
         subj = self._choose(det, ids, ts)
         station = self.stations[-1]
-        kp = ok = None
+        kp = ok = kconf = None
+        hands = None
         if subj is None:
             if self.subject_seen is not None and ts - self.subject_seen > live["lost_s"] and not self.lost_flag:
                 self.lost_flag = True
@@ -407,14 +409,16 @@ class LiveSession:
             ok = ok & np.isfinite(kp).all(1)
             with self.lock:
                 station.update(ts, kp, kconf, (w, h))
+            hands = getattr(station, "hands_now", None)
         panel = station.panel(ts)
         c4 = time.monotonic()
-        banner, sub, strip = overlay_texts(panel)
-        zones = station.draw_zones()
-        notice = ""
+        self.hud.push(ts, kp, kconf, hands)
         if subj is None:
-            notice = "No person visible" if not len(det.conf) else "Waiting for the selected person"
-        img = draw_overlay(frame, det.boxes, subj, kp, ok, zones, banner, sub, strip, panel["band"], notice, ids)
+            state = "NO PERSON" if not len(det.conf) else "WAITING FOR THE SELECTED PERSON"
+        else:
+            state = overlay_texts(panel)[0].split("|", 1)[-1].strip()
+        img = draw_overlay(frame, det.boxes, subj, kp, ok, station.draw_zones(), live_header(state, ts), self.hud,
+                           station.trunk_now if subj is not None else None, ids)
         done = time.monotonic()
         for k, v in (("wait", c0 - t), ("resize", c1 - c0), ("pose", c2 - c1), ("track", c3 - c2),
                      ("station", c4 - c3), ("draw", done - c4)):
@@ -508,7 +512,9 @@ class LiveSession:
 
 
 def overlay_texts(p: dict) -> tuple[str, str, str]:
-    """Banner, sub line and bottom strip of the overlay for a station panel."""
+    """State line ('LIVE | UPRIGHT'), detail line and measures line of a station
+    panel. The overlay header uses the state after the bar; the details are
+    tiles of the Live panel under the video (not drawn on the frame)."""
     trunk = "trunk n/a" if p["trunk_deg"] is None else f"trunk {p['trunk_deg']} deg"
     if p["kind"] == COMBINED:
         ps = p["posture"]

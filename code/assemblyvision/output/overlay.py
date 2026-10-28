@@ -212,6 +212,28 @@ def draw_trunk(img: np.ndarray, angle: float | None, edges, scale: float = 0.55,
     return x0, y0, x1, y1
 
 
+def draw_bottom(img: np.ndarray, header: str, mini, both_share: float | None, trunk_deg: float | None,
+                edges, rgb: bool = False) -> dict:
+    """The bottom of an overlay frame, the same for the batch video and the live
+    view: header bottom left, mini hand reach map (hud.MiniReach, already
+    pushed for this frame) above it, both hands chip right of it, trunk readout
+    bottom right; boxes from hud.hud_layout. Draws in place on a BGR frame
+    (rgb=True: an RGB live frame) and returns the boxes."""
+    from .hud import both_text, chip_size, draw_chip, hud_layout, mini_size
+    bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR) if rgb else img
+    h, w = bgr.shape[:2]
+    hs = 0.55 * max(1.0, h / 480)
+    box = draw_header(bgr, header, scale=hs)
+    text, ok = both_text(both_share)
+    lay = hud_layout(w, h, box, (chip_size(text, hs)[0], box[3] - box[1]), trunk_size(hs), mini_size(h)[:2])
+    mini.draw(bgr, lay["map"])
+    draw_chip(bgr, text, lay["chip"], hs, ok)
+    draw_trunk(bgr, trunk_deg, edges, scale=hs, box=lay["trunk"])
+    if rgb:
+        cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB, dst=img)
+    return lay
+
+
 def overlay_series(subjects: list, n_frames: int, fps: float, cfg: Config, window_s: float = 10.0) -> dict:
     """Per run frame inputs of the readouts, from the cleaned subject tracks
     (motion.Subject): trunk angle (NaN = not valid, the bending rule), both
@@ -237,7 +259,7 @@ def overlay_series(subjects: list, n_frames: int, fps: float, cfg: Config, windo
             al[f[k]] = a[k] >= thr
             ar[f[k]] = b[k] >= thr
         parts.append(reach_samples(cs.xy, cs.measured))
-    return {"trunk": trunk, "wrists": wrists, "fps": fps, "window_s": window_s,
+    return {"trunk": trunk, "wrists": wrists, "window_s": window_s,
             "both": rolling_both_share(al, ar, ok, max(1, round(window_s * fps))),
             "skeleton": combine(parts, n_frames).skeleton}
 
@@ -257,9 +279,8 @@ def render_track_overlay(video: Path, shots: list, items: dict, out_path: Path, 
     (subject marked S), short tracks orange, untracked rows grey, suppressed
     duplicates red. items[shot_id] = {"det": path, "assign": path, "subject": n or None}.
     steps (optional, Step objects) adds the current step label to the header.
-    hud (optional, overlay_series) adds the readouts: the mini hand reach map
-    above the header, the both hands chip right of it, the trunk bottom right."""
-    from .hud import MiniReach, both_text, chip_size, draw_chip, hud_layout, mini_size
+    hud (optional, overlay_series) adds the readouts (draw_bottom)."""
+    from .hud import MiniReach
     from ..perception.tracker import SHORT, SUPPRESSED, UNTRACKED, load_assign
     t0 = time.monotonic()
     ocfg = cfg["overlay"]
@@ -282,10 +303,8 @@ def render_track_overlay(video: Path, shots: list, items: dict, out_path: Path, 
     shots = sorted(shots, key=lambda s: s.start_frame)
     n_out, k, cur = 0, -1, None
     hs = 0.55 * max(1.0, oh / 480)
-    mini = MiniReach(hud["fps"], hud["skeleton"], hud["window_s"]) if hud is not None else None
-    if hud is not None:
-        twh, mwh = trunk_size(hs), mini_size(oh)[:2]
-        n_hud = len(hud["trunk"])
+    mini = MiniReach(hud["skeleton"], hud["window_s"]) if hud is not None else None
+    n_hud = len(hud["trunk"]) if hud is not None else 0
     total = max(1, shots[-1].end_frame - shots[0].start_frame)
     try:
         for idx, frame in iter_frames(video, shots[0].start_frame, shots[-1].end_frame):
@@ -324,16 +343,13 @@ def render_track_overlay(video: Path, shots: list, items: dict, out_path: Path, 
             label = step_at(steps, idx / fps)
             if label is not None:
                 header += f"  step: {label}"
-            box = draw_header(img, header, scale=hs)
-            if hud is not None:
+            if hud is None:
+                draw_header(img, header, scale=hs)
+            else:
                 inside = 0 <= idx < n_hud
-                mini.push(hud["wrists"][idx] if inside else np.full((2, 2), np.nan))
-                text, ok = both_text(hud["both"][idx] if inside else None)
-                lay = hud_layout(ow, oh, box, (chip_size(text, hs)[0], box[3] - box[1]), twh, mwh)
-                mini.draw(img, lay["map"])
-                draw_chip(img, text, lay["chip"], hs, ok)
-                draw_trunk(img, hud["trunk"][idx] if inside else None, cfg["motion"]["angle_bands"], scale=hs,
-                           box=lay["trunk"])
+                mini.push(hud["wrists"][idx] if inside else np.full((2, 2), np.nan), idx / fps)
+                draw_bottom(img, header, mini, hud["both"][idx] if inside else None,
+                            hud["trunk"][idx] if inside else None, cfg["motion"]["angle_bands"])
             proc.stdin.write(np.ascontiguousarray(img).tobytes())
             n_out += 1
             if n_out % 30 == 0:

@@ -127,7 +127,7 @@ class OverlayColorTest(unittest.TestCase):
     def test_other_people_are_red_with_their_number(self):
         img = np.full((240, 320, 3), 40, np.uint8)
         boxes = np.array([[20.0, 60.0, 120.0, 220.0], [180.0, 60.0, 280.0, 220.0]])
-        out = draw_overlay(img, boxes, 0, None, None, None, "LIVE", "", "", 0, ids=np.array([1, 7]))
+        out = draw_overlay(img, boxes, 0, None, None, None, "LIVE  UPRIGHT  0:05", ids=np.array([1, 7]))
         self.assertTrue((out[150, 180] == OTHER_RGB).all() or (out[150, 181] == OTHER_RGB).all())
         self.assertEqual(OTHER_RGB, (0xFF, 0x3B, 0x30))
         self.assertTrue((out[150, 21] == 255).all())                # the subject box is white

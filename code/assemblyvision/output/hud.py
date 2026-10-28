@@ -35,6 +35,19 @@ def inferno_lut() -> np.ndarray:
     return _LUT
 
 
+_FADED: np.ndarray | None = None
+
+
+def faded_lut(fade: float = 0.12) -> np.ndarray:
+    """[256, 1, 3] uint8 BGR table for cv2.applyColorMap: inferno_r, with values
+    below `fade` (of the maximum) blended into white, so empty is white."""
+    global _FADED
+    if _FADED is None:
+        a = np.clip(np.arange(256) / 255.0 / fade, 0.0, 1.0)[:, None]
+        _FADED = np.ascontiguousarray((255 * (1 - a) + inferno_lut() * a).round().astype(np.uint8)[:, None, :])
+    return _FADED
+
+
 def boxes_overlap(a, b, gap: int = 0) -> bool:
     return a[0] < b[2] + gap and b[0] < a[2] + gap and a[1] < b[3] + gap and b[1] < a[3] + gap
 
@@ -42,12 +55,13 @@ def boxes_overlap(a, b, gap: int = 0) -> bool:
 # rolling window ------------------------------------------------------------------------
 
 class RollingGrid:
-    """Counts of body frame points on an n x n grid over the last `window` frames.
-    Row 0 is the top (highest y). push() adds one frame and removes the frame that
-    falls out of the window, so a frame costs O(points), never O(window)."""
+    """Counts of body frame points on an n x n grid over the last window_s seconds
+    (frame times t; batch passes frame / fps, live the frame timestamps, so a
+    changing live frame rate is fine). Row 0 is the top (highest y). push() adds
+    one frame and removes the frames that left the window: O(points) per frame."""
 
-    def __init__(self, window: int, n: int = 48, extent=MINI_EXTENT):
-        self.window, self.n, self.extent = max(1, int(window)), n, extent
+    def __init__(self, window_s: float, n: int = 48, extent=MINI_EXTENT):
+        self.window_s, self.n, self.extent = float(window_s), n, extent
         self.grid = np.zeros((n, n), np.float32)
         self.q: deque = deque()
         self.points = 0                                  # points inside the window
@@ -62,14 +76,14 @@ class RollingGrid:
                         min(self.n - 1, int((x - x0) / (x1 - x0) * self.n))))
         return out
 
-    def push(self, pts: np.ndarray) -> None:
+    def push(self, pts: np.ndarray, t: float) -> None:
         c = self.cells(pts)
         for r, k in c:
             self.grid[r, k] += 1
-        self.q.append(c)
+        self.q.append((float(t), c))
         self.points += len(c)
-        while len(self.q) > self.window:
-            for r, k in self.q.popleft():
+        while self.q and self.q[0][0] <= t - self.window_s:
+            for r, k in self.q.popleft()[1]:
                 self.grid[r, k] -= 1
                 self.points -= 1
 
@@ -100,38 +114,42 @@ def dot_px(pt, map_box) -> tuple[float, float]:
 
 
 class MiniReach:
-    """The rolling hand reach map of one overlay video. push() every frame, in order."""
+    """The rolling hand reach map of one overlay video or live session.
+    push() every frame, in time order, with the frame time in seconds."""
 
-    def __init__(self, fps: float, skeleton: dict | None, window_s: float = 10.0, fade_s: float = 0.5):
-        self.grid = RollingGrid(round(window_s * fps))
+    def __init__(self, skeleton: dict | None = None, window_s: float = 10.0, fade_s: float = 0.5):
+        self.grid = RollingGrid(window_s)
         self.skeleton = skeleton or {}
-        self.fade = max(1, round(fade_s * fps))
+        self.fade_s = fade_s
         self.last: list = [None, None]          # last valid point per wrist
-        self.since = [10 ** 9, 10 ** 9]        # frames since it was valid
+        self.last_t = [-math.inf, -math.inf]    # its time
+        self.t = 0.0
         self._mask: dict = {}
 
-    def push(self, pts: np.ndarray) -> None:
+    def push(self, pts: np.ndarray, t: float) -> None:
         pts = np.asarray(pts, np.float64).reshape(2, 2)
-        self.grid.push(pts)
+        self.t = float(t)
+        self.grid.push(pts, t)
         for k in (0, 1):
             if np.isfinite(pts[k]).all():
-                self.last[k], self.since[k] = pts[k].copy(), 0
-            else:
-                self.since[k] += 1
+                self.last[k], self.last_t[k] = pts[k].copy(), self.t
 
     def dot_alpha(self, k: int) -> float:
         """1 while the wrist is seen, fading to 0 over fade_s after it was lost."""
-        return max(0.0, 1.0 - self.since[k] / self.fade) if self.last[k] is not None else 0.0
+        if self.last[k] is None:
+            return 0.0
+        return max(0.0, 1.0 - (self.t - self.last_t[k]) / self.fade_s)
 
     def _panel_mask(self, w: int, h: int, r: int) -> np.ndarray:
+        """bool [h, w, 1]: inside the rounded panel (built once per size)."""
         key = (w, h, r)
         if key not in self._mask:
             m = np.zeros((h, w), np.uint8)
             cv2.rectangle(m, (r, 0), (w - 1 - r, h - 1), 255, -1)
             cv2.rectangle(m, (0, r), (w - 1, h - 1 - r), 255, -1)
             for cx, cy in ((r, r), (w - 1 - r, r), (r, h - 1 - r), (w - 1 - r, h - 1 - r)):
-                cv2.circle(m, (cx, cy), r, 255, -1, cv2.LINE_AA)
-            self._mask[key] = (m.astype(np.float32) / 255.0)[..., None]
+                cv2.circle(m, (cx, cy), r, 255, -1)
+            self._mask[key] = (m > 0)[..., None]
         return self._mask[key]
 
     def draw(self, img: np.ndarray, box: tuple[int, int, int, int], opacity: float = 0.88) -> None:
@@ -149,10 +167,8 @@ class MiniReach:
         mbox = (mx0, my0, mx0 + side, my0 + side)
         d = self.grid.density()
         if d is not None:
-            big = cv2.resize(d, (side, side), interpolation=cv2.INTER_LINEAR)
-            color = inferno_lut()[np.clip(big * 255, 0, 255).astype(np.uint8)]
-            a = np.clip(big / 0.12, 0.0, 1.0)[..., None]
-            panel[my0:my0 + side, mx0:mx0 + side] = (255 * (1 - a) + color * a).astype(np.uint8)
+            big = cv2.resize((d * 255).astype(np.uint8), (side, side), interpolation=cv2.INTER_LINEAR)
+            panel[my0:my0 + side, mx0:mx0 + side] = cv2.applyColorMap(big, faded_lut())
         cv2.rectangle(panel, (mx0, my0), (mx0 + side - 1, my0 + side - 1), (225, 225, 225), 1)
         self._figure(panel, mbox, s)
         font = cv2.FONT_HERSHEY_SIMPLEX
@@ -172,9 +188,9 @@ class MiniReach:
             e = tuple(int(255 * (1 - al) + v * al) for v in DOT_EDGE)
             cv2.circle(panel, (int(round(px)), int(round(py))), r + 1, e, -1, cv2.LINE_AA)
             cv2.circle(panel, (int(round(px)), int(round(py))), r, c, -1, cv2.LINE_AA)
-        m = self._panel_mask(w, h, round(8 * s)) * opacity
         roi = img[y0:y1, x0:x1]
-        roi[:] = (roi.astype(np.float32) * (1 - m) + panel.astype(np.float32) * m).astype(np.uint8)
+        mixed = cv2.addWeighted(roi, 1.0 - opacity, panel, opacity, 0.0)
+        np.copyto(roi, mixed, where=self._panel_mask(w, h, round(8 * s)))
 
     def _figure(self, panel: np.ndarray, mbox, s: float) -> None:
         """Faint grey reference figure: shoulders at y 1, hips at y 0, head (analysis.reach)."""

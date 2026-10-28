@@ -104,7 +104,7 @@ class Station:
         kp_raw = np.where(ok[:, None], kp, np.nan)
         if self.engine is not None:
             self.engine.update(t, kp, conf, size)
-            self.two_hand.update(t, kp_raw, conf)
+            self.hands_now = self.two_hand.update(t, kp_raw, conf)["active"]   # (left, right) active, or None
         elif self.lifts is not None:
             self.new_lift = self.lifts.update(t, kp, conf, ok) or self.new_lift
         else:
@@ -262,7 +262,7 @@ class CombinedStation(Station):
         kp_raw = np.where(ok[:, None], kp, np.nan)
         self.posture.update(t, kp, ok)
         self.idle.update(t, kp_raw, conf)
-        self.two_hand.update(t, kp_raw, conf)
+        self.hands_now = self.two_hand.update(t, kp_raw, conf)["active"]   # (left, right) active, or None
         self.new_lift = self.lifts.update(t, kp, conf, ok) or self.new_lift
         seen = self.lifts.now["knee_deg"] is not None and knee_conf(conf) >= self.knee_min
         self.knee_frames += int(seen)

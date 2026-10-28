@@ -27,26 +27,26 @@ UI = Path(__file__).resolve().parents[1] / "assemblyvision" / "ui"
 
 class RollingGridTest(unittest.TestCase):
     def test_add_and_remove(self):
-        g = RollingGrid(window=3, n=10, extent=(0.0, 1.0, 0.0, 1.0))
-        g.push(np.array([[0.05, 0.95], [0.55, 0.45]]))    # top left cell and a middle cell
+        g = RollingGrid(window_s=3.0, n=10, extent=(0.0, 1.0, 0.0, 1.0))
+        g.push(np.array([[0.05, 0.95], [0.55, 0.45]]), 0.0)    # top left cell and a middle cell
         self.assertEqual(g.grid[0, 0], 1)
         self.assertEqual(g.grid[5, 5], 1)
-        g.push(np.array([[0.05, 0.95], [np.nan, np.nan]]))  # a missing wrist adds nothing
-        g.push(np.full((2, 2), np.nan))                    # an empty frame still takes its place in the window
+        g.push(np.array([[0.05, 0.95], [np.nan, np.nan]]), 1.0)  # a missing wrist adds nothing
+        g.push(np.full((2, 2), np.nan), 2.0)                    # an empty frame still takes its place
         self.assertEqual((g.grid[0, 0], g.points), (2, 3))
-        g.push(np.array([[2.0, 2.0], [np.nan, np.nan]]))   # outside the extent; frame 1 leaves the window
+        g.push(np.array([[2.0, 2.0], [np.nan, np.nan]]), 3.0)   # outside the extent; frame at 0 s leaves
         self.assertEqual((g.grid[0, 0], g.grid[5, 5], g.points), (1, 0, 1))
         self.assertEqual(g.grid.sum(), 1)
         self.assertIsNotNone(g.density())
-        for _ in range(3):
-            g.push(np.full((2, 2), np.nan))
+        for t in (4.0, 5.0, 6.0):
+            g.push(np.full((2, 2), np.nan), t)
         self.assertEqual((g.points, float(g.grid.sum())), (0, 0.0))
         self.assertIsNone(g.density())
 
     def test_density_is_smoothed_and_normalised(self):
-        g = RollingGrid(window=100, n=48)
-        for _ in range(10):
-            g.push(np.array([[0.0, 0.5], [np.nan, np.nan]]))
+        g = RollingGrid(window_s=100.0, n=48)
+        for i in range(10):
+            g.push(np.array([[0.0, 0.5], [np.nan, np.nan]]), float(i))
         d = g.density()
         self.assertAlmostEqual(float(d.max()), 1.0)
         self.assertGreater(int((d > 0.05).sum()), 4)           # spread by the blur
@@ -73,19 +73,17 @@ class DotTest(unittest.TestCase):
         s.body_xy[0, 9] = hip + 80 * u + 0.5 * 80 * n
         pts = frame_points(s.body_xy, np.ones((1, 17), bool))
         np.testing.assert_allclose(pts[0, 0], [0.5, 1.0], atol=1e-6)
-        mini = MiniReach(FPS, {})
-        mini.push(pts[0])
+        mini = MiniReach({})
+        mini.push(pts[0], 0.0)
         self.assertEqual(mini.dot_alpha(0), 1.0)
         img = np.zeros((480, 854, 3), np.uint8)
         mini.draw(img, (8, 100, 8 + 152, 100 + 168))
         px = dot_px(pts[0, 0], (14, 100 + 6 + 16, 14 + 140, 100 + 6 + 16 + 140))
         c = img[int(round(px[1])), int(round(px[0]))].astype(int)
         self.assertTrue(abs(c[0] - 0xEE) < 50 and abs(c[2] - 0x22) < 50, c)   # the cyan dot
-        for _ in range(round(0.25 * FPS)):
-            mini.push(np.full((2, 2), np.nan))
-        self.assertAlmostEqual(mini.dot_alpha(0), 0.5, delta=0.05)             # fading out
-        for _ in range(round(0.5 * FPS)):
-            mini.push(np.full((2, 2), np.nan))
+        mini.push(np.full((2, 2), np.nan), 0.25)
+        self.assertAlmostEqual(mini.dot_alpha(0), 0.5)                          # fading out over 0.5 s
+        mini.push(np.full((2, 2), np.nan), 0.75)
         self.assertEqual(mini.dot_alpha(0), 0.0)
 
 
@@ -149,7 +147,7 @@ class LayoutTest(unittest.TestCase):
                 self.assertEqual(lay["chip"][3] - lay["chip"][1], hb[3] - hb[1])   # same height as the header
                 modes.add("inline" if lay["chip"][1] == hb[1] else "above")
                 # drawing into the boxes stays inside them
-                MiniReach(FPS, {}).draw(img, lay["map"])
+                MiniReach({}).draw(img, lay["map"])
                 overlay.draw_trunk(img, 50.0, [20, 45, 60], scale=hs, box=lay["trunk"])
         return modes
 
@@ -238,3 +236,70 @@ console.log("ok");
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LiveSameAsBatchTest(unittest.TestCase):
+    """The live overlay draws its bottom with the batch code: same boxes, same map."""
+
+    def test_same_boxes_and_map_for_the_same_keypoints(self):
+        from assemblyvision.analysis.motion import MotionAnalyzer
+        from assemblyvision.live.draw import LiveHud, draw_overlay, live_header
+        cfg = motion_cfg()
+        for size in ((640, 480), (854, 480), (1920, 1080)):
+            w, h = size
+            T = 40
+            s = pose_series(T, angle=35.0, hip=(w / 2, h * 0.62), torso=h / 5)
+            shot = Shot(s.shot_id, s.run_id, 0, T, 0.0, T / FPS, "fixed")
+            sub = MotionAnalyzer(cfg).subject(s, shot)
+            series = overlay.overlay_series([sub], T, FPS, cfg)
+            header = live_header("BENT 1.2 s", 83)
+            mini = MiniReach(series["skeleton"], 10.0)
+            hud = LiveHud(cfg)
+            for i in range(T):
+                mini.push(series["wrists"][i], i / FPS)
+                hud.push(i / FPS, sub.cs.xy[i], np.asarray(s.body_conf[i]), None)
+            frame = np.full((h, w, 3), 70, np.uint8)
+            batch = frame.copy()
+            lay_b = overlay.draw_bottom(batch, header, mini, None, series["trunk"][T - 1], cfg["motion"]["angle_bands"])
+            live = draw_overlay(frame, np.zeros((0, 4)), None, None, None, None, header, hud, series["trunk"][T - 1])
+            self.assertEqual(hud.layout, lay_b, size)                 # same positions and sizes
+            x0, y0, x1, y1 = lay_b["map"]
+            live_bgr = live[..., ::-1]
+            self.assertLessEqual(int(np.abs(live_bgr[y0:y1, x0:x1].astype(int) - batch[y0:y1, x0:x1]).max()), 2)
+            x0, y0, x1, y1 = lay_b["trunk"]
+            self.assertLessEqual(int(np.abs(live_bgr[y0:y1, x0:x1].astype(int) - batch[y0:y1, x0:x1]).max()), 2)
+            self.assertEqual(int(np.abs(live_bgr[:h // 3].astype(int) - 70).max()), 0)   # the top stays free
+
+    def test_live_windows_are_time_based(self):
+        from assemblyvision.live.draw import LiveHud
+        cfg = motion_cfg()
+        s = pose_series(1, angle=0.0)
+        kp, conf = np.asarray(s.body_xy[0], np.float64), np.asarray(s.body_conf[0])
+        results = []
+        for fps in (25.0, 10.0):                       # the adaptive rate changes the frame count, not the window
+            hud = LiveHud(cfg)
+            t = 0.0
+            while t < 2.0:                             # 2 s with the worker seen, hands both active
+                hud.push(t, kp, conf, (True, True))
+                t += 1 / fps
+            while t < 11.5:                            # then nobody
+                hud.push(t, None, None, None)
+                t += 1 / fps
+            a = (hud.mini.grid.points > 0, hud.both.share())
+            while t < 12.5:
+                hud.push(t, None, None, None)
+                t += 1 / fps
+            b = (hud.mini.grid.points, hud.both.share(), hud.mini.dot_alpha(0))
+            results.append((a, b))
+        for (a, b) in results:
+            self.assertTrue(a[0])                      # at 11.5 s the frames of 1.5 to 2 s are still inside
+            self.assertIsNone(a[1])                    # but most of the window had no hands: n/a
+            self.assertEqual(b[0], 0)                  # at 12.5 s the last seen frame left the 10 s window
+            self.assertIsNone(b[1])
+            self.assertEqual(b[2], 0.0)                # the dots faded out
+        hud = LiveHud(cfg)
+        for i in range(30):                            # irregular timestamps, all inside 10 s
+            hud.push(i * 0.3 + (0.05 if i % 2 else 0.0), kp, conf, (True, i % 3 == 0))
+        self.assertAlmostEqual(hud.both.share(), 10 / 30)
+        hud.push(13.0, kp, conf, (True, False))        # frames up to 3.0 s leave the window
+        self.assertEqual(hud.both.n, sum(1 for i in range(30) if i * 0.3 + (0.05 if i % 2 else 0.0) > 3.0) + 1)

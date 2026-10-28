@@ -121,6 +121,8 @@ def _combined(st: dict, running: bool) -> list[str]:
              ("Hand use ratio", _pct(st.get("two_hand_use_ratio")))]
     if st.get("lifts_ready") or lifts:
         tiles.append(("Lifts", str(len(lifts)), f"stoop {n_st}, squat {len(lifts) - n_st}"))
+        if running:
+            tiles.append(("Knee now", _v(st.get("knee_deg"), "°", "{:.0f}"), "180° = straight leg"))
     else:
         tiles.append(("Lifts", "n/a", "needs a side view"))
     if st.get("cycles_on"):
