@@ -269,6 +269,7 @@ class GradioApp:
         items = [("Frames", f"{pb['frames']:,}" if pb.get("frames") else "n/a"),
                  ("Pose speed", f"{pb['pose_fps']:.0f} fps" if pb.get("pose_fps") else "n/a"),
                  ("Peak GPU memory", f"{pb['gpu_peak_mb']:.0f} MB" if pb.get("gpu_peak_mb") else "n/a"),
+                 ("Precision", pb.get("precision") or ("FP16" if pb.get("half") else "FP32" if pb else "n/a")),
                  ("Shots", str(m.get("shots", {}).get("count", "n/a"))),
                  ("Tracks", str(m.get("tracking", {}).get("totals", {}).get("tracks_kept", "n/a"))),
                  ("Phases found", self._phases_found(run_id, m)),
@@ -704,7 +705,7 @@ class GradioApp:
                                 gr.HTML(v.section_title("Settings"))
                                 variant = gr.Radio(list(VARIANTS), value=variant0, label="Pose model",
                                                    elem_classes=["av-seg"])
-                                gr.HTML("<div class='av-hint' style='margin-top:-6px'>n, s, m, l: smaller is faster, "
+                                gr.HTML("<div class='av-hint' style='margin-top:-6px'>n, s, m, l, x: smaller is faster, "
                                         "larger is more accurate.</div>"
                                         "<div class='av-field-label' style='margin-top:18px'>Step engine</div>"
                                         "<div class='av-seg-static'><span class='on'>Engine A</span>"

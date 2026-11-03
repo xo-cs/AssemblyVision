@@ -74,7 +74,7 @@ class RunManagerTest(unittest.TestCase):
         self.rm.reap()
 
     def test_unsupported_variant_and_wrong_area(self):
-        run_id, notices = self.rm.create_run(self.video, "public", "x")
+        run_id, notices = self.rm.create_run(self.video, "public", "xl")
         self.assertEqual([n.code for n in notices], ["AV-APP-006"])
         self.assertEqual(self.store.get_run(run_id)["variant"], self.cfg["pose"]["variant"])
         q = self.root / "data/qisens/videos/q.mp4"

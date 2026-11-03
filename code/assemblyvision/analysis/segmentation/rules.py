@@ -7,6 +7,12 @@ Evidence on the run timeline (strengths are seg_a.strength_*):
   pause      such a long pause away from cuts (boundary at its middle)
   cut        any other shot cut
 
+With seg_a.activity_change on, every point candidate (cut_pause, pause, cut)
+gets strength = base + seg_a.ac_weight * activity change, where the change
+(0 to 1, activity.py) compares the subject activity in the seg_a.ac_window_s
+before and after the candidate. no_person keeps its strength. Off (default):
+the strengths and the result are exactly the ones without this feature.
+
 Phase mode (steps.step not empty): K phases in the order of steps.toml, each
 at most once and never backwards. Leading and trailing stretches without a
 person are other. Limits per phase: T = first to last frame with a person,
@@ -43,6 +49,7 @@ from ...phases import phase_defs_for
 from ...storage.files import RunContext
 from ...types import Step
 from ..cleaning import SignalCleaner, _runs
+from .activity import HOP_S, activity_change, video_stats
 from .base import OTHER, SOURCE, RunTimeline, SegmentationEngine, check_contract
 
 
@@ -53,6 +60,7 @@ class Evidence:
     kind: str
     strength: float
     used: bool = False
+    activity_change: float | None = None    # set only with seg_a.activity_change on
 
 
 class RuleBasedEngine(SegmentationEngine):
@@ -103,7 +111,18 @@ class RuleBasedEngine(SegmentationEngine):
             if i not in consumed and not in_empty(m):
                 ev.append(Evidence(m, m, "pause", s["strength_pause"]))
         ev.sort(key=lambda e: (e.start, e.end))
+        if s["activity_change"] and tl.activity:
+            self.add_activity_change(tl, ev, a, b)
         return ev
+
+    def add_activity_change(self, tl: RunTimeline, ev: list[Evidence], a: int, b: int) -> None:
+        win = max(1, int(round(self.s["ac_window_s"] * tl.fps)))
+        norm = video_stats(tl.activity, a, b, win, int(round(HOP_S * tl.fps)))
+        for e in ev:
+            if e.kind == "no_person":
+                continue
+            e.activity_change = round(activity_change(tl.activity, e.start, e.end, a, b, win, norm), 4)
+            e.strength = e.strength + self.s["ac_weight"] * e.activity_change
 
     # limits -----------------------------------------------------------------
 
@@ -132,7 +151,7 @@ class RuleBasedEngine(SegmentationEngine):
         E = np.array([e.end for e in ev], np.int64)
         st = np.array([e.strength for e in ev], np.float64)
         target = (b - a) / K
-        pen = 1e-3 / max(b - a, 1)          # tie break only: strengths differ by >= 0.2 in practice
+        pen = 1e-3 / max(b - a, 1)          # tie break only: at most 1e-3 in total, far below strength steps
 
         def ok(dur, k):
             return (dur >= lim[k]["min_f"]) & (dur <= lim[k]["max_f"])
@@ -264,7 +283,12 @@ class RuleBasedEngine(SegmentationEngine):
                        note=f"found {len(phases)} of {len(lim)} phases")
         ev.sort(key=lambda e: (e.start, e.end))
         rep["evidence"] = [{"start_s": tl.t(e.start), "end_s": tl.t(e.end), "kind": e.kind,
-                            "strength": e.strength, "used": e.used} for e in ev]
+                            "strength": round(e.strength, 4), "used": e.used,
+                            **({} if e.activity_change is None else {"activity_change": e.activity_change})}
+                           for e in ev]
+        if self.s["activity_change"]:
+            rep["activity_change"] = {"on": bool(tl.activity), "ac_weight": self.s["ac_weight"],
+                                      "ac_window_s": self.s["ac_window_s"]}
         rep["evidence_counts"] = {k: sum(e.kind == k for e in ev)
                                   for k in ("no_person", "cut_pause", "pause", "cut", "forced")}
         check_contract(steps, tl, self.vocabulary)

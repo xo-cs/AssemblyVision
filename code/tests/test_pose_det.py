@@ -125,5 +125,29 @@ class PoseDetTest(unittest.TestCase):
         self.assertEqual(self.ctx.manifest["overlay"]["frames"], 25)
 
 
+class PrecisionTest(unittest.TestCase):
+    """pose.half: FP16 only on a CUDA GPU with tensor cores (compute capability >= 7.0)."""
+
+    def setUp(self):
+        self._tmp = fake_root()
+        self.cfg, self.ctx = make_ctx(Path(self._tmp.name))
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def resolve(self, device, cc, half=True):
+        pose = PoseEstimator(self.cfg, self.ctx, device=device, models_dir=Path(self._tmp.name))
+        pose.pcfg = {**self.cfg["pose"], "half": half}
+        fake = SimpleNamespace(cuda=SimpleNamespace(get_device_capability=lambda i: cc))
+        return pose.resolve_half(fake), pose.gpu_cc
+
+    def test_resolve_half(self):
+        self.assertIs(self.cfg["pose"]["half"], False)                       # default FP32
+        self.assertEqual(self.resolve("cuda:0", (8, 6)), (True, "8.6"))        # Ampere A5000, A4000
+        self.assertEqual(self.resolve("cuda:0", (6, 1)), (False, "6.1"))       # Pascal GTX 1080 Ti
+        self.assertEqual(self.resolve("cuda:0", (8, 6), half=False), (False, "8.6"))
+        self.assertEqual(self.resolve("cpu", (8, 6)), (False, None))
+
+
 if __name__ == "__main__":
     unittest.main()

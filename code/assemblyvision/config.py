@@ -18,7 +18,7 @@ DEFAULT_TOML = CODE_DIR / "configs" / "default.toml"
 STEPS_TOML = CODE_DIR / "configs" / "steps.toml"
 DEFAULT_LAYERS = [DEFAULT_TOML, STEPS_TOML]          # LLD 3.0.5 order (gpu.toml comes later)
 
-VARIANTS = ("n", "s", "m", "l")
+VARIANTS = ("n", "s", "m", "l", "x")
 MOTION_METRICS = ("duration", "path", "back_bending", "repetition", "hand_travel", "two_hand", "idle", "gaze")
 
 # dotted key: (check, allowed range shown in AV-CFG-002)
@@ -37,13 +37,13 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "shots.fixed_motion_max": (lambda v: 0 <= v <= 1, "0 to 1"),
     "shots.motion_pairs": (lambda v: v >= 1, ">= 1"),
     "shots.motion_pair_s": (lambda v: v > 0, "> 0"),
-    "pose.variant": (lambda v: v in VARIANTS, "n, s, m, l"),
-    "pose.fallback_variant": (lambda v: v in VARIANTS + ("",), "n, s, m, l or empty"),
+    "pose.variant": (lambda v: v in VARIANTS, "n, s, m, l, x"),
+    "pose.fallback_variant": (lambda v: v in VARIANTS + ("",), "n, s, m, l, x or empty"),
     "pose.imgsz": (lambda v: 32 <= v <= 1920 and v % 32 == 0, "32 to 1920, multiple of 32"),
     "pose.det_conf_min": (lambda v: 0 <= v <= 1, "0 to 1"),
     "pose.ref_conf_min": (lambda v: 0 <= v <= 1, "0 to 1"),
     "pose.ref_search_s": (lambda v: v > 0, "> 0"),
-    "pose.half": (lambda v: v is False, "false (Pascal GPU, FP32 only)"),
+    "pose.half": (lambda v: isinstance(v, bool), "true or false"),
     "pose.hand_crop_margin": (lambda v: 0 <= v <= 1, "0 to 1"),
     "track.algorithm": (lambda v: v == "bytetrack", "bytetrack"),
     "track.high_thresh": (lambda v: 0 <= v <= 1, "0 to 1"),
@@ -76,6 +76,8 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "seg_a.strength_cut_pause": (lambda v: v >= 0, ">= 0"),
     "seg_a.strength_pause": (lambda v: v >= 0, ">= 0"),
     "seg_a.strength_cut": (lambda v: v >= 0, ">= 0"),
+    "seg_a.ac_weight": (lambda v: v >= 0, ">= 0"),
+    "seg_a.ac_window_s": (lambda v: v > 0, "> 0"),
     "steps.mode": (lambda v: v == "ordered", "ordered"),
     "eval.seg_fps": (lambda v: 1 <= v <= 240, "1 to 240"),
     "eval.kappa_fps": (lambda v: 1 <= v <= 240, "1 to 240"),

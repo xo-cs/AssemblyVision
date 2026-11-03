@@ -12,6 +12,7 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(cfg.get("pose.imgsz"), 640)
         self.assertEqual(cfg["pose"]["det_conf_min"], 0.10)
         self.assertIs(cfg["pose"]["half"], False)
+        self.assertEqual(cfg["pose"]["variant"], "x")
 
     def test_unknown_key_refused(self):
         with self.assertRaises(AvError) as cm:
@@ -22,8 +23,8 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(cm.exception.code, "AV-CFG-001")
 
     def test_bad_value_refused(self):
-        for over in ({"pose": {"variant": "x"}}, {"pose": {"imgsz": "640"}},
-                     {"pose": {"half": True}}, {"pose": {"det_conf_min": 1.5}}):
+        for over in ({"pose": {"variant": "xl"}}, {"pose": {"imgsz": "640"}},
+                     {"pose": {"half": 1}}, {"pose": {"det_conf_min": 1.5}}):
             with self.assertRaises(AvError) as cm:
                 Config.load(overrides=over)
             self.assertEqual(cm.exception.code, "AV-CFG-002", over)

@@ -33,13 +33,14 @@ motion_pairs = 20            # frame pairs for the background motion
 motion_pair_s = 0.5          # time between the two frames of a pair (s)
 
 [pose]
-variant = "m"                # YOLO26 pose variant: n, s, m or l
+variant = "x"                # YOLO26 pose variant: n, s, m, l or x (x FP32: 67 fps on the A5000, Week 9 benchmark)
 fallback_variant = "s"       # used once when the GPU runs out of memory ("" = none)
 imgsz = 640                  # inference size (px)
 det_conf_min = 0.10          # detector threshold, low so the tracker can use weak detections
 ref_conf_min = 0.50          # threshold for the reference frame
 ref_search_s = 5.0           # seconds scanned for a reference frame
-half = false                 # FP32 only, the Pascal GPU gives no gain from FP16
+half = false                 # FP32; FP16 gave no speedup on the A5000 (Week 9 benchmark) and its accuracy cost is unmeasured.
+                             # true asks for FP16, used only on tensor core GPUs (compute capability >= 7.0)
 hand_crop_margin = 0.15      # margin added to the box for RTMW
 
 [track]
@@ -79,6 +80,9 @@ strength_no_person = 1.0     # evidence strengths used by both solvers
 strength_cut_pause = 0.6
 strength_pause = 0.4
 strength_cut = 0.2
+activity_change = false      # add the subject activity change to cut, cut_pause and pause candidates
+ac_weight = 0.4              # strength += ac_weight * change (0 to 1); fixed before any QiSens result, see rules.py
+ac_window_s = 10.0           # window before and after a candidate compared for the change (s)
 
 [steps]
 # The vocabulary lives in configs/steps.toml (LLD 3.0.5); this is the empty default.
@@ -90,6 +94,7 @@ step = []                    # [{name, min_s?, max_s?}, ...]; limits default to 
 seg_fps = 15                 # frame sampling for frame accuracy, edit and F1 (frames/s)
 kappa_fps = 5                # frame sampling for Cohen's kappa (frames/s)
 overlaps = [0.10, 0.25, 0.50]   # IoU thresholds of the segmental F1
+label = ""                   # written into eval.json when set, e.g. "after error analysis, not blind"
 
 [motion]
 # MotionAnalyzer (LLD 3.7). Add "gaze" to enabled for the rough gaze direction (FR-MOTION-08, Want).
@@ -120,7 +125,7 @@ cell_px = 20                 # grid cell without a floor scale (px)
 min_samples = 30             # fewer path samples give no heatmap
 
 [gpu]
-pose = 0                    # GTX 1080 Ti (PCI bus order)
+pose = 0                    # RTX A5000 24 GB, Ampere (PCI bus order, bus 01:00)
 
 [overlay]
 kp_conf_min = 0.30           # keypoints below this are drawn faded (display only)
@@ -133,7 +138,7 @@ poll_s = 2.0                 # status poll interval of the Run tab (s)
 max_upload_mb = 4096         # largest upload accepted (MB)
 
 [live]
-gpu = 1                      # RTX A4000 (PCI bus order); batch pose stays on gpu.pose
+gpu = 1                      # RTX A4000 16 GB, Ampere (PCI bus order, bus 03:00); batch pose stays on gpu.pose
 half = true                  # FP16 on the A4000
 pose_model = "yolo26s-pose.pt"
 input_px = 640               # longest side of the frame given to the model (px)

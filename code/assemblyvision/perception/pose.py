@@ -81,6 +81,20 @@ class PoseEstimator:
         self.models_dir = models_dir or (REPO_ROOT / cfg["paths"]["models_dir"])
         self.model = None
         self.variant: str | None = None
+        self.half = False                  # precision in use, set by load_models (resolve_half)
+        self.gpu_cc: str | None = None
+
+    def resolve_half(self, torch) -> bool:
+        """pose.half asks for FP16; it is used only on a CUDA GPU with tensor cores
+        (compute capability 7.0 or higher, e.g. the Ampere A5000), else FP32."""
+        if not self.device.startswith("cuda"):
+            return False
+        major, minor = torch.cuda.get_device_capability(0)
+        self.gpu_cc = f"{major}.{minor}"
+        if self.pcfg["half"] and major < 7:
+            self.ctx.log.info("pose.half is true but GPU compute capability %s has no tensor cores: FP32",
+                              self.gpu_cc)
+        return bool(self.pcfg["half"]) and major >= 7
 
     def load_models(self, variant: str) -> None:
         """Load YOLO26 pose of one variant from models/ (AV-POS-001, 002)."""
@@ -101,13 +115,14 @@ class PoseEstimator:
         except Exception as e:
             raise AvError("AV-POS-001", name=name, detail=repr(e)) from e
         self.model, self.variant = model, variant
-        self.ctx.log.info("loaded %s on %s", name, self.device)
+        self.half = self.resolve_half(torch)
+        self.ctx.log.info("loaded %s on %s (%s)", name, self.device, "FP16" if self.half else "FP32")
 
     def _infer(self, frame: np.ndarray, conf: float | None = None):
         # Ultralytics 8.4.178 replaced half with quantize (32 = FP32, 16 = FP16).
         return self.model.predict(frame, imgsz=self.pcfg["imgsz"],
                                   conf=self.pcfg["det_conf_min"] if conf is None else conf,
-                                  quantize=16 if self.pcfg["half"] else 32, device=self.device,
+                                  quantize=16 if self.half else 32, device=self.device,
                                   verbose=False, save=False)[0]
 
     def reference_frames(self, run_id: str, shots: list[Shot], video: Path | None = None) -> list[dict]:
@@ -310,7 +325,8 @@ class PoseEstimator:
             "variant": self.variant,
             "variant_requested": self.pcfg["variant"],
             "fallback": fell_back,
-            "imgsz": self.pcfg["imgsz"], "conf": self.pcfg["det_conf_min"], "half": self.pcfg["half"],
+            "imgsz": self.pcfg["imgsz"], "conf": self.pcfg["det_conf_min"],
+            "half_requested": self.pcfg["half"], "half": self.half, "precision": "FP16" if self.half else "FP32",
             "frames": n_frames,
             "frames_with_person": with_person,
             "detections": dets,
@@ -320,6 +336,8 @@ class PoseEstimator:
             "infer_ms_mean": round(1000 * t_infer / max(n_frames - len(failed), 1), 2),
             "gpu_peak_mb": peak_mb,
             "gpu_name": torch.cuda.get_device_name(0) if cuda else None,
+            "gpu_cc": self.gpu_cc,
+            "gpu_total_mb": round(torch.cuda.get_device_properties(0).total_memory / 2**20) if cuda else None,
             "per_shot": per_shot,
         }
         log.info("pose done: %d frames in %d shots, %d detections, %d frames with a person, %d failed, "

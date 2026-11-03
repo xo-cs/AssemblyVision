@@ -22,6 +22,7 @@ from ...kts import read_kts
 from ...storage.files import RunContext, write_atomic
 from ...types import KeypointSeries, Shot, Step
 from ..cleaning import SignalCleaner, features
+from .activity import empty_activity, frame_activity
 
 OTHER = "other"
 SOURCE = "engine_a"
@@ -37,6 +38,7 @@ class RunTimeline:
     energy: np.ndarray                 # float32 [N]: subject motion energy, NaN without subject
     cuts: list[int] = field(default_factory=list)   # first frames of shots 2..n
     offset_s: float = 0.0              # added to all times (one shot timelines)
+    activity: dict = field(default_factory=dict)    # per frame subject activity channels (activity.py), or empty
 
     @property
     def duration_s(self) -> float:
@@ -53,23 +55,33 @@ def timeline_from_series(series: KeypointSeries, shot: Shot | None, cleaner: Sig
                        f["energy"], [], shot.start_s if shot is not None else 0.0)
 
 
-def build_timeline(manifest: dict, run_root: Path, cleaner: SignalCleaner) -> RunTimeline:
-    """Run timeline from the stored shot table and KTS files (no video, no GPU)."""
+def build_timeline(manifest: dict, run_root: Path, cleaner: SignalCleaner,
+                   motion_cfg: dict | None = None) -> RunTimeline:
+    """Run timeline from the stored shot table and KTS files (no video, no GPU).
+    With motion_cfg (seg_a.activity_change on) it also carries the subject
+    activity channels, with the thresholds motion.hand_active and motion.idle_energy."""
     cfr = manifest["ingest"]["cfr"]
     fps = float(cfr["fps"])
     items = sorted(manifest["shots"]["items"], key=lambda i: i["start_frame"])
     n = max(int(cfr["frame_count"]), max((i["end_frame"] for i in items), default=0))
     person = np.zeros(n, bool)
     energy = np.full(n, np.nan, np.float32)
+    activity = empty_activity(n) if motion_cfg is not None else {}
     for tr in manifest.get("tracking", {}).get("tracks", []):
         series, _ = read_kts(run_root / tr["kts_path"])
         f0 = int(series.frame_idx[0]) if len(series.frame_idx) else 0
         T = min(len(series.present), n - f0)
         person[f0:f0 + T] |= series.present[:T]
         if tr.get("is_subject"):
-            energy[f0:f0 + T] = features(cleaner.clean(series))["energy"][:T]
+            cs = cleaner.clean(series)
+            e = features(cs)["energy"]
+            energy[f0:f0 + T] = e[:T]
+            if motion_cfg is not None:
+                act = frame_activity(cs, e, motion_cfg["hand_active"], motion_cfg["idle_energy"])
+                for k, v in act.items():
+                    activity[k][f0:f0 + T] = v[:T]
     cuts = [int(i["start_frame"]) for i in items[1:]]
-    return RunTimeline(fps, n, person, energy, cuts)
+    return RunTimeline(fps, n, person, energy, cuts, activity=activity)
 
 
 class SegmentationEngine(ABC):
