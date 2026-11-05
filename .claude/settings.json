@@ -5,8 +5,7 @@
       "Read(./data/qisens/**)",
       "Edit(./data/qisens/**)",
       "Bash(*data/qisens*)",
-      "Edit(./.claude/**)",
-      "Edit(./CLAUDE.md)"
+      "Edit(./.claude/**)"
     ]
   }
 }
