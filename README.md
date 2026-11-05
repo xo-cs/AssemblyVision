@@ -107,11 +107,13 @@ The code routes every output of a QiSens run, temp files and logs included, unde
 
 AssemblyVision, Team 4
 
-- Ortikov Khurshid Golibovich
-- Alybaeva Asel
-- Shahid Huzaifa
-- Opurbo Kazi Shahmiran
+| Member | Role |
+| --- | --- |
+| Ortikov Khurshid Golibovich | Team leader, pose estimation and model lead |
+| Shahid Huzaifa | Co leader, motion analysis and behavior engineer |
+| Alybaeva Asel | Gradio app and frontend developer, meeting notes and report writer, presentation maker |
+| Opurbo Kazi Shahmiran | Data pipeline and server infra engineer, project progress organizer, presentation maker |
 
-Partner company: QiSens (mentor: Choi Jin Wook, CEO). Supervisor: Professor Kim.
+Mentor: CEO Choi Jin Wook (QiSens). Professor: Prof. Edward Youngil Kim (Woosong University).
 
 Design documents: HLD v1.1 and LLD v1.0 (shared separately).
