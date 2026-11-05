@@ -1,12 +1,28 @@
+# Data, weights, environment and local tools (never in git)
 data/
+models/
 env/
 /tools/
-models/
+logs/
 tmp/
+.locks/
+docs/
+docs/ui_screens/
+
+# Caches and local config (.claude-home holds the Claude login)
 .cache/
 .config/
 .claude-home/
-*.bak
-docs/
 __pycache__/
-.locks/
+*.bak
+
+# Media, arrays, weights and secrets, wherever they are
+*.mp4
+*.avi
+*.mov
+*.npz
+*.pt
+*.onnx
+*.gguf
+.env
+.env.*
