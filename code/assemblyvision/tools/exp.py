@@ -71,9 +71,11 @@ def main(argv: list[str] | None = None) -> int:
                     if args.source != "qisens":
                         raise
                     base = reg.load(args.base, "public", paths_cfg)     # public settings for a QiSens run
-            exp = reg.create(args.id, source=args.source, videos=args.video, paths_cfg=paths_cfg, title=args.title,
-                             repeats=args.repeats, reference=args.reference, gpu=args.gpu, variant=args.variant,
-                             gt=args.gt, base=base, sets=parse_sets(args.set), overwrite=args.overwrite)
+            gt = Path(args.gt).absolute().relative_to(REPO_ROOT).as_posix() if args.gt else ""
+            exp = reg.create(args.id, source=args.source, videos=[str(Path(v).absolute()) for v in args.video],
+                             paths_cfg=paths_cfg, title=args.title, repeats=args.repeats, reference=args.reference,
+                             gpu=args.gpu, variant=args.variant, gt=gt, base=base, sets=parse_sets(args.set),
+                             overwrite=args.overwrite)
             print(f"wrote {exp.dir / 'config.toml'}")
             return 0
         if args.cmd == "run":

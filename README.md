@@ -85,6 +85,27 @@ python -m unittest discover -s tests
 
 A full run on a GPU takes the lock `.locks/gpu<N>.lock`, so only one job runs per GPU.
 
+## Experiments (paper tables)
+
+Every result in the paper comes from a registered experiment: `experiments/<id>/` holds
+`config.toml` (every setting), `results.json` (git commit, model checksum, GPU, driver,
+library versions, data area, date, every repeat, medians, GPU cost, equivalence with the
+reference) and `table.md`. `experiments/INDEX.md` lists them, one line each.
+
+```bash
+python -m assemblyvision.tools.exp new w10-b16 --from w10-ref --reference w10-ref \
+    --video ../data/public/videos/<video>.mp4 --set pose.batch=16 --repeats 3
+python -m assemblyvision.tools.exp run w10-b16          # one GPU job; refused if another process uses the GPU
+python -m assemblyvision.tools.exp table w10-ref w10-b16
+```
+
+Each repeat is a separate full run with the stage profiler on (per stage times, the pose
+breakdown, GPU utilisation and memory from nvidia-smi). A speed variant counts as
+equivalent only if the pose output stays within 1 px (confidences within 0.01) and the
+tracking, the Engine A steps and the motion metrics are unchanged. Public experiments are
+tracked in git. A QiSens experiment (`--source qisens`) keeps its config and results under
+`data/qisens/experiments/` only; just an approved summary row is added to `experiments/`.
+
 ## Data layout
 
 | Folder | Content | In git |
