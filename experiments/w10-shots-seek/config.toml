@@ -1,0 +1,185 @@
+# Experiment w10-shots-seek: every setting is stored, so it reruns the same way.
+[experiment]
+id = "w10-shots-seek"
+title = "shots motion pairs read by seeking"
+kind = "full_run"
+source = "public"
+videos = ["data/public/videos/process_480p30.mp4", "data/public/videos/12981262_1920_1080_25fps.mp4"]
+repeats = 3
+reference = "w10-ref"
+gpu = 0
+variant = "x"
+gt = ""
+from = "w10-ref"
+created_utc = "2026-11-06T09:59:48Z"
+
+[run]
+seed = 42
+progress_every_s = 2.0
+
+[profile]
+enabled = false
+gpu_sample_s = 0.5
+
+[paths]
+qisens_root = "data/qisens"
+public_root = "data/public"
+models_dir = "models"
+
+[ingest]
+max_fps = 30
+default_fps = 25
+crf = 18
+min_duration_s = 60.0
+disk_factor = 3.0
+vfr_tolerance_ms = 1.0
+
+[split]
+train_frac = 0.6
+val_frac = 0.1
+
+[shots]
+cut_threshold = 25.0
+min_shot_s = 1.0
+fixed_motion_max = 0.002
+motion_pairs = 20
+motion_pair_s = 0.5
+downscale = 0
+motion_seek = true
+
+[pose]
+variant = "x"
+fallback_variant = "s"
+imgsz = 640
+det_conf_min = 0.1
+ref_conf_min = 0.5
+ref_search_s = 5.0
+half = false
+hand_crop_margin = 0.15
+batch = 1
+decode = "opencv"
+prefetch_frames = 64
+reference_in_pass = false
+
+[track]
+algorithm = "bytetrack"
+high_thresh = 0.25
+low_thresh = 0.1
+new_thresh = 0.25
+match_thresh = 0.8
+buffer_s = 1.0
+min_track_s = 1.0
+auto_subject_min_coverage = 0.3
+dup_suppress = true
+dup_iou = 0.7
+dup_contain = 0.8
+dup_kp_agree = 0.6
+dup_kp_conf = 0.3
+dup_kp_dist = 0.1
+overlap_pose = false
+
+[clean]
+body_conf_min = 0.3
+gap_max_s = 0.5
+sg_window_s = 0.33
+sg_order = 2
+
+[seg_a]
+phase_solver = "dp"
+min_factor = 0.25
+max_factor = 2.5
+pause_energy = 0.15
+pause_min_s = 0.8
+long_pause_s = 5.0
+cut_pause_window_s = 2.0
+no_person_min_s = 1.5
+fallback_pause_min_s = 1.5
+other_min_s = 1.0
+strength_no_person = 1.0
+strength_cut_pause = 0.6
+strength_pause = 0.4
+strength_cut = 0.2
+activity_change = false
+ac_weight = 0.4
+ac_window_s = 10.0
+
+[steps]
+use = true
+mode = "ordered"
+step = [{ name = "Removal" }, { name = "Disassembly" }, { name = "Cleaning" }, { name = "Adjustment and Inspection" }, { name = "Assembly and Installation" }]
+
+[eval]
+seg_fps = 15
+kappa_fps = 5
+overlaps = [0.1, 0.25, 0.5]
+label = ""
+
+[motion]
+enabled = ["duration", "path", "back_bending", "repetition", "hand_travel", "two_hand", "idle"]
+angle_bands = [20.0, 45.0, 60.0]
+cov_min = 0.5
+path_hz = 5
+jitter_torso = 0.005
+rep_lag_min_s = 0.4
+rep_lag_max_s = 2.0
+rep_window_s = 10.0
+rep_hop_s = 5.0
+rep_acf_min = 0.5
+idle_energy = 0.15
+idle_min_s = 1.0
+foreshort_ratio = 0.6
+view_limited_share = 0.3
+hand_active = 0.3
+gaze_conf_min = 0.5
+gaze_yaw = 0.3
+gaze_down_torso = 0.1
+stream_rep_every_s = 1.0
+stream_torso_s = 10.0
+
+[heatmap]
+cell_m = 0.1
+cell_px = 20
+min_samples = 30
+
+[gpu]
+pose = 0
+
+[overlay]
+kp_conf_min = 0.3
+max_width = 1920
+crf = 20
+enabled = true
+encoder = "libx264"
+workers = 1
+
+[ui]
+poll_s = 2.0
+max_upload_mb = 4096
+
+[live]
+gpu = 1
+half = true
+pose_model = "yolo26s-pose.pt"
+input_px = 640
+det_conf = 0.25
+kp_conf_min = 0.3
+stream_every_s = 0.04
+rate_steps = [25, 20, 15, 10]
+rate_p95_ms = 150.0
+rate_drop_max = 0.25
+rate_hold_s = 3.0
+rate_up_s = 10.0
+zone_hold_s = 0.2
+one_euro_min_cutoff = 1.0
+one_euro_beta = 0.007
+one_euro_d_cutoff = 1.0
+lost_s = 3.0
+idle_stop_s = 120.0
+max_session_s = 1800.0
+rec_fps = 10
+min_free_mb = 1500
+warn_fps = 5.0
+default_template = "workbench"
+model_keep_s = 600.0
+lift_knee_conf = 0.5
+lift_knee_seen = 0.6

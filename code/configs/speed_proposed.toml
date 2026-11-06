@@ -1,0 +1,18 @@
+# Week 10 speed proposal (a layer over default.toml, NOT the default).
+# Use: run_pose ... --config configs/speed_proposed.toml
+# Only options whose output was equivalent to w10-ref on both public clips
+# (pose within 1 px, same tracking, steps and metrics): experiments w10-prefetch,
+# w10-ovl-nvenc, w10-ovl-par4, w10-refpass, w10-trackoverlap, combined in w10-best.
+# Pose stays YOLO26 x, batch 1, FP32 (batching and FP16 change detections, see
+# experiments/INDEX.md). shots.motion_seek is left off: equivalent but not faster.
+
+[pose]
+decode = "prefetch"          # frames read in a thread ahead of the model
+reference_in_pass = true     # reference frames from the pose pass (no second decode)
+
+[track]
+overlap_pose = true          # each shot tracked in a worker process while pose continues
+
+[overlay]
+encoder = "h264_nvenc"       # GPU encoder (same drawn frames)
+workers = 4                  # overlay drawn in 4 chunks in parallel, joined without re encoding

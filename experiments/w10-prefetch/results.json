@@ -1,0 +1,887 @@
+{
+  "id": "w10-prefetch",
+  "title": "threaded prefetch reader (batch 1)",
+  "kind": "full_run",
+  "source": "public",
+  "reference": "w10-ref",
+  "started_utc": "2026-11-06T07:45:17Z",
+  "provenance": {
+    "git": {
+      "commit": "3ae5b9806ca1c8ca8196860ae2c9d3505d36ac4e",
+      "branch": "feat/w10-speed",
+      "dirty": []
+    },
+    "model": {
+      "file": "yolo26x-pose.pt",
+      "sha256": "08ed9e01d22a6f248b04f2f9992016aca9a32250b9ab57057d886a09d026700d",
+      "sums_file": "SHA256SUMS_yolo26_pose.txt",
+      "matches_sums": true
+    },
+    "gpu_index": 0,
+    "gpu": {
+      "name": "NVIDIA RTX A5000",
+      "bus_id": "00000000:01:00.0",
+      "driver": "560.35.05",
+      "memory_total_mb": 24564.0
+    },
+    "versions": {
+      "assemblyvision": "0.1.0",
+      "python": "3.11.17",
+      "torch": "2.14.1+cu126",
+      "cuda": "12.6",
+      "ultralytics": "8.4.178",
+      "opencv": "5.0.0",
+      "numpy": "2.4.6",
+      "ffmpeg": "ffmpeg version 4.2.7-0ubuntu0.1 Copyright (c) 2000-2022 the FFmpeg developers"
+    },
+    "data_area": "public",
+    "videos": {
+      "data/public/videos/process_480p30.mp4": {
+        "name": "process_480p30.mp4",
+        "sha256": "fa2b6393a6f3da8846109fc11d11ef768a67c02a8a1f5ad7a3a7069735d8dbd6"
+      },
+      "data/public/videos/12981262_1920_1080_25fps.mp4": {
+        "name": "12981262_1920_1080_25fps.mp4",
+        "sha256": "d73ca64762d53761e6bb64b2ce131ac641a021ab7cc98663a534e1399c46700b"
+      }
+    },
+    "date_utc": "2026-11-06T07:45:18Z",
+    "command": "/home/qisens/AssemblyVision/code/assemblyvision/tools/exp.py run w10-prefetch"
+  },
+  "videos": {
+    "data/public/videos/process_480p30.mp4": {
+      "repeats": [
+        {
+          "run_id": "run_20261106_074519_f292",
+          "run_dir": "data/public/runs/run_20261106_074519_f292",
+          "status": "done",
+          "wall_s": 226.696,
+          "stages_s": {
+            "ingest": 0.38,
+            "shots": 15.81,
+            "reference": 15.81,
+            "pose_body": 141.57,
+            "tracking": 7.15,
+            "segmentation": 0.31,
+            "metrics": 0.25,
+            "overlay": 42.53
+          },
+          "stage_sum_s": 223.81,
+          "pose": {
+            "frames": 9780,
+            "pose_fps": 69.09,
+            "inference_fps": 84.6,
+            "batch": 1,
+            "batch_used": 1,
+            "precision": "FP32",
+            "decode": "prefetch",
+            "torch_peak_mb": 583.1,
+            "breakdown_s": {
+              "decode": 0.112,
+              "infer_call": 138.382,
+              "preprocess": 10.626,
+              "inference": 115.634,
+              "postprocess": 9.681,
+              "extract": 1.62,
+              "writing": 0.602
+            }
+          },
+          "gpu": {
+            "run": {
+              "samples": 444,
+              "gpu_util_mean": 41.7,
+              "gpu_util_max": 71.0,
+              "gpu_mem_peak_mb": 981.0
+            },
+            "stages": {
+              "ingest": {
+                "gpu_util_mean": null,
+                "gpu_util_max": null,
+                "gpu_mem_peak_mb": null
+              },
+              "shots": {
+                "gpu_util_mean": 0.0,
+                "gpu_util_max": 1.0,
+                "gpu_mem_peak_mb": 18.0
+              },
+              "reference": {
+                "gpu_util_mean": 37.0,
+                "gpu_util_max": 71.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "pose_body": {
+                "gpu_util_mean": 61.6,
+                "gpu_util_max": 68.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "tracking": {
+                "gpu_util_mean": 4.4,
+                "gpu_util_max": 61.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "segmentation": {
+                "gpu_util_mean": 0.0,
+                "gpu_util_max": 0.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "metrics": {
+                "gpu_util_mean": null,
+                "gpu_util_max": null,
+                "gpu_mem_peak_mb": null
+              },
+              "overlay": {
+                "gpu_util_mean": 0.0,
+                "gpu_util_max": 0.0,
+                "gpu_mem_peak_mb": 981.0
+              }
+            }
+          },
+          "breakdown_s": {
+            "shots": {
+              "cuts": 6.804,
+              "motion": 9.007
+            },
+            "pose_body": {
+              "decode": 0.112,
+              "infer_call": 138.382,
+              "preprocess": 10.626,
+              "inference": 115.634,
+              "postprocess": 9.681,
+              "extract": 1.62,
+              "writing": 0.602
+            },
+            "overlay": {
+              "render": 36.406,
+              "encode": 5.939,
+              "concat": 0.0
+            }
+          },
+          "overlay": {
+            "encoder": "libx264",
+            "workers": 1,
+            "frames": 9780
+          }
+        },
+        {
+          "run_id": "run_20261106_074905_258b",
+          "run_dir": "data/public/runs/run_20261106_074905_258b",
+          "status": "done",
+          "wall_s": 227.883,
+          "stages_s": {
+            "ingest": 0.38,
+            "shots": 15.22,
+            "reference": 16.63,
+            "pose_body": 142.13,
+            "tracking": 7.31,
+            "segmentation": 0.31,
+            "metrics": 0.31,
+            "overlay": 42.41
+          },
+          "stage_sum_s": 224.7,
+          "pose": {
+            "frames": 9780,
+            "pose_fps": 68.82,
+            "inference_fps": 84.1,
+            "batch": 1,
+            "batch_used": 1,
+            "precision": "FP32",
+            "decode": "prefetch",
+            "torch_peak_mb": 583.1,
+            "breakdown_s": {
+              "decode": 0.106,
+              "infer_call": 138.972,
+              "preprocess": 10.696,
+              "inference": 116.234,
+              "postprocess": 9.602,
+              "extract": 1.605,
+              "writing": 0.676
+            }
+          },
+          "gpu": {
+            "run": {
+              "samples": 444,
+              "gpu_util_mean": 41.5,
+              "gpu_util_max": 66.0,
+              "gpu_mem_peak_mb": 981.0
+            },
+            "stages": {
+              "ingest": {
+                "gpu_util_mean": null,
+                "gpu_util_max": null,
+                "gpu_mem_peak_mb": null
+              },
+              "shots": {
+                "gpu_util_mean": 0.0,
+                "gpu_util_max": 0.0,
+                "gpu_mem_peak_mb": 18.0
+              },
+              "reference": {
+                "gpu_util_mean": 34.1,
+                "gpu_util_max": 65.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "pose_body": {
+                "gpu_util_mean": 61.6,
+                "gpu_util_max": 66.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "tracking": {
+                "gpu_util_mean": 4.3,
+                "gpu_util_max": 65.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "segmentation": {
+                "gpu_util_mean": 0.0,
+                "gpu_util_max": 0.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "metrics": {
+                "gpu_util_mean": null,
+                "gpu_util_max": null,
+                "gpu_mem_peak_mb": null
+              },
+              "overlay": {
+                "gpu_util_mean": 0.0,
+                "gpu_util_max": 0.0,
+                "gpu_mem_peak_mb": 981.0
+              }
+            }
+          },
+          "breakdown_s": {
+            "shots": {
+              "cuts": 6.431,
+              "motion": 8.786
+            },
+            "pose_body": {
+              "decode": 0.106,
+              "infer_call": 138.972,
+              "preprocess": 10.696,
+              "inference": 116.234,
+              "postprocess": 9.602,
+              "extract": 1.605,
+              "writing": 0.676
+            },
+            "overlay": {
+              "render": 36.228,
+              "encode": 5.993,
+              "concat": 0.0
+            }
+          },
+          "overlay": {
+            "encoder": "libx264",
+            "workers": 1,
+            "frames": 9780
+          }
+        },
+        {
+          "run_id": "run_20261106_075253_6a49",
+          "run_dir": "data/public/runs/run_20261106_075253_6a49",
+          "status": "done",
+          "wall_s": 227.893,
+          "stages_s": {
+            "ingest": 0.38,
+            "shots": 15.31,
+            "reference": 16.22,
+            "pose_body": 142.86,
+            "tracking": 6.99,
+            "segmentation": 0.31,
+            "metrics": 0.24,
+            "overlay": 42.19
+          },
+          "stage_sum_s": 224.5,
+          "pose": {
+            "frames": 9780,
+            "pose_fps": 68.46,
+            "inference_fps": 84.0,
+            "batch": 1,
+            "batch_used": 1,
+            "precision": "FP32",
+            "decode": "prefetch",
+            "torch_peak_mb": 583.1,
+            "breakdown_s": {
+              "decode": 0.106,
+              "infer_call": 139.306,
+              "preprocess": 10.61,
+              "inference": 116.432,
+              "postprocess": 9.828,
+              "extract": 1.63,
+              "writing": 0.925
+            }
+          },
+          "gpu": {
+            "run": {
+              "samples": 445,
+              "gpu_util_mean": 41.2,
+              "gpu_util_max": 66.0,
+              "gpu_mem_peak_mb": 981.0
+            },
+            "stages": {
+              "ingest": {
+                "gpu_util_mean": null,
+                "gpu_util_max": null,
+                "gpu_mem_peak_mb": null
+              },
+              "shots": {
+                "gpu_util_mean": 0.0,
+                "gpu_util_max": 0.0,
+                "gpu_mem_peak_mb": 18.0
+              },
+              "reference": {
+                "gpu_util_mean": 36.3,
+                "gpu_util_max": 65.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "pose_body": {
+                "gpu_util_mean": 60.5,
+                "gpu_util_max": 66.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "tracking": {
+                "gpu_util_mean": 4.7,
+                "gpu_util_max": 66.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "segmentation": {
+                "gpu_util_mean": 0.0,
+                "gpu_util_max": 0.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "metrics": {
+                "gpu_util_mean": null,
+                "gpu_util_max": null,
+                "gpu_mem_peak_mb": null
+              },
+              "overlay": {
+                "gpu_util_mean": 0.0,
+                "gpu_util_max": 0.0,
+                "gpu_mem_peak_mb": 981.0
+              }
+            }
+          },
+          "breakdown_s": {
+            "shots": {
+              "cuts": 6.483,
+              "motion": 8.83
+            },
+            "pose_body": {
+              "decode": 0.106,
+              "infer_call": 139.306,
+              "preprocess": 10.61,
+              "inference": 116.432,
+              "postprocess": 9.828,
+              "extract": 1.63,
+              "writing": 0.925
+            },
+            "overlay": {
+              "render": 36.048,
+              "encode": 5.968,
+              "concat": 0.0
+            }
+          },
+          "overlay": {
+            "encoder": "libx264",
+            "workers": 1,
+            "frames": 9780
+          }
+        }
+      ],
+      "summary": {
+        "repeats": 3,
+        "wall_s": {
+          "median": 227.883,
+          "min": 226.696,
+          "max": 227.893
+        },
+        "stage_sum_s": 224.5,
+        "stages_s": {
+          "ingest": 0.38,
+          "shots": 15.31,
+          "reference": 16.22,
+          "pose_body": 142.13,
+          "tracking": 7.15,
+          "segmentation": 0.31,
+          "metrics": 0.25,
+          "overlay": 42.41
+        },
+        "pose_fps": 68.82,
+        "inference_fps": 84.1,
+        "gpu_util_mean": 41.5,
+        "gpu_mem_peak_mb": 981.0,
+        "pose_gpu_util_mean": 61.6,
+        "torch_peak_mb": 583.1,
+        "pose_breakdown_s": {
+          "decode": 0.106,
+          "infer_call": 138.972,
+          "preprocess": 10.626,
+          "inference": 116.234,
+          "postprocess": 9.681,
+          "extract": 1.62,
+          "writing": 0.676
+        }
+      },
+      "repeat_consistency": [
+        "equivalent",
+        "equivalent"
+      ],
+      "equivalence": {
+        "reference_run": "run_20261106_093207_adcc",
+        "candidate_run": "run_20261106_074519_f292",
+        "checks": {
+          "shots": true,
+          "pose_counts": true,
+          "pose_1px": true,
+          "pose_conf": true,
+          "tracking": true,
+          "reference": true,
+          "steps": true,
+          "metrics": true
+        },
+        "differences": [],
+        "pose": {
+          "frames": 9122,
+          "count_mismatch_frames": 0,
+          "frames_within_1px": 9122,
+          "frames_identical": 9122,
+          "box_max_px": 0.0,
+          "kp_max_px": 0.0,
+          "det_conf_max": 0.0,
+          "kp_conf_max": 0.0,
+          "box_mean_px": 0.0,
+          "kp_mean_px": 0.0,
+          "share_within_1px": 1.0,
+          "share_identical": 1.0
+        },
+        "tracking": {
+          "differences": 0
+        },
+        "steps": {
+          "count": 10,
+          "boundary_max_diff_s": 0.0
+        },
+        "metrics": {
+          "rows": 100,
+          "differences": 0
+        },
+        "verdict": "equivalent"
+      }
+    },
+    "data/public/videos/12981262_1920_1080_25fps.mp4": {
+      "repeats": [
+        {
+          "run_id": "run_20261106_075644_faec",
+          "run_dir": "data/public/runs/run_20261106_075644_faec",
+          "status": "done",
+          "wall_s": 70.728,
+          "stages_s": {
+            "ingest": 0.35,
+            "shots": 9.53,
+            "reference": 1.95,
+            "pose_body": 28.48,
+            "tracking": 1.61,
+            "segmentation": 0.09,
+            "metrics": 0.03,
+            "overlay": 25.35
+          },
+          "stage_sum_s": 67.39,
+          "pose": {
+            "frames": 1782,
+            "pose_fps": 62.77,
+            "inference_fps": 80.8,
+            "batch": 1,
+            "batch_used": 1,
+            "precision": "FP32",
+            "decode": "prefetch",
+            "torch_peak_mb": 583.1,
+            "breakdown_s": {
+              "decode": 0.071,
+              "infer_call": 27.803,
+              "preprocess": 3.436,
+              "inference": 22.048,
+              "postprocess": 1.868,
+              "extract": 0.322,
+              "writing": 0.092
+            }
+          },
+          "gpu": {
+            "run": {
+              "samples": 134,
+              "gpu_util_mean": 23.3,
+              "gpu_util_max": 62.0,
+              "gpu_mem_peak_mb": 981.0
+            },
+            "stages": {
+              "ingest": {
+                "gpu_util_mean": null,
+                "gpu_util_max": null,
+                "gpu_mem_peak_mb": null
+              },
+              "shots": {
+                "gpu_util_mean": 0.0,
+                "gpu_util_max": 0.0,
+                "gpu_mem_peak_mb": 18.0
+              },
+              "reference": {
+                "gpu_util_mean": 2.5,
+                "gpu_util_max": 5.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "pose_body": {
+                "gpu_util_mean": 54.5,
+                "gpu_util_max": 58.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "tracking": {
+                "gpu_util_mean": 15.5,
+                "gpu_util_max": 62.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "segmentation": {
+                "gpu_util_mean": null,
+                "gpu_util_max": null,
+                "gpu_mem_peak_mb": null
+              },
+              "metrics": {
+                "gpu_util_mean": null,
+                "gpu_util_max": null,
+                "gpu_mem_peak_mb": null
+              },
+              "overlay": {
+                "gpu_util_mean": 0.0,
+                "gpu_util_max": 0.0,
+                "gpu_mem_peak_mb": 981.0
+              }
+            }
+          },
+          "breakdown_s": {
+            "shots": {
+              "cuts": 5.265,
+              "motion": 4.27
+            },
+            "pose_body": {
+              "decode": 0.071,
+              "infer_call": 27.803,
+              "preprocess": 3.436,
+              "inference": 22.048,
+              "postprocess": 1.868,
+              "extract": 0.322,
+              "writing": 0.092
+            },
+            "overlay": {
+              "render": 18.761,
+              "encode": 6.53,
+              "concat": 0.0
+            }
+          },
+          "overlay": {
+            "encoder": "libx264",
+            "workers": 1,
+            "frames": 1782
+          }
+        },
+        {
+          "run_id": "run_20261106_075755_50fd",
+          "run_dir": "data/public/runs/run_20261106_075755_50fd",
+          "status": "done",
+          "wall_s": 70.283,
+          "stages_s": {
+            "ingest": 0.34,
+            "shots": 9.62,
+            "reference": 1.8,
+            "pose_body": 28.77,
+            "tracking": 1.74,
+            "segmentation": 0.1,
+            "metrics": 0.03,
+            "overlay": 24.6
+          },
+          "stage_sum_s": 67.0,
+          "pose": {
+            "frames": 1782,
+            "pose_fps": 62.16,
+            "inference_fps": 79.9,
+            "batch": 1,
+            "batch_used": 1,
+            "precision": "FP32",
+            "decode": "prefetch",
+            "torch_peak_mb": 583.1,
+            "breakdown_s": {
+              "decode": 0.071,
+              "infer_call": 28.131,
+              "preprocess": 3.462,
+              "inference": 22.297,
+              "postprocess": 1.922,
+              "extract": 0.331,
+              "writing": 0.09
+            }
+          },
+          "gpu": {
+            "run": {
+              "samples": 133,
+              "gpu_util_mean": 23.1,
+              "gpu_util_max": 65.0,
+              "gpu_mem_peak_mb": 981.0
+            },
+            "stages": {
+              "ingest": {
+                "gpu_util_mean": null,
+                "gpu_util_max": null,
+                "gpu_mem_peak_mb": null
+              },
+              "shots": {
+                "gpu_util_mean": 0.0,
+                "gpu_util_max": 0.0,
+                "gpu_mem_peak_mb": 18.0
+              },
+              "reference": {
+                "gpu_util_mean": 3.8,
+                "gpu_util_max": 10.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "pose_body": {
+                "gpu_util_mean": 53.4,
+                "gpu_util_max": 61.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "tracking": {
+                "gpu_util_mean": 16.2,
+                "gpu_util_max": 65.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "segmentation": {
+                "gpu_util_mean": null,
+                "gpu_util_max": null,
+                "gpu_mem_peak_mb": null
+              },
+              "metrics": {
+                "gpu_util_mean": null,
+                "gpu_util_max": null,
+                "gpu_mem_peak_mb": null
+              },
+              "overlay": {
+                "gpu_util_mean": 0.0,
+                "gpu_util_max": 1.0,
+                "gpu_mem_peak_mb": 981.0
+              }
+            }
+          },
+          "breakdown_s": {
+            "shots": {
+              "cuts": 5.307,
+              "motion": 4.313
+            },
+            "pose_body": {
+              "decode": 0.071,
+              "infer_call": 28.131,
+              "preprocess": 3.462,
+              "inference": 22.297,
+              "postprocess": 1.922,
+              "extract": 0.331,
+              "writing": 0.09
+            },
+            "overlay": {
+              "render": 18.285,
+              "encode": 6.253,
+              "concat": 0.0
+            }
+          },
+          "overlay": {
+            "encoder": "libx264",
+            "workers": 1,
+            "frames": 1782
+          }
+        },
+        {
+          "run_id": "run_20261106_075905_7610",
+          "run_dir": "data/public/runs/run_20261106_075905_7610",
+          "status": "done",
+          "wall_s": 70.474,
+          "stages_s": {
+            "ingest": 0.38,
+            "shots": 9.59,
+            "reference": 1.71,
+            "pose_body": 29.12,
+            "tracking": 1.68,
+            "segmentation": 0.1,
+            "metrics": 0.03,
+            "overlay": 24.64
+          },
+          "stage_sum_s": 67.25,
+          "pose": {
+            "frames": 1782,
+            "pose_fps": 61.39,
+            "inference_fps": 78.7,
+            "batch": 1,
+            "batch_used": 1,
+            "precision": "FP32",
+            "decode": "prefetch",
+            "torch_peak_mb": 583.1,
+            "breakdown_s": {
+              "decode": 0.069,
+              "infer_call": 28.483,
+              "preprocess": 3.49,
+              "inference": 22.639,
+              "postprocess": 1.905,
+              "extract": 0.322,
+              "writing": 0.09
+            }
+          },
+          "gpu": {
+            "run": {
+              "samples": 134,
+              "gpu_util_mean": 23.2,
+              "gpu_util_max": 65.0,
+              "gpu_mem_peak_mb": 981.0
+            },
+            "stages": {
+              "ingest": {
+                "gpu_util_mean": null,
+                "gpu_util_max": null,
+                "gpu_mem_peak_mb": null
+              },
+              "shots": {
+                "gpu_util_mean": 0.0,
+                "gpu_util_max": 0.0,
+                "gpu_mem_peak_mb": 18.0
+              },
+              "reference": {
+                "gpu_util_mean": 5.0,
+                "gpu_util_max": 10.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "pose_body": {
+                "gpu_util_mean": 53.1,
+                "gpu_util_max": 64.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "tracking": {
+                "gpu_util_mean": 16.2,
+                "gpu_util_max": 65.0,
+                "gpu_mem_peak_mb": 981.0
+              },
+              "segmentation": {
+                "gpu_util_mean": null,
+                "gpu_util_max": null,
+                "gpu_mem_peak_mb": null
+              },
+              "metrics": {
+                "gpu_util_mean": null,
+                "gpu_util_max": null,
+                "gpu_mem_peak_mb": null
+              },
+              "overlay": {
+                "gpu_util_mean": 0.0,
+                "gpu_util_max": 0.0,
+                "gpu_mem_peak_mb": 981.0
+              }
+            }
+          },
+          "breakdown_s": {
+            "shots": {
+              "cuts": 5.324,
+              "motion": 4.267
+            },
+            "pose_body": {
+              "decode": 0.069,
+              "infer_call": 28.483,
+              "preprocess": 3.49,
+              "inference": 22.639,
+              "postprocess": 1.905,
+              "extract": 0.322,
+              "writing": 0.09
+            },
+            "overlay": {
+              "render": 18.312,
+              "encode": 6.266,
+              "concat": 0.0
+            }
+          },
+          "overlay": {
+            "encoder": "libx264",
+            "workers": 1,
+            "frames": 1782
+          }
+        }
+      ],
+      "summary": {
+        "repeats": 3,
+        "wall_s": {
+          "median": 70.474,
+          "min": 70.283,
+          "max": 70.728
+        },
+        "stage_sum_s": 67.25,
+        "stages_s": {
+          "ingest": 0.35,
+          "shots": 9.59,
+          "reference": 1.8,
+          "pose_body": 28.77,
+          "tracking": 1.68,
+          "segmentation": 0.1,
+          "metrics": 0.03,
+          "overlay": 24.64
+        },
+        "pose_fps": 62.16,
+        "inference_fps": 79.9,
+        "gpu_util_mean": 23.2,
+        "gpu_mem_peak_mb": 981.0,
+        "pose_gpu_util_mean": 53.4,
+        "torch_peak_mb": 583.1,
+        "pose_breakdown_s": {
+          "decode": 0.071,
+          "infer_call": 28.131,
+          "preprocess": 3.462,
+          "inference": 22.297,
+          "postprocess": 1.905,
+          "extract": 0.322,
+          "writing": 0.09
+        }
+      },
+      "repeat_consistency": [
+        "equivalent",
+        "equivalent"
+      ],
+      "equivalence": {
+        "reference_run": "run_20261106_094354_fadf",
+        "candidate_run": "run_20261106_075644_faec",
+        "checks": {
+          "shots": true,
+          "pose_counts": true,
+          "pose_1px": true,
+          "pose_conf": true,
+          "tracking": true,
+          "reference": true,
+          "steps": true,
+          "metrics": true
+        },
+        "differences": [],
+        "pose": {
+          "frames": 1782,
+          "count_mismatch_frames": 0,
+          "frames_within_1px": 1782,
+          "frames_identical": 1782,
+          "box_max_px": 0.0,
+          "kp_max_px": 0.0,
+          "det_conf_max": 0.0,
+          "kp_conf_max": 0.0,
+          "box_mean_px": 0.0,
+          "kp_mean_px": 0.0,
+          "share_within_1px": 1.0,
+          "share_identical": 1.0
+        },
+        "tracking": {
+          "differences": 0
+        },
+        "steps": {
+          "count": 2,
+          "boundary_max_diff_s": 0.0
+        },
+        "metrics": {
+          "rows": 40,
+          "differences": 0
+        },
+        "verdict": "equivalent"
+      }
+    }
+  },
+  "finished_utc": "2026-11-06T08:00:16Z",
+  "rechecked_utc": "2026-11-06T09:59:41Z"
+}
