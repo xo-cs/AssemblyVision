@@ -255,6 +255,25 @@ def run(exp: Experiment, paths_cfg: dict, *, repo_root: Path = REPO_ROOT,
     return results
 
 
+def recheck(exp: Experiment, paths_cfg: dict, *, repo_root: Path = REPO_ROOT,
+            equivalence: Callable[[Path, Path], dict] | None = None) -> dict:
+    """Compare the stored runs again with the reference experiment's current runs
+    (CPU only, after the reference was rerun) and rewrite results.json and table.md."""
+    if equivalence is None:
+        from ..evaluation.equivalence import compare_runs as equivalence
+    results = load_results(exp.id, exp.source, paths_cfg, repo_root)
+    for v, rec in results["videos"].items():
+        ref = _reference_run(exp, v, paths_cfg, repo_root)
+        if ref is not None:
+            rec["equivalence"] = equivalence(ref, repo_root / rec["repeats"][0]["run_dir"])
+    results["rechecked_utc"] = utc_now()
+    (exp.dir / "results.json").write_text(json.dumps(results, indent=2, ensure_ascii=False))
+    (exp.dir / "table.md").write_text(format_table(results))
+    if exp.source == "public":
+        write_index(area_dir("public", paths_cfg, repo_root))
+    return results
+
+
 def _reference_run(exp: Experiment, video: str, paths_cfg: dict, repo_root: Path) -> Path | None:
     ref = exp.meta.get("reference", "")
     if not ref or ref == exp.id:

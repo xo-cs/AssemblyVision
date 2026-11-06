@@ -1,6 +1,6 @@
 """Week 10 speed options with a fake model on the CPU: batched pose, prefetch
-reader, reference frames from the pose pass, tracking in a worker process and
-the chunked overlay. Each must give the same files as the reference path."""
+reader, frames by seeking (shots.motion_seek), reference frames from the pose
+pass, tracking in a worker process and the chunked overlay. Each must give the same files as the reference path."""
 import hashlib
 import io
 import json
@@ -16,7 +16,8 @@ import torch
 
 from assemblyvision.config import Config
 from assemblyvision.errors import AvError
-from assemblyvision.ingest.ingestor import frame_reader, iter_frames, iter_frames_prefetch
+from assemblyvision.ingest.ingestor import frame_reader, iter_frames, iter_frames_at, iter_frames_prefetch
+from assemblyvision.ingest.shots import ShotDetector
 from assemblyvision.output import overlay
 from assemblyvision.perception.pose import PoseEstimator, load_det
 from assemblyvision.perception.tracker import Tracker
@@ -153,6 +154,23 @@ class SpeedOptionsTest(unittest.TestCase):
         a = [hashlib.md5(f.tobytes()).hexdigest() for _, f in iter_frames(self.video, 17, 30)]
         b = [hashlib.md5(f.tobytes()).hexdigest() for _, f in iter_frames(self.video, 17, 30, seek=True)]
         self.assertEqual(a, b)
+
+    def test_frames_at_indices_match_a_full_decode(self):
+        want = [3, 4, 18, 19, 47, 48, 49]
+        a = [(i, hashlib.md5(f.tobytes()).hexdigest()) for i, f in iter_frames(self.video, want=set(want).__contains__)]
+        for gap in (0, 5, 60):             # 0 seeks on every jump, 60 grabs through
+            b = [(i, hashlib.md5(f.tobytes()).hexdigest()) for i, f in iter_frames_at(self.video, reversed(want), gap)]
+            self.assertEqual(a, b, f"gap {gap}")
+        self.assertEqual([i for i, _ in iter_frames_at(self.video, [49, 70])], [49])     # past the end
+
+    def test_motion_seek_gives_the_same_motion_values(self):
+        out = []
+        for seek in (False, True):
+            cfg = Config.load(overrides={"shots": {"motion_seek": seek, "motion_pairs": 4, "motion_pair_s": 0.2}})
+            _, ctx = make_ctx(self.root)
+            out.append(ShotDetector(cfg, ctx).classify_all(self.video, self.shots, fps=25.0))
+        self.assertEqual(out[0], out[1])
+        self.assertEqual(set(out[0]), {"s01", "s02"})
 
     def test_reference_from_the_pose_pass_matches_the_reference_stage(self):
         pa, ca = self.pose()

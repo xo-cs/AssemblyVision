@@ -37,6 +37,7 @@ fixed_motion_max = 0.002     # fixed if the 90th percentile background motion is
 motion_pairs = 20            # frame pairs for the background motion
 motion_pair_s = 0.5          # time between the two frames of a pair (s)
 downscale = 0                # cut detection frame downscale factor; 0 = PySceneDetect automatic (default)
+motion_seek = false          # true: the motion pairs are read by seeking, not by decoding the whole video
 
 [pose]
 variant = "x"                # YOLO26 pose variant: n, s, m, l or x (x FP32: 67 fps on the A5000, Week 9 benchmark)

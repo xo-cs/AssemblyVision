@@ -262,6 +262,38 @@ def iter_frames(path: Path, start: int = 0, end: int | None = None,
         cap.release()
 
 
+def iter_frames_at(path: Path, indices, gap: int = 60) -> Iterator[tuple[int, np.ndarray]]:
+    """Yield (index, BGR image) for the given frame indices in ascending order:
+    short gaps are grabbed through, longer ones are seeked (shots.motion_seek).
+    A seek that does not land exactly falls back to grabbing, so the frames are
+    the ones iter_frames gives."""
+    wanted = sorted(set(int(i) for i in indices))
+    cap = cv2.VideoCapture(str(path))
+    if not cap.isOpened():
+        raise AvError("AV-ING-001", name=Path(path).name, detail="OpenCV could not open the video")
+    try:
+        pos = 0                      # index of the next frame read() returns
+        for idx in wanted:
+            if idx - pos > gap:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+                if int(cap.get(cv2.CAP_PROP_POS_FRAMES)) == idx:
+                    pos = idx
+                else:                # not exact: reopen and grab up to idx
+                    cap.release()
+                    cap = cv2.VideoCapture(str(path))
+                    pos = 0
+            while pos < idx:
+                if not cap.grab():
+                    return
+                pos += 1
+            ok, frame = cap.read()
+            if not ok:
+                return
+            pos += 1
+            yield idx, frame
+    finally:
+        cap.release()
+
 
 _END = object()
 

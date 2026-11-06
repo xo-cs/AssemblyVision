@@ -13,7 +13,7 @@ from ..config import Config
 from ..errors import AvError
 from ..storage.files import RunContext
 from ..types import Shot, VideoInfo
-from .ingestor import iter_frames
+from .ingestor import iter_frames, iter_frames_at
 
 _FLOW_WIDTH = 640   # frames wider than this are scaled down for the motion check
 
@@ -101,7 +101,9 @@ class ShotDetector:
         pending: dict[int, np.ndarray] = {}
         values: dict[str, list[float]] = {s.shot_id: [] for s in shots}
         wanted = set(starts) | set(ends)
-        for idx, frame in iter_frames(video_path, want=wanted.__contains__):
+        frames = (iter_frames_at(video_path, wanted) if self.scfg["motion_seek"]
+                  else iter_frames(video_path, want=wanted.__contains__))
+        for idx, frame in frames:
             gray = _gray(frame)
             if idx in ends and ends[idx] in pending:
                 f0 = ends[idx]

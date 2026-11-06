@@ -162,6 +162,22 @@ class RegistryTest(unittest.TestCase):
         self.assertIn("| w10-b8 |", text)
         self.assertIn("equivalent |", (self.root / "experiments/INDEX.md").read_text())
 
+    def test_recheck_compares_with_the_rerun_reference(self):
+        self.run_exp(self.new(repeats=1))
+        exp = self.new("w10-b8", sets={"pose": {"batch": 8}}, reference="w10-ref", repeats=1)
+        before = self.run_exp(exp)
+        v = "data/public/videos/clip.mp4"
+        self.run_exp(reg.load("w10-ref", "public", self.pc, self.root))          # the reference is rerun
+        new_ref = reg.load_results("w10-ref", "public", self.pc, self.root)["videos"][v]["repeats"][0]["run_dir"]
+        seen = []
+        res = reg.recheck(exp, self.pc, repo_root=self.root,
+                          equivalence=lambda a, b: seen.append((a, b)) or fake_equivalence(a, b))
+        self.assertEqual(seen, [(self.root / new_ref, self.root / before["videos"][v]["repeats"][0]["run_dir"])])
+        self.assertIn("rechecked_utc", res)
+        self.assertEqual(res["videos"][v]["repeats"], before["videos"][v]["repeats"])   # timings unchanged
+        self.assertEqual(reg.load_results("w10-b8", "public", self.pc, self.root)["rechecked_utc"],
+                         res["rechecked_utc"])
+
     def test_missing_reference_results_stop_the_run(self):
         exp = self.new("w10-b8", reference="w10-ref", repeats=1)
         with self.assertRaises(reg.ExperimentError):

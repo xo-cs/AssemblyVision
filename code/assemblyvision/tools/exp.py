@@ -5,6 +5,7 @@
         [--set SECTION.KEY=VALUE ...] [--repeats 3] [--reference <id>] [--gpu 0] [--variant x]
         [--gt GT_CSV] [--title TEXT] [--source public|qisens]
     python -m assemblyvision.tools.exp run <id> [--source qisens]
+    python -m assemblyvision.tools.exp recheck <id> [--source qisens]
     python -m assemblyvision.tools.exp table <id> [<id> ...] [--source qisens] [--out FILE.md]
     python -m assemblyvision.tools.exp gpu-check [--gpu 0]
     python -m assemblyvision.tools.exp index
@@ -13,7 +14,8 @@ new stores the full configuration (the --from experiment's, else the defaults,
 then --set) in <area>/<id>/config.toml. run executes every repeat as a separate
 run_pose process with the profiler on (one GPU job; the GPU must be free of
 other processes) and writes results.json, table.md and, for public data,
-experiments/INDEX.md. With --source qisens everything (config, results, temp
+experiments/INDEX.md. recheck compares the stored runs again with the reference
+experiment's current runs (CPU only). With --source qisens everything (config, results, temp
 files, run folders) stays under data/qisens/; without it nothing there is opened.
 Exit codes: 0 success, 1 error, 2 wrong argument, 3 GPU in use by another process.
 """
@@ -50,6 +52,9 @@ def main(argv: list[str] | None = None) -> int:
     r = sub.add_parser("run", help="run an experiment")
     r.add_argument("id")
     r.add_argument("--source", choices=("public", "qisens"), default="public")
+    rc = sub.add_parser("recheck", help="compare the stored runs again with the reference's current runs")
+    rc.add_argument("id")
+    rc.add_argument("--source", choices=("public", "qisens"), default="public")
     t = sub.add_parser("table", help="comparison table of experiments")
     t.add_argument("ids", nargs="+")
     t.add_argument("--source", choices=("public", "qisens"), default="public")
@@ -83,6 +88,12 @@ def main(argv: list[str] | None = None) -> int:
             res = reg.run(exp, paths_cfg)
             print(reg.format_table(res))
             print(f"wrote {exp.dir / 'results.json'} and table.md")
+            return 0
+        if args.cmd == "recheck":
+            exp = reg.load(args.id, args.source, paths_cfg)
+            res = reg.recheck(exp, paths_cfg)
+            for v, rec in res["videos"].items():
+                print(f"{Path(v).name}: {(rec.get('equivalence') or {}).get('verdict', 'reference')}")
             return 0
         if args.cmd == "table":
             text = reg.compare_table([reg.load_results(i, args.source, paths_cfg) for i in args.ids])

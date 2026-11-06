@@ -97,6 +97,7 @@ python -m assemblyvision.tools.exp new w10-b16 --from w10-ref --reference w10-re
     --video ../data/public/videos/<video>.mp4 --set pose.batch=16 --repeats 3
 python -m assemblyvision.tools.exp run w10-b16          # one GPU job; refused if another process uses the GPU
 python -m assemblyvision.tools.exp table w10-ref w10-b16
+python -m assemblyvision.tools.exp recheck w10-b16       # CPU: compare again after the reference was rerun
 ```
 
 Each repeat is a separate full run with the stage profiler on (per stage times, the pose
