@@ -272,42 +272,71 @@ def step_at(steps: list | None, t: float) -> str | None:
     return None
 
 
-def render_track_overlay(video: Path, shots: list, items: dict, out_path: Path, fps: float,
-                         cfg: Config, ctx: RunContext, steps: list | None = None,
-                         hud: dict | None = None) -> Path:
-    """Overlay of all shots: stored tracks in their own colour with label tNN
-    (subject marked S), short tracks orange, untracked rows grey, suppressed
-    duplicates red. items[shot_id] = {"det": path, "assign": path, "subject": n or None}.
-    steps (optional, Step objects) adds the current step label to the header.
-    hud (optional, overlay_series) adds the readouts (draw_bottom)."""
-    from .hud import MiniReach
-    from ..perception.tracker import SHORT, SUPPRESSED, UNTRACKED, load_assign
-    t0 = time.monotonic()
-    ocfg = cfg["overlay"]
-    out_path = ctx.paths.check_inside(out_path)
+def encoder_cmd(ow: int, oh: int, fps: float, ocfg: dict, out: Path) -> list[str]:
+    """ffmpeg command reading raw BGR frames from stdin: libx264 (CPU) or h264_nvenc
+    (the NVENC engine of the GPU in CUDA_VISIBLE_DEVICES, i.e. the pose GPU of a run)."""
+    head = ["ffmpeg", "-nostdin", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
+            "-s", f"{ow}x{oh}", "-r", f"{fps:.6f}", "-i", "-"]
+    if ocfg.get("encoder", "libx264") == "h264_nvenc":
+        codec = ["-c:v", "h264_nvenc", "-preset", "fast", "-rc", "vbr", "-cq", str(ocfg["crf"]), "-b:v", "0"]
+    else:
+        codec = ["-c:v", "libx264", "-preset", "veryfast", "-crf", str(ocfg["crf"])]
+    return head + codec + ["-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out)]
+
+
+def _geometry(video: Path, ocfg: dict) -> tuple[int, int, int, int, float]:
     cap = cv2.VideoCapture(str(video))
     if not cap.isOpened():
         raise AvError("AV-ING-001", name=Path(video).name, detail="OpenCV could not open the video")
     w, h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     cap.release()
     scale = min(1.0, ocfg["max_width"] / w)
-    ow, oh = int(round(w * scale / 2) * 2), int(round(h * scale / 2) * 2)
+    return w, h, int(round(w * scale / 2) * 2), int(round(h * scale / 2) * 2), scale
+
+
+def chunk_bounds(first: int, last: int, workers: int, shot_starts: list[int]) -> list[tuple[int, int]]:
+    """[first, last) cut into at most workers ranges of similar length; a cut moves
+    to a shot start within 10 % of a chunk length when there is one."""
+    n = last - first
+    workers = max(1, min(workers, n // 30 or 1))       # at least about 1 s per chunk
+    size = n / workers
+    cuts = []
+    for i in range(1, workers):
+        c = first + round(i * size)
+        near = [s for s in shot_starts if first < s < last and abs(s - c) <= 0.1 * size]
+        cuts.append(min(near, key=lambda s: abs(s - c)) if near else c)
+    edges = [first] + sorted(set(cuts)) + [last]
+    return [(a, b) for a, b in zip(edges[:-1], edges[1:]) if b > a]
+
+
+def render_chunk(job: dict, progress=None) -> dict:
+    """Render frames [job["start"], job["stop"]) of the track overlay into job["out"].
+    The hand reach map is first replayed from the first frame of the video, so a
+    chunk draws exactly the frames one renderer would. Runs in a worker process
+    for overlay.workers > 1 (job holds only picklable values)."""
+    from .hud import MiniReach
+    from ..perception.tracker import SHORT, SUPPRESSED, UNTRACKED, load_assign
+    video, shots, items, fps, cfg = job["video"], job["shots"], job["items"], job["fps"], job["cfg"]
+    steps, hud, start, stop = job["steps"], job["hud"], job["start"], job["stop"]
+    ocfg = cfg["overlay"]
+    w, h, ow, oh, scale = _geometry(video, ocfg)
     kp_min = ocfg["kp_conf_min"]
     t = max(1, round(2 * scale * max(1.0, w / 1280)))
-
-    tmp = out_path.with_name(out_path.stem + ".tmp.mp4")
-    cmd = ["ffmpeg", "-nostdin", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
-           "-s", f"{ow}x{oh}", "-r", f"{fps:.6f}", "-i", "-", "-c:v", "libx264", "-preset", "veryfast",
-           "-crf", str(ocfg["crf"]), "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(tmp)]
-    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-    shots = sorted(shots, key=lambda s: s.start_frame)
-    n_out, k, cur = 0, -1, None
     hs = 0.55 * max(1.0, oh / 480)
     mini = MiniReach(hud["skeleton"], hud["window_s"]) if hud is not None else None
     n_hud = len(hud["trunk"]) if hud is not None else 0
-    total = max(1, shots[-1].end_frame - shots[0].start_frame)
+    if mini is not None:                       # the state the first frames left behind
+        for idx in range(shots[0].start_frame, start):
+            inside = 0 <= idx < n_hud
+            mini.push(hud["wrists"][idx] if inside else np.full((2, 2), np.nan), idx / fps)
+    proc = subprocess.Popen(encoder_cmd(ow, oh, fps, ocfg, job["out"]), stdin=subprocess.PIPE,
+                            stderr=subprocess.PIPE)
+    n_out, k, cur = 0, -1, None
+    t_render = t_encode = 0.0
+    total = max(1, stop - start)
     try:
-        for idx, frame in iter_frames(video, shots[0].start_frame, shots[-1].end_frame):
+        tr = time.monotonic()
+        for idx, frame in iter_frames(video, start, stop, seek=start > 0):
             while k + 1 < len(shots) and idx >= shots[k + 1].start_frame:
                 k += 1
                 s = shots[k]
@@ -350,29 +379,109 @@ def render_track_overlay(video: Path, shots: list, items: dict, out_path: Path, 
                 mini.push(hud["wrists"][idx] if inside else np.full((2, 2), np.nan), idx / fps)
                 draw_bottom(img, header, mini, hud["both"][idx] if inside else None,
                             hud["trunk"][idx] if inside else None, cfg["motion"]["angle_bands"])
-            proc.stdin.write(np.ascontiguousarray(img).tobytes())
+            te = time.monotonic()
+            t_render += te - tr
+            data = np.ascontiguousarray(img)
+            if job.get("frame_hashes") is not None:
+                import hashlib
+                job["frame_hashes"].append(hashlib.md5(data.tobytes()).hexdigest())
+            proc.stdin.write(data.tobytes())
             n_out += 1
-            if n_out % 30 == 0:
-                ctx.progress("overlay", n_out / total)
+            tr = time.monotonic()
+            t_encode += tr - te
+            if progress is not None and n_out % 30 == 0:
+                progress(n_out / total)
+        te = time.monotonic()
         proc.stdin.close()
         err = proc.stderr.read().decode(errors="replace")
         proc.stderr.close()
         code = proc.wait()
+        t_encode += time.monotonic() - te
     except BaseException:
         proc.kill()
         proc.wait()
+        Path(job["out"]).unlink(missing_ok=True)
+        raise
+    return {"frames": n_out, "code": code, "err": err.strip(), "width": ow, "height": oh,
+            "render_s": t_render, "encode_s": t_encode, "frame_hashes": job.get("frame_hashes")}
+
+
+def render_track_overlay(video: Path, shots: list, items: dict, out_path: Path, fps: float,
+                         cfg: Config, ctx: RunContext, steps: list | None = None,
+                         hud: dict | None = None, frame_hashes: list | None = None) -> Path:
+    """Overlay of all shots: stored tracks in their own colour with label tNN
+    (subject marked S), short tracks orange, untracked rows grey, suppressed
+    duplicates red. items[shot_id] = {"det": path, "assign": path, "subject": n or None}.
+    steps (optional, Step objects) adds the current step label to the header.
+    hud (optional, overlay_series) adds the readouts (draw_bottom).
+
+    overlay.encoder picks libx264 or h264_nvenc. overlay.workers > 1 renders
+    chunks of the frame range in parallel processes and joins them with the
+    ffmpeg concat demuxer without re-encoding. The drawn frames are the same
+    in every case (frame_hashes, for tests, collects their md5 with workers = 1).
+    The time split is in manifest["overlay"]["breakdown_s"] (render = decode
+    and drawing, encode = time waiting on the encoder, concat)."""
+    t0 = time.monotonic()
+    ocfg = cfg["overlay"]
+    out_path = ctx.paths.check_inside(out_path)
+    w, h, ow, oh, _ = _geometry(video, ocfg)
+    shots = sorted(shots, key=lambda s: s.start_frame)
+    first, last = shots[0].start_frame, shots[-1].end_frame
+    tmp = out_path.with_name(out_path.stem + ".tmp.mp4")
+    base = {"video": Path(video), "shots": shots, "items": items, "fps": fps, "cfg": cfg, "steps": steps, "hud": hud}
+    ranges = chunk_bounds(first, last, ocfg["workers"], [s.start_frame for s in shots])
+    bd = {"render": 0.0, "encode": 0.0, "concat": 0.0}
+    parts: list[Path] = []
+    try:
+        if len(ranges) == 1:
+            r = render_chunk({**base, "start": first, "stop": last, "out": tmp, "frame_hashes": frame_hashes},
+                             progress=lambda f: ctx.progress("overlay", f))
+            results = [r]
+        else:
+            import multiprocessing
+            from concurrent.futures import ProcessPoolExecutor
+            parts = [out_path.with_name(f"{out_path.stem}.part{i:02d}.mp4") for i in range(len(ranges))]
+            jobs = [{**base, "start": a, "stop": b, "out": part} for (a, b), part in zip(ranges, parts)]
+            with ProcessPoolExecutor(max_workers=len(jobs), mp_context=multiprocessing.get_context("spawn")) as ex:
+                futures = [ex.submit(render_chunk, j) for j in jobs]
+                results = []
+                for i, f in enumerate(futures):
+                    results.append(f.result())
+                    ctx.progress("overlay", (i + 1) / len(futures))
+        for r in results:
+            bd["render"] += r["render_s"]
+            bd["encode"] += r["encode_s"]
+            if r["code"] != 0:
+                ctx.log.error("overlay ffmpeg exit %d: %s", r["code"], r["err"])
+                raise AvError("AV-STO-004", what="The overlay video", detail=f"ffmpeg exit code {r['code']}")
+        if parts:
+            tc = time.monotonic()
+            lst = out_path.with_name(out_path.stem + ".parts.txt")
+            lst.write_text("".join(f"file '{p.name}'\n" for p in parts))
+            cmd = ["ffmpeg", "-nostdin", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(lst),
+                   "-c", "copy", "-movflags", "+faststart", str(tmp)]
+            pr = subprocess.run(cmd, capture_output=True, text=True, cwd=str(out_path.parent))
+            lst.unlink(missing_ok=True)
+            bd["concat"] = time.monotonic() - tc
+            if pr.returncode != 0:
+                ctx.log.error("overlay concat exit %d: %s", pr.returncode, pr.stderr.strip())
+                raise AvError("AV-STO-004", what="The overlay video", detail=f"ffmpeg concat exit code {pr.returncode}")
+    except BaseException:
         tmp.unlink(missing_ok=True)
         raise
-    if code != 0:
-        tmp.unlink(missing_ok=True)
-        ctx.log.error("overlay ffmpeg exit %d: %s", code, err.strip())
-        raise AvError("AV-STO-004", what="The overlay video", detail=f"ffmpeg exit code {code}")
+    finally:
+        for part in parts:
+            part.unlink(missing_ok=True)
     os.replace(tmp, out_path)
+    n_out = sum(r["frames"] for r in results)
     ctx.manifest["overlay"] = {"path": ctx.rel(out_path), "frames": n_out, "width": ow, "height": oh,
+                               "encoder": ocfg["encoder"], "workers": len(ranges),
                                "legend": "tNN colour = stored track (S = subject), orange = short track, "
                                          "grey = untracked, red crossed = suppressed duplicate"
                                          + (", bottom: hand reach of the last 10 s, both hands share, "
                                             "trunk angle and band" if hud is not None else ""),
+                               "breakdown_s": {k: round(v, 3) for k, v in bd.items()},
                                "seconds": round(time.monotonic() - t0, 2)}
-    ctx.log.info("overlay written: %s (%d frames, %dx%d)", ctx.rel(out_path), n_out, ow, oh)
+    ctx.log.info("overlay written: %s (%d frames, %dx%d, %s, %d chunk(s))", ctx.rel(out_path), n_out, ow, oh,
+                 ocfg["encoder"], len(ranges))
     return out_path

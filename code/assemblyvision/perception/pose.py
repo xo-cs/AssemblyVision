@@ -11,12 +11,13 @@ import io
 import json
 import time
 from pathlib import Path
+from typing import Callable
 
 import numpy as np
 
 from ..config import VARIANTS, Config
 from ..errors import AvError
-from ..ingest.ingestor import iter_frames
+from ..ingest.ingestor import frame_reader, iter_frames
 from ..storage.files import REPO_ROOT, RunContext, write_atomic
 from ..types import Shot
 
@@ -83,6 +84,7 @@ class PoseEstimator:
         self.variant: str | None = None
         self.half = False                  # precision in use, set by load_models (resolve_half)
         self.gpu_cc: str | None = None
+        self.pass_refs: list[dict] = []     # reference frames found by the pose pass (with_reference)
 
     def resolve_half(self, torch) -> bool:
         """pose.half asks for FP16; it is used only on a CUDA GPU with tensor cores
@@ -125,6 +127,16 @@ class PoseEstimator:
                                   quantize=16 if self.half else 32, device=self.device,
                                   verbose=False, save=False)[0]
 
+    def _infer_batch(self, frames: list[np.ndarray], conf: float | None = None) -> list:
+        """One inference call on several frames (pose.batch). Ultralytics letterboxes
+        frames of one size exactly like a single frame (pre_transform auto=same_shapes)."""
+        if len(frames) == 1:
+            return [self._infer(frames[0]) if conf is None else self._infer(frames[0], conf)]
+        return self.model.predict(list(frames), imgsz=self.pcfg["imgsz"],
+                                  conf=self.pcfg["det_conf_min"] if conf is None else conf,
+                                  quantize=16 if self.half else 32, device=self.device,
+                                  verbose=False, save=False)
+
     def reference_frames(self, run_id: str, shots: list[Shot], video: Path | None = None) -> list[dict]:
         """Per shot, the first frame within pose.ref_search_s with a person at
         pose.ref_conf_min: reference/<shot_id>.png with boxes numbered 1..n
@@ -157,14 +169,22 @@ class PoseEstimator:
                 continue
             if res.boxes is None or len(res.boxes) == 0:
                 continue
-            xyxy = res.boxes.xyxy.detach().cpu().numpy()
-            conf = res.boxes.conf.detach().cpu().numpy()
-            order = np.argsort(xyxy[:, 0], kind="stable")
-            boxes = [{"n": i + 1, "xyxy": [round(float(v), 1) for v in xyxy[k]], "conf": round(float(conf[k]), 3)}
-                     for i, k in enumerate(order)]
-            ref = {"shot_id": sid, "frame_idx": idx, "t_sec": round(idx / fps, 3), "boxes": boxes}
+            ref = self._make_ref(sid, idx, fps, res.boxes.xyxy.detach().cpu().numpy(),
+                                 res.boxes.conf.detach().cpu().numpy())
             self._save_reference(frame, ref)
             found[sid] = ref
+        return self._reference_done(shots, found)
+
+    @staticmethod
+    def _make_ref(sid: str, idx: int, fps: float, xyxy: np.ndarray, conf: np.ndarray) -> dict:
+        order = np.argsort(xyxy[:, 0], kind="stable")
+        boxes = [{"n": i + 1, "xyxy": [round(float(v), 1) for v in xyxy[k]], "conf": round(float(conf[k]), 3)}
+                 for i, k in enumerate(order)]
+        return {"shot_id": sid, "frame_idx": idx, "t_sec": round(idx / fps, 3), "boxes": boxes}
+
+    def _reference_done(self, shots: list[Shot], found: dict[str, dict]) -> list[dict]:
+        """Reference list in shot order, AV-POS-004 for shots without one, manifest section."""
+        ctx = self.ctx
         out = []
         for s in shots:
             if s.shot_id in found:
@@ -204,10 +224,22 @@ class PoseEstimator:
         """Pose on every frame of one shot; returns the DET v1 path (LLD 3.4)."""
         return self.estimate_body_shots(run_id, [shot], video)[shot.shot_id]
 
-    def estimate_body_shots(self, run_id: str, shots: list[Shot], video: Path | None = None) -> dict[str, Path]:
+    def estimate_body_shots(self, run_id: str, shots: list[Shot], video: Path | None = None,
+                            with_reference: bool = False,
+                            on_shot_done: Callable[[Shot, Path, dict | None], None] | None = None
+                            ) -> dict[str, Path]:
         """Pose on every frame of every shot in one pass over the video; one DET
         v1 file per shot (AV-POS-002, 003). Statistics, totals and per shot, go
-        to ctx.manifest["pose_body"]."""
+        to ctx.manifest["pose_body"], with the time breakdown in breakdown_s.
+
+        pose.batch frames go to the model per call (frame order and per frame
+        failure accounting are unchanged: a failed batch is retried frame by
+        frame; on running out of memory the batch is halved before the fallback
+        variant is used). pose.decode picks the frame reader.
+        with_reference (pose.reference_in_pass): the reference frames are taken
+        from this pass, as reference_frames would find them; the list is in
+        self.pass_refs. on_shot_done(shot, det_path, ref) is called as soon as a
+        shot's DET file is written (tracking overlap)."""
         import torch
         if self.model is None:
             self.load_models(self.pcfg["variant"])
@@ -223,11 +255,19 @@ class PoseEstimator:
         for k, s in enumerate(shots):
             shot_of[s.start_frame:s.end_frame] = k
 
+        ref_end: dict[str, int] = {}
+        found: dict[str, dict] = {}
+        fps = self._fps(video) if with_reference else None
+        if with_reference:
+            ref_end = {s.shot_id: min(s.end_frame, s.start_frame + round(self.pcfg["ref_search_s"] * fps))
+                       for s in shots}
+
         failed: list[tuple[int, str, str]] = []
-        fell_back = None
+        state = {"fell_back": None, "batch": max(1, int(self.pcfg["batch"]))}
         total = int((shot_of >= 0).sum())
         n_frames = 0
-        t_infer = 0.0
+        bd = dict.fromkeys(("decode", "infer_call", "preprocess", "inference", "postprocess", "extract",
+                            "writing"), 0.0)
         t0 = last_log = time.monotonic()
         every = self.cfg["run"]["progress_every_s"]
         acc = {s.shot_id: {"rows": [[], [], [], [], []], "frames": 0, "failed": 0} for s in shots}
@@ -235,6 +275,7 @@ class PoseEstimator:
         current = None
 
         def flush(k: int) -> None:
+            tw = time.monotonic()
             s = shots[k]
             a = acc[s.shot_id]
             fi, bx, dc, bxy, bcf = a["rows"]
@@ -251,57 +292,115 @@ class PoseEstimator:
             a.update(detections=int(rows["frame_idx"].size),
                      frames_with_person=int(np.unique(rows["frame_idx"]).size))
             a["rows"] = None
+            bd["writing"] += time.monotonic() - tw
+            if on_shot_done is not None:
+                on_shot_done(s, paths[s.shot_id], found.get(s.shot_id))
 
-        for idx, frame in iter_frames(video, first, last, want=lambda i: shot_of[i] >= 0):
+        def run_frames(idxs: list[int], frames: list[np.ndarray]) -> list:
+            """Results per frame (None = failed, recorded in failed)."""
+            ti = time.monotonic()
+            try:
+                out = self._infer_batch(frames)
+            except torch.cuda.OutOfMemoryError:
+                if len(frames) > 1:
+                    half = max(1, len(frames) // 2)
+                    if state["batch"] > half:
+                        log.warning("GPU out of memory with batch %d, batch %d from frame %d on",
+                                    len(frames), half, idxs[0])
+                        state["batch"] = half
+                    return run_frames(idxs[:half], frames[:half]) + run_frames(idxs[half:], frames[half:])
+                if not fallback or fallback == self.variant or state["fell_back"]:
+                    raise AvError("AV-POS-002", variant=self.variant, action="No fallback variant is left.")
+                old = self.variant
+                log.warning("GPU out of memory with variant %s on frame %d, switching to %s", old, idxs[0], fallback)
+                self.load_models(fallback)
+                state["fell_back"] = {"from": old, "to": fallback, "frame": idxs[0]}
+                ctx.notice(AvError("AV-POS-002", variant=old,
+                                   action=f"Variant {fallback} is used from frame {idxs[0]} on."), "pose_body")
+                try:
+                    out = self._infer_batch(frames)   # retry once; a second OOM ends the stage
+                except torch.cuda.OutOfMemoryError as e:
+                    raise AvError("AV-POS-002", variant=self.variant, action="The fallback variant also failed.") from e
+            except AvError:
+                raise
+            except Exception as e:
+                if len(frames) > 1:               # find the bad frame(s): one by one
+                    return [r for i, f in zip(idxs, frames) for r in run_frames([i], [f])]
+                failed.append((idxs[0], type(e).__name__, str(e)[:200]))
+                log.warning("AV-POS-003 frame %d: %s: %s", idxs[0], type(e).__name__, e)
+                return [None]
+            bd["infer_call"] += time.monotonic() - ti
+            for r in out:
+                sp = getattr(r, "speed", None)
+                if isinstance(sp, dict):
+                    for key in ("preprocess", "inference", "postprocess"):
+                        bd[key] += float(sp.get(key) or 0.0) / 1000.0
+            return list(out)
+
+        def consume(idx: int, frame: np.ndarray, res) -> None:
+            nonlocal current
             k = int(shot_of[idx])
             if current is not None and k != current:
                 flush(current)
             current = k
-            a = acc[shots[k].shot_id]
+            s = shots[k]
+            a = acc[s.shot_id]
             a["frames"] += 1
-            n_frames += 1
-            ti = time.monotonic()
-            try:
-                try:
-                    res = self._infer(frame)
-                except torch.cuda.OutOfMemoryError:
-                    if not fallback or fallback == self.variant or fell_back:
-                        raise AvError("AV-POS-002", variant=self.variant, action="No fallback variant is left.")
-                    old = self.variant
-                    log.warning("GPU out of memory with variant %s on frame %d, switching to %s", old, idx, fallback)
-                    self.load_models(fallback)
-                    fell_back = {"from": old, "to": fallback, "frame": idx}
-                    ctx.notice(AvError("AV-POS-002", variant=old,
-                                       action=f"Variant {fallback} is used from frame {idx} on."), "pose_body")
-                    res = self._infer(frame)   # retry once; a second OOM ends the stage
-            except torch.cuda.OutOfMemoryError as e:
-                raise AvError("AV-POS-002", variant=self.variant, action="The fallback variant also failed.") from e
-            except AvError:
-                raise
-            except Exception as e:
-                failed.append((idx, type(e).__name__, str(e)[:200]))
+            if res is None:
                 a["failed"] += 1
-                log.warning("AV-POS-003 frame %d: %s: %s", idx, type(e).__name__, e)
-                continue
-            t_infer += time.monotonic() - ti
-
+                return
+            te = time.monotonic()
             n = 0 if res.boxes is None else len(res.boxes)
             if n and res.keypoints is not None:
                 kp = res.keypoints.data.detach().cpu().numpy()          # [n,17,3]: x, y, conf
+                xyxy = res.boxes.xyxy.detach().cpu().numpy()
+                conf = res.boxes.conf.detach().cpu().numpy()
                 fi, bx, dc, bxy, bcf = a["rows"]
                 fi.append(np.full(n, idx, np.int32))
-                bx.append(res.boxes.xyxy.detach().cpu().numpy())
-                dc.append(res.boxes.conf.detach().cpu().numpy())
+                bx.append(xyxy)
+                dc.append(conf)
                 bxy.append(kp[:, :, :2])
                 bcf.append(kp[:, :, 2] if kp.shape[2] > 2 else np.ones(kp.shape[:2], np.float32))
+                if with_reference and s.shot_id not in found and idx < ref_end[s.shot_id]:
+                    keep = conf >= self.pcfg["ref_conf_min"]      # the boxes a conf = ref_conf_min call returns
+                    if keep.any():
+                        ref = self._make_ref(s.shot_id, idx, fps, xyxy[keep], conf[keep])
+                        self._save_reference(frame, ref)
+                        found[s.shot_id] = ref
+            bd["extract"] += time.monotonic() - te
 
-            now = time.monotonic()
-            if now - last_log >= every:
-                last_log = now
-                rate = n_frames / (now - t0)
-                eta = (total - n_frames) / rate if rate > 0 else 0
-                log.info("pose %d/%d frames, %.1f fps, eta %.0f s", n_frames, total, rate, eta)
-                self.ctx.progress("pose_body", n_frames / max(total, 1))
+        reader = frame_reader(self.pcfg["decode"], self.pcfg["prefetch_frames"])
+        frames_it = reader(video, first, last, want=lambda i: shot_of[i] >= 0)
+        idxs: list[int] = []
+        batch: list[np.ndarray] = []
+        try:
+            while True:
+                td = time.monotonic()
+                item = next(frames_it, None)
+                bd["decode"] += time.monotonic() - td
+                if item is not None:
+                    idxs.append(item[0])
+                    batch.append(item[1])
+                    if len(batch) < state["batch"]:
+                        continue
+                if batch:
+                    for i, f, r in zip(idxs, batch, run_frames(idxs, batch)):
+                        consume(i, f, r)
+                    n_frames += len(batch)
+                    idxs, batch = [], []
+                if item is None:
+                    break
+                now = time.monotonic()
+                if now - last_log >= every:
+                    last_log = now
+                    rate = n_frames / (now - t0)
+                    eta = (total - n_frames) / rate if rate > 0 else 0
+                    log.info("pose %d/%d frames, %.1f fps, eta %.0f s", n_frames, total, rate, eta)
+                    self.ctx.progress("pose_body", n_frames / max(total, 1))
+        finally:
+            close = getattr(frames_it, "close", None)
+            if close is not None:
+                close()
 
         wall = time.monotonic() - t0
         if n_frames == 0:
@@ -313,6 +412,8 @@ class PoseEstimator:
                 flush(k)
         if failed:
             self._write_failed(failed)
+        if with_reference:
+            self.pass_refs = self._reference_done(shots, found)
 
         peak_mb = round(torch.cuda.max_memory_allocated() / 2**20, 1) if cuda else None
         per_shot = [{"shot_id": s.shot_id, "det_path": ctx.rel(paths[s.shot_id]), "frames": acc[s.shot_id]["frames"],
@@ -324,16 +425,19 @@ class PoseEstimator:
         ctx.manifest["pose_body"] = {
             "variant": self.variant,
             "variant_requested": self.pcfg["variant"],
-            "fallback": fell_back,
+            "fallback": state["fell_back"],
             "imgsz": self.pcfg["imgsz"], "conf": self.pcfg["det_conf_min"],
             "half_requested": self.pcfg["half"], "half": self.half, "precision": "FP16" if self.half else "FP32",
+            "batch": int(self.pcfg["batch"]), "batch_used": state["batch"], "decode": self.pcfg["decode"],
+            "reference_in_pass": bool(with_reference),
             "frames": n_frames,
             "frames_with_person": with_person,
             "detections": dets,
             "failed_frames": len(failed),
             "seconds": round(wall, 2),
             "pose_fps": round(n_frames / wall, 2) if wall > 0 else None,
-            "infer_ms_mean": round(1000 * t_infer / max(n_frames - len(failed), 1), 2),
+            "infer_ms_mean": round(1000 * bd["infer_call"] / max(n_frames - len(failed), 1), 2),
+            "breakdown_s": {k: round(v, 3) for k, v in bd.items()},
             "gpu_peak_mb": peak_mb,
             "gpu_name": torch.cuda.get_device_name(0) if cuda else None,
             "gpu_cc": self.gpu_cc,

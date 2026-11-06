@@ -6,6 +6,11 @@
 seed = 42
 progress_every_s = 2.0       # longest time between progress lines (s)
 
+[profile]
+# Stage profiler (Week 10): per stage times, the pose breakdown and GPU samples in manifest["profile"].
+enabled = false              # tools/exp turns it on for experiments
+gpu_sample_s = 0.5           # nvidia-smi query interval (s)
+
 [paths]
 # Relative to ~/AssemblyVision. QiSens runs write only under qisens_root,
 # public runs only under public_root (CLAUDE.md data layout).
@@ -31,6 +36,7 @@ min_shot_s = 1.0             # shorter shots merge into the previous one (s)
 fixed_motion_max = 0.002     # fixed if the 90th percentile background motion is below this (fraction of width)
 motion_pairs = 20            # frame pairs for the background motion
 motion_pair_s = 0.5          # time between the two frames of a pair (s)
+downscale = 0                # cut detection frame downscale factor; 0 = PySceneDetect automatic (default)
 
 [pose]
 variant = "x"                # YOLO26 pose variant: n, s, m, l or x (x FP32: 67 fps on the A5000, Week 9 benchmark)
@@ -42,6 +48,10 @@ ref_search_s = 5.0           # seconds scanned for a reference frame
 half = false                 # FP32; FP16 gave no speedup on the A5000 (Week 9 benchmark) and its accuracy cost is unmeasured.
                              # true asks for FP16, used only on tensor core GPUs (compute capability >= 7.0)
 hand_crop_margin = 0.15      # margin added to the box for RTMW
+batch = 1                    # frames per inference call; 1 = one frame at a time (reference)
+decode = "opencv"            # frame reader of the pose pass: opencv, prefetch (reader thread) or ffmpeg_cuda (NVDEC)
+prefetch_frames = 64         # frames queued ahead by the prefetch and ffmpeg_cuda readers
+reference_in_pass = false    # true: reference frames are taken from the pose pass (no second decode of the video)
 
 [track]
 algorithm = "bytetrack"
@@ -58,6 +68,7 @@ dup_contain = 0.80           # or if the smaller box lies this much inside the o
 dup_kp_agree = 0.60          # ... and this share of the shared keypoints coincide
 dup_kp_conf = 0.30           # keypoints at or above this confidence count as shared
 dup_kp_dist = 0.10           # coincide = closer than this fraction of the smaller box diagonal
+overlap_pose = false         # true: each shot is tracked in a worker process while pose goes on (needs pose.reference_in_pass)
 
 [clean]
 body_conf_min = 0.30         # keypoints below this become NaN (LLD 3.6)
@@ -131,6 +142,9 @@ pose = 0                    # RTX A5000 24 GB, Ampere (PCI bus order, bus 01:00)
 kp_conf_min = 0.30           # keypoints below this are drawn faded (display only)
 max_width = 1920             # overlay is scaled down to this width (px)
 crf = 20                     # x264 quality of the overlay video
+enabled = true               # false skips the overlay video (like --no-overlay)
+encoder = "libx264"          # libx264 or h264_nvenc (GPU encoder of the pose GPU)
+workers = 1                  # >1: the frame range is rendered in this many parallel chunks, joined without re-encoding
 
 [ui]
 # host 127.0.0.1, port 7860 and share=False are fixed in ui/app.py (FR-INFRA-06, NFR-SEC-03)

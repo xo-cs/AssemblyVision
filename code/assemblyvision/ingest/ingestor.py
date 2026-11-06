@@ -228,17 +228,26 @@ class VideoIngestor:
 
 
 def iter_frames(path: Path, start: int = 0, end: int | None = None,
-                want: Callable[[int], bool] | None = None) -> Iterator[tuple[int, np.ndarray]]:
+                want: Callable[[int], bool] | None = None, seek: bool = False) -> Iterator[tuple[int, np.ndarray]]:
     """Yield (frame index, BGR image) one at a time; memory does not grow with length.
 
     want(idx) selects frames: the others are only grabbed, not converted.
     Frames before start are grabbed too (no seeking), so indices are exact.
+    seek=True (overlay chunks) seeks to start instead; if OpenCV does not land
+    exactly on start the video is reopened and grabbed as usual.
     """
     cap = cv2.VideoCapture(str(path))
     if not cap.isOpened():
         raise AvError("AV-ING-001", name=Path(path).name, detail="OpenCV could not open the video")
     try:
         idx = 0
+        if seek and start > 0:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, start)
+            if int(cap.get(cv2.CAP_PROP_POS_FRAMES)) == start:
+                idx = start
+            else:
+                cap.release()
+                cap = cv2.VideoCapture(str(path))
         while end is None or idx < end:
             if idx < start or (want is not None and not want(idx)):
                 if not cap.grab():
@@ -251,3 +260,109 @@ def iter_frames(path: Path, start: int = 0, end: int | None = None,
             idx += 1
     finally:
         cap.release()
+
+
+
+_END = object()
+
+
+def _prefetched(make: Callable[[], Iterator], depth: int, name: str) -> Iterator:
+    """Run the iterator make() in a reader thread with a bounded queue of depth
+    items; errors are raised in the consumer, and closing the consumer stops the
+    reader. OpenCV and pipe reads release the GIL, so decoding overlaps the caller."""
+    import queue
+    import threading
+    q: queue.Queue = queue.Queue(maxsize=depth)
+    stop = threading.Event()
+
+    def put(item) -> bool:
+        while not stop.is_set():
+            try:
+                q.put(item, timeout=0.2)
+                return True
+            except queue.Full:
+                continue
+        return False
+
+    def reader() -> None:
+        try:
+            for item in make():
+                if not put(item):
+                    return
+            put(_END)
+        except BaseException as e:      # handed to the consumer, raised there
+            put(e)
+
+    t = threading.Thread(target=reader, name=name, daemon=True)
+    t.start()
+    try:
+        while True:
+            item = q.get()
+            if item is _END:
+                return
+            if isinstance(item, BaseException):
+                raise item
+            yield item
+    finally:
+        stop.set()
+        t.join(timeout=10)
+
+
+def iter_frames_prefetch(path: Path, start: int = 0, end: int | None = None,
+                         want: Callable[[int], bool] | None = None, depth: int = 64
+                         ) -> Iterator[tuple[int, np.ndarray]]:
+    """iter_frames in a reader thread (pose.decode = prefetch): the same indices
+    and images, decoded while the caller runs inference."""
+    return _prefetched(lambda: iter_frames(path, start, end, want), depth, "frame-prefetch")
+
+
+def _ffmpeg_cuda_frames(path: Path, start: int, end: int | None,
+                        want: Callable[[int], bool] | None) -> Iterator[tuple[int, np.ndarray]]:
+    cap = cv2.VideoCapture(str(path))
+    if not cap.isOpened():
+        raise AvError("AV-ING-001", name=Path(path).name, detail="OpenCV could not open the video")
+    w, h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    cap.release()
+    size = w * h * 3
+    cmd = ["ffmpeg", "-nostdin", "-v", "error", "-hwaccel", "cuda", "-c:v", "h264_cuvid", "-i", str(path),
+           "-f", "rawvideo", "-pix_fmt", "bgr24", "-"]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=size * 4)
+    idx = 0
+    try:
+        while end is None or idx < end:
+            buf = proc.stdout.read(size)
+            if len(buf) < size:
+                break
+            if idx >= start and (want is None or want(idx)):
+                yield idx, np.frombuffer(buf, np.uint8).reshape(h, w, 3).copy()
+            idx += 1
+    finally:
+        proc.kill()
+        proc.wait()
+        err = proc.stderr.read().decode(errors="replace").strip()
+        proc.stderr.close()
+        proc.stdout.close()
+    if idx == 0:
+        raise AvError("AV-ING-001", name=Path(path).name, detail=f"ffmpeg cuda decode gave no frame: {err[:300]}")
+
+
+def iter_frames_ffmpeg_cuda(path: Path, start: int = 0, end: int | None = None,
+                            want: Callable[[int], bool] | None = None, depth: int = 64
+                            ) -> Iterator[tuple[int, np.ndarray]]:
+    """Frames decoded on the GPU (NVDEC: ffmpeg -hwaccel cuda -c:v h264_cuvid) and
+    converted to BGR by ffmpeg, read from a pipe in a reader thread
+    (pose.decode = ffmpeg_cuda). Every frame is decoded; want only selects what
+    is yielded. Pixels may differ slightly from OpenCV's software decoder, so
+    the equivalence check decides whether this reader may be used."""
+    return _prefetched(lambda: _ffmpeg_cuda_frames(path, start, end, want), depth, "frame-nvdec")
+
+
+def frame_reader(kind: str, depth: int = 64) -> Callable[..., Iterator[tuple[int, np.ndarray]]]:
+    """The frame iterator of pose.decode: opencv (iter_frames), prefetch or ffmpeg_cuda."""
+    if kind == "opencv":
+        return iter_frames
+    if kind == "prefetch":
+        return lambda path, start=0, end=None, want=None: iter_frames_prefetch(path, start, end, want, depth)
+    if kind == "ffmpeg_cuda":
+        return lambda path, start=0, end=None, want=None: iter_frames_ffmpeg_cuda(path, start, end, want, depth)
+    raise ValueError(f"unknown frame reader {kind}")

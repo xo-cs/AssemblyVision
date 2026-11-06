@@ -45,6 +45,13 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "pose.ref_search_s": (lambda v: v > 0, "> 0"),
     "pose.half": (lambda v: isinstance(v, bool), "true or false"),
     "pose.hand_crop_margin": (lambda v: 0 <= v <= 1, "0 to 1"),
+    "pose.batch": (lambda v: 1 <= v <= 256, "1 to 256"),
+    "pose.decode": (lambda v: v in ("opencv", "prefetch", "ffmpeg_cuda"), "opencv, prefetch or ffmpeg_cuda"),
+    "pose.prefetch_frames": (lambda v: 1 <= v <= 4096, "1 to 4096"),
+    "profile.gpu_sample_s": (lambda v: 0.05 <= v <= 60, "0.05 to 60"),
+    "shots.downscale": (lambda v: 0 <= v <= 16, "0 to 16 (0 = automatic)"),
+    "overlay.encoder": (lambda v: v in ("libx264", "h264_nvenc"), "libx264 or h264_nvenc"),
+    "overlay.workers": (lambda v: 1 <= v <= 32, "1 to 32"),
     "track.algorithm": (lambda v: v == "bytetrack", "bytetrack"),
     "track.high_thresh": (lambda v: 0 <= v <= 1, "0 to 1"),
     "track.low_thresh": (lambda v: 0 <= v <= 1, "0 to 1"),
@@ -217,6 +224,9 @@ class Config:
         if d["pose"]["det_conf_min"] > low:
             raise AvError("AV-CFG-002", key="pose.det_conf_min", value=repr(d["pose"]["det_conf_min"]),
                           range="<= track.low_thresh, or the low score band of ByteTrack stays empty")
+        if t["overlap_pose"] and not d["pose"]["reference_in_pass"]:
+            raise AvError("AV-CFG-002", key="track.overlap_pose", value="true",
+                          range="false unless pose.reference_in_pass is true (a shot is tracked with its reference)")
         m = d["motion"]
         if not m["rep_lag_min_s"] < m["rep_lag_max_s"]:
             raise AvError("AV-CFG-002", key="motion.rep_lag_min_s", value=repr(m["rep_lag_min_s"]),

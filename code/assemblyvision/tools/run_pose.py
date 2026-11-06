@@ -154,9 +154,10 @@ def _setup_logging(paths: RunPaths) -> logging.Logger:
     return log
 
 
-def _run_stage(ctx: RunContext, name: str, fn):
+def _run_stage(ctx: RunContext, name: str, fn, prof=None):
     """Run one stage with its own log file; AV errors pass through, anything
-    else becomes AV-SYS-001 with the traceback in the stage log only."""
+    else becomes AV-SYS-001 with the traceback in the stage log only. prof
+    (runs.profiler.Profiler) marks the stage for the GPU samples."""
     rec = ctx.manifest["stages"].setdefault(name, {})
     rec.clear()
     rec.update(status="running", started_utc=utc_now(), progress=0.0)
@@ -165,6 +166,9 @@ def _run_stage(ctx: RunContext, name: str, fn):
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
     ctx.log.addHandler(handler)
     t0 = time.monotonic()
+    mark = prof.stage(name) if prof is not None else None
+    if mark is not None:
+        mark.__enter__()
     try:
         result = fn()
         rec["status"] = "done"
@@ -181,6 +185,8 @@ def _run_stage(ctx: RunContext, name: str, fn):
         ctx.log.error("%s %s", err.code, err.text)
         raise err from e
     finally:
+        if mark is not None:
+            mark.__exit__(None, None, None)
         rec["seconds"] = round(time.monotonic() - t0, 2)
         ctx.log.removeHandler(handler)
         handler.close()
@@ -446,6 +452,38 @@ def rerun(args: argparse.Namespace) -> int:
 
 # full run ------------------------------------------------------------------------------
 
+def _track_worker_init() -> None:
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""          # tracking is CPU only; never touch the pose GPU
+
+
+def track_shot_job(job: dict) -> dict:
+    """Track one shot in a worker process (track.overlap_pose). The tracker writes
+    its KTS and assignment files itself; the manifest records, notices and log
+    lines come back so the main process merges them in shot order."""
+    from ..perception.tracker import Tracker
+
+    class _Keep(logging.Handler):
+        def __init__(self):
+            super().__init__()
+            self.lines: list[tuple[int, str]] = []
+
+        def emit(self, record):
+            self.lines.append((record.levelno, record.getMessage()))
+    log = logging.getLogger("assemblyvision.track_worker")
+    log.handlers.clear()
+    log.propagate = False
+    log.setLevel(logging.DEBUG)
+    keep = _Keep()
+    log.addHandler(keep)
+    ctx = RunContext(job["run_id"], job["source"], job["paths"], log,
+                     {"ingest": job["ingest"], "tracking": {"per_shot": [], "tracks": []}, "notices": []})
+    t0 = time.monotonic()
+    Tracker(job["cfg"], ctx).track(job["run_id"], job["shot"], job["det"], job["ref"], fps=job["fps"],
+                                   size=job["size"], meta=job["meta"])
+    return {"tracking": ctx.manifest["tracking"], "notices": ctx.manifest["notices"], "log": keep.lines,
+            "seconds": time.monotonic() - t0}
+
+
 def _take_gpu_lock(gpu: int, ctx: RunContext):
     """Exclusive flock on .locks/gpu<index>.lock (one job per GPU, LLD 3.1); waits
     with status queued while another run holds it. The system frees the lock
@@ -549,37 +587,83 @@ def main(argv: list[str] | None = None) -> int:
     ctx.manifest["versions"] = _versions()
     ctx.write_manifest()
 
+    from ..runs.profiler import Profiler
+    prof = Profiler(cfg["profile"]["enabled"], args.gpu, cfg["profile"]["gpu_sample_s"]).start()
+
+    def stage(name: str, fn):
+        return _run_stage(ctx, name, fn, prof)
+
+    track_pool = None
     status, code = "done", 0
     try:
         if args.gpu >= 0 and not torch.cuda.is_available():
             raise AvError("AV-SYS-001", type="CudaUnavailable", stage="pose_body",
                           detail=f"CUDA is not available for GPU {args.gpu}")
-        info, _split = _run_stage(ctx, "ingest", lambda: VideoIngestor(cfg, ctx).ingest(
+        info, _split = stage("ingest", lambda: VideoIngestor(cfg, ctx).ingest(
             run_id, video, SOURCE_TYPE[args.source], strict_split=False))
 
-        shots = _run_stage(ctx, "shots", lambda: ShotDetector(cfg, ctx).detect(run_id, paths.cfr, info))
+        shots = stage("shots", lambda: ShotDetector(cfg, ctx).detect(run_id, paths.cfr, info))
 
         pose = PoseEstimator(cfg, ctx, device="cuda:0" if args.gpu >= 0 else "cpu")
-        refs = _run_stage(ctx, "reference", lambda: (pose.load_models(args.variant),
-                                                     pose.reference_frames(run_id, shots))[1])
-        ref_by_shot = {r["shot_id"]: r for r in refs}
-        for item in ctx.manifest["shots"]["items"]:
-            item["ref_frame"] = ref_by_shot.get(item["shot_id"], {}).get("frame_idx")
-        det_paths = _run_stage(ctx, "pose_body", lambda: pose.estimate_body_shots(run_id, shots))
+        fused = cfg["pose"]["reference_in_pass"]
+        jobs: dict = {}
+        if cfg["track"]["overlap_pose"]:
+            import multiprocessing
+            from concurrent.futures import ProcessPoolExecutor
+            track_pool = ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn"),
+                                             initializer=_track_worker_init)
+
+        def set_ref_frames(refs: list[dict]) -> dict:
+            by_shot = {r["shot_id"]: r for r in refs}
+            for item in ctx.manifest["shots"]["items"]:
+                item["ref_frame"] = by_shot.get(item["shot_id"], {}).get("frame_idx")
+            return by_shot
+
+        if fused:       # the model is loaded here; the reference frames come from the pose pass
+            stage("reference", lambda: pose.load_models(args.variant))
+            ctx.manifest["stages"]["reference"]["fused"] = "pose_body"
+            ref_by_shot = {}
+        else:
+            ref_by_shot = set_ref_frames(stage("reference", lambda: (pose.load_models(args.variant),
+                                                                     pose.reference_frames(run_id, shots))[1]))
+        pose_meta = {"pose_model": f"yolo26{args.variant}-pose", "pose_variant": args.variant, "seed": seed}
+
+        def submit(shot, det, ref) -> None:
+            jobs[shot.shot_id] = track_pool.submit(track_shot_job, {
+                "run_id": run_id, "source": args.source, "paths": paths, "cfg": cfg, "shot": shot, "det": det,
+                "ref": ref, "fps": info.fps, "size": (info.width, info.height),
+                "meta": {**pose_meta, "pose_model": f"yolo26{pose.variant}-pose", "pose_variant": pose.variant},
+                "ingest": ctx.manifest.get("ingest", {})})
+        det_paths = stage("pose_body", lambda: pose.estimate_body_shots(
+            run_id, shots, with_reference=fused, on_shot_done=submit if track_pool is not None else None))
+        if fused:
+            ref_by_shot = set_ref_frames(pose.pass_refs)
         pose_meta = {"pose_model": f"yolo26{pose.variant}-pose", "pose_variant": pose.variant, "seed": seed}
 
         def track_all() -> dict:
-            tracker = Tracker(cfg, ctx)
             ctx.manifest["tracking"] = {"per_shot": [], "tracks": []}
+            if track_pool is not None:          # merge the worker results in shot order
+                worker_s = 0.0
+                for s in shots:
+                    r = jobs[s.shot_id].result()
+                    ctx.manifest["tracking"]["per_shot"].extend(r["tracking"]["per_shot"])
+                    ctx.manifest["tracking"]["tracks"].extend(r["tracking"]["tracks"])
+                    ctx.manifest.setdefault("notices", []).extend(r["notices"])
+                    for level, msg in r["log"]:
+                        ctx.log.log(level, "%s", msg)
+                    worker_s += r["seconds"]
+                ctx.manifest["tracking"]["overlap_pose"] = {"worker_seconds": round(worker_s, 2)}
+                return summarize(ctx)
+            tracker = Tracker(cfg, ctx)
             for s in shots:
                 tracker.track(run_id, s, det_paths[s.shot_id], ref_by_shot.get(s.shot_id), fps=info.fps,
                               size=(info.width, info.height), meta=pose_meta)
             return summarize(ctx)
-        _run_stage(ctx, "tracking", track_all)
+        stage("tracking", track_all)
 
         steps = None
         try:
-            steps = _run_stage(ctx, "segmentation", lambda: stage_segmentation(ctx, cfg))
+            steps = stage("segmentation", lambda: stage_segmentation(ctx, cfg))
         except AvError as e:
             status, code = "partial", _fail(e)
 
@@ -587,15 +671,15 @@ def main(argv: list[str] | None = None) -> int:
             ctx.manifest["stages"]["metrics"]["status"] = "skipped"
         else:
             try:
-                _run_stage(ctx, "metrics", lambda: stage_metrics(ctx, cfg, steps))
+                stage("metrics", lambda: stage_metrics(ctx, cfg, steps))
             except AvError as e:
                 status, code = "partial", _fail(e)
 
-        if args.no_overlay:
+        if args.no_overlay or not cfg["overlay"]["enabled"]:
             ctx.manifest["stages"]["overlay"]["status"] = "skipped"
         else:
             try:
-                _run_stage(ctx, "overlay", lambda: stage_overlay(ctx, cfg, steps))
+                stage("overlay", lambda: stage_overlay(ctx, cfg, steps))
             except AvError as e:
                 status, code = "partial", _fail(e)
 
@@ -604,13 +688,18 @@ def main(argv: list[str] | None = None) -> int:
         else:
             from ..evaluation.steps_eval import evaluate_run
             try:
-                _run_stage(ctx, "eval", lambda: evaluate_run(ctx, args.gt, cfg))
+                stage("eval", lambda: evaluate_run(ctx, args.gt, cfg))
             except AvError as e:
                 status, code = "partial", _fail(e)
     except AvError as e:
         status, code = "failed", _fail(e)
         ctx.manifest.setdefault("error", e.as_record())
     finally:
+        if track_pool is not None:
+            track_pool.shutdown(wait=True, cancel_futures=True)
+        prof.stop()
+        if prof.enabled:
+            ctx.manifest["profile"] = prof.summary(ctx.manifest)
         ctx.manifest["status"] = status
         ctx.manifest["finished_utc"] = utc_now()
         ctx.write_manifest()

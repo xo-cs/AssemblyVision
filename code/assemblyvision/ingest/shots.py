@@ -23,11 +23,17 @@ def shot_id(run_id: str, idx: int) -> str:
     return f"{run_id}-s{idx:03d}"
 
 
-def detect_cuts(video_path: Path, fps: float, threshold: float, min_shot_s: float) -> list[int]:
-    """Frame numbers where a new shot starts (0 excluded), from ContentDetector."""
+def detect_cuts(video_path: Path, fps: float, threshold: float, min_shot_s: float,
+                downscale: int = 0) -> list[int]:
+    """Frame numbers where a new shot starts (0 excluded), from ContentDetector.
+    downscale > 0 sets PySceneDetect's frame downscale factor (shots.downscale);
+    0 keeps its automatic choice."""
     from scenedetect import ContentDetector, SceneManager, open_video
     video = open_video(str(video_path), backend="opencv")
     sm = SceneManager()
+    if downscale > 0:
+        sm.auto_downscale = False
+        sm.downscale = downscale
     sm.add_detector(ContentDetector(threshold=threshold, min_scene_len=max(1, round(min_shot_s * fps))))
     sm.detect_scenes(video, show_progress=False)
     return [start.frame_num for start, _ in sm.get_scene_list(start_in_scene=True)][1:]
@@ -45,20 +51,26 @@ class ShotDetector:
         fps, n = info.fps, info.frame_count
         method = "pyscenedetect ContentDetector"
         try:
-            cuts = detect_cuts(video_path, fps, self.scfg["cut_threshold"], self.scfg["min_shot_s"])
+            cuts = detect_cuts(video_path, fps, self.scfg["cut_threshold"], self.scfg["min_shot_s"],
+                               self.scfg["downscale"])
         except Exception as e:
             self.ctx.notice(AvError("AV-SHT-001", detail=f"{type(e).__name__}: {e}"), "shots")
             cuts, method = None, "whole video (cut detection failed)"
+        t_cuts = time.monotonic() - t0
         bounds = [0] + [c for c in (cuts or []) if 0 < c < n] + [n]
         shots = [Shot(shot_id(run_id, i + 1), run_id, a, b, round(a / fps, 3), round(b / fps, 3), "handheld")
                  for i, (a, b) in enumerate(zip(bounds[:-1], bounds[1:])) if b > a]
+        tm = time.monotonic()
         motion = self.classify_all(video_path, shots, fps) if cuts is not None else {}
+        t_motion = time.monotonic() - tm
         for s in shots:
             m = motion.get(s.shot_id)
             s.shot_type = "fixed" if m is not None and m < self.scfg["fixed_motion_max"] else "handheld"
         self.ctx.manifest["shots"] = {
             "count": len(shots), "method": method, "cut_threshold": self.scfg["cut_threshold"],
-            "min_shot_s": self.scfg["min_shot_s"], "seconds": round(time.monotonic() - t0, 2),
+            "min_shot_s": self.scfg["min_shot_s"], "downscale": self.scfg["downscale"],
+            "seconds": round(time.monotonic() - t0, 2),
+            "breakdown_s": {"cuts": round(t_cuts, 3), "motion": round(t_motion, 3)},
             "items": [{"shot_id": s.shot_id, "start_frame": s.start_frame, "end_frame": s.end_frame,
                        "start_s": s.start_s, "end_s": s.end_s, "frames": s.end_frame - s.start_frame,
                        "shot_type": s.shot_type, "motion_p90": motion.get(s.shot_id),
