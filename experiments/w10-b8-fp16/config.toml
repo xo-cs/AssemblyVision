@@ -199,3 +199,13 @@ limited_retries = 8
 tol_s = 0.2
 ignore_dont_care = false
 dont_care_label = 0
+
+[engine_b]
+augment = true
+jitter_torso = 0.03
+joint_dropout = 0.05
+frame_dropout = 0.02
+conf_visible = 0.9
+conf_predicted = 0.4
+conf_noise = 0.1
+aug_seed = 42

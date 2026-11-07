@@ -191,3 +191,27 @@ def member_span(zf: zipfile.ZipFile, infos: list[zipfile.ZipInfo]) -> tuple[int,
     nxt = next((s for s in starts if s > last.header_offset), None)
     hi = nxt if nxt is not None else last.header_offset + 30 + len(last.filename) + last.compress_size
     return lo, hi
+
+
+def read_member(raw: HttpRangeFile, info: zipfile.ZipInfo, extra_margin: int = 1024) -> bytes:
+    """One member in one range request (local header + data), CRC32 checked. For members
+    far apart, where a buffered sequential read would fetch the bytes between them."""
+    import struct
+    import zlib
+    name_len = len(info.filename.encode("utf-8"))
+    head = 30 + name_len + extra_margin
+    data = raw.read_range(info.header_offset, head + info.compress_size)
+    if data[:4] != b"PK\x03\x04":
+        raise zipfile.BadZipFile(f"no local header for {info.filename}")
+    n, e = struct.unpack("<HH", data[26:30])
+    start = 30 + n + e
+    if start + info.compress_size > len(data):            # extra field longer than the margin
+        data += raw.read_range(info.header_offset + len(data), start + info.compress_size - len(data))
+    payload = data[start:start + info.compress_size]
+    if info.compress_type == zipfile.ZIP_DEFLATED:
+        payload = zlib.decompress(payload, -15)
+    elif info.compress_type != zipfile.ZIP_STORED:
+        raise zipfile.BadZipFile(f"compression {info.compress_type} of {info.filename} is not supported")
+    if zlib.crc32(payload) & 0xFFFFFFFF != info.CRC:
+        raise zipfile.BadZipFile(f"Bad CRC-32 for file {info.filename}")
+    return payload

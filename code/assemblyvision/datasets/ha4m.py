@@ -174,11 +174,16 @@ class HA4MLoader(DatasetLoader):
         raise AvError("AV-DAT-003", name=f"HA4M {video_id}", detail="its camera (lab) is not known yet")
 
     def videos(self) -> list[VideoRef]:
+        """Videos whose fetch is complete (labels and a known camera; a video still being
+        fetched is left out until its meta file is written)."""
         out = []
         for p in sorted((self.root / "labels").glob("IDU*V*.csv")):
             vid = p.stem
-            out.append(VideoRef(vid, video_subject(vid), self.video_location(vid), FPS,
-                                int(read_labels_csv(p)[:, 0].max()) + 1))
+            try:
+                loc = self.video_location(vid)
+            except AvError:
+                continue
+            out.append(VideoRef(vid, video_subject(vid), loc, FPS, int(read_labels_csv(p)[:, 0].max()) + 1))
         return out
 
     def _frames(self, video_id: str) -> int:

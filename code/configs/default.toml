@@ -127,6 +127,19 @@ tol_s = 0.2                  # a frame is positive within this time of an (actio
 ignore_dont_care = false     # true: label 0 frames are merged into the action before them (ablation)
 dont_care_label = 0          # HA4M "don't care" action id
 
+[engine_b]
+# Engine B data (Week 10): HA4M Kinect 2D colour joints mapped to COCO 17, in the body frame
+# of the reach heatmap (mid hip origin, hip to shoulder axis up, torso lengths). The
+# augmentation makes the clean Kinect joints look like YOLO26 output (train only).
+augment = true
+jitter_torso = 0.03          # Gaussian joint jitter, sigma in torso lengths, scaled per joint by the COCO sigmas
+joint_dropout = 0.05         # chance that a joint is missing in a frame
+frame_dropout = 0.02         # chance that the whole person is missing in a frame (missed detection)
+conf_visible = 0.9           # keypoint confidence given to a Kinect "visible" joint (0.67)
+conf_predicted = 0.4         # keypoint confidence given to a Kinect "predicted / occluded" joint (0.33)
+conf_noise = 0.1             # Gaussian noise added to that confidence (clipped to 0..1)
+aug_seed = 42
+
 [motion]
 # MotionAnalyzer (LLD 3.7). Add "gaze" to enabled for the rough gaze direction (FR-MOTION-08, Want).
 enabled = ["duration", "path", "back_bending", "repetition", "hand_travel", "two_hand", "idle"]

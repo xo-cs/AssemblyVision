@@ -340,6 +340,9 @@ def format_table(res: dict) -> str:
 
 
 def _index_line(res: dict) -> str:
+    if "index" in res:                     # other kinds (domain_gap, ...) give their own cells and verdict
+        return (f"| [{res['id']}]({res['id']}/table.md) | {res.get('finished_utc', '')[:10]} | {res.get('title', '')} | "
+                f"{'<br>'.join(res['index']['cells'])} | {res['index']['verdict']} |")
     cells = []
     for v, rec in res["videos"].items():
         s = rec["summary"]

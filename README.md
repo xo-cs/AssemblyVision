@@ -120,14 +120,21 @@ own pose model, so public and partner keypoints share model and format. Datasets
 ```bash
 python -m assemblyvision.tools.fetch_dataset ha4m listing          # Science Data Bank V2 listing (217 zips, 3.2 TB)
 python -m assemblyvision.tools.fetch_dataset ha4m annotations      # Labels.txt + skeletons of every video (about 3 GB)
-python -m assemblyvision.tools.fetch_dataset ha4m rgb --videos IDU001V001,IDU023V001 --yes   # Color frames -> mp4
+python -m assemblyvision.tools.engine_b_data ha4m                  # Engine B cache (extends as videos arrive)
 python -m assemblyvision.tools.dataset_splits ha4m splits          # cross subject and cross location lists
-python -m assemblyvision.tools.dataset_pose --dataset ha4m --videos IDU001V001 --gpu 0       # our pose (GPU job)
+python -m assemblyvision.tools.ha4m_domain_gap fetch|run|compare   # YOLO26 x against the Kinect joints (run = GPU job)
 ```
 
-The download reads only the wanted members of each remote zip (HTTP range requests); a transfer
-above 5 GB needs `--yes`; a stopped download resumes per video. InHARD has a loader interface and a
-BVH reader; its data is not downloaded until access is granted.
+Engine B trains on HA4M's own skeletons: the Kinect 2D colour joints mapped to COCO 17, in the
+body frame of the reach heatmap (mid hip origin, hip to shoulder axis up, torso lengths), with an
+augmentation that makes them look like YOLO26 output (`[engine_b]`: joint jitter, joint and frame
+dropout, confidence levels and noise). The RGB route (our pose on the dataset videos,
+`fetch_dataset ha4m rgb` and `tools/dataset_pose`) is kept but not used: the server gives about
+0.2 MB/s. The domain gap experiment measures how far YOLO26 x is from the Kinect joints on a short
+window of frames per lab. The download reads only the wanted members of each remote zip (HTTP range
+requests), one paced stream, honouring HTTP 429; a transfer above 5 GB needs `--yes`; a stopped
+download resumes per video (`scripts/ha4m_download.sh` in the tmux window `dl`). InHARD has a loader
+interface and a BVH reader; its data is not downloaded until access is granted.
 
 ## Pose labelling
 
