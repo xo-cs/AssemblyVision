@@ -8,15 +8,21 @@ from pathlib import Path
 from ..storage.files import REPO_ROOT
 
 
+OUTPUT_DIRS = ("experiments/",)   # written by the registry itself, so not part of the code state
+
+
 def git_state(repo: Path = REPO_ROOT, run=subprocess.run) -> dict:
-    """{commit, branch, dirty}: dirty lists changed tracked files (untracked ones are ignored)."""
+    """{commit, branch, dirty, outputs_changed}: dirty lists changed tracked files outside
+    the registry's own output folder (untracked ones are ignored); changes inside it
+    (INDEX.md, other experiments' results) are listed in outputs_changed."""
     def git(*args: str) -> str:
         p = run(["git", "-C", str(repo), *args], capture_output=True, text=True, timeout=30)
         return p.stdout.rstrip("\n") if p.returncode == 0 else ""
     changed = [line[3:] for line in git("status", "--porcelain", "--untracked-files=no").splitlines() if line.strip()]
     return {"commit": git("rev-parse", "HEAD").strip() or None,
             "branch": git("rev-parse", "--abbrev-ref", "HEAD").strip() or None,
-            "dirty": changed}
+            "dirty": [c for c in changed if not c.startswith(OUTPUT_DIRS)],
+            "outputs_changed": [c for c in changed if c.startswith(OUTPUT_DIRS)]}
 
 
 def sha256_file(path: Path, chunk: int = 8 << 20) -> str:

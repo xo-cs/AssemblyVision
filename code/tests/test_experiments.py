@@ -241,10 +241,11 @@ class ProvenanceTest(unittest.TestCase):
         def run(cmd, **kw):
             out = {"HEAD": "deadbeef", "--abbrev-ref": "feat/w10-speed"}
             if "status" in cmd:
-                return SimpleNamespace(returncode=0, stdout=" M code/x.py\n")
+                return SimpleNamespace(returncode=0, stdout=" M code/x.py\n M experiments/INDEX.md\n")
             return SimpleNamespace(returncode=0, stdout=out["--abbrev-ref"] if "--abbrev-ref" in cmd else out["HEAD"])
         st = git_state(self.root, run=run)
-        self.assertEqual(st, {"commit": "deadbeef", "branch": "feat/w10-speed", "dirty": ["code/x.py"]})
+        self.assertEqual(st, {"commit": "deadbeef", "branch": "feat/w10-speed", "dirty": ["code/x.py"],
+                              "outputs_changed": ["experiments/INDEX.md"]})
 
 
 if __name__ == "__main__":

@@ -1,0 +1,64 @@
+{
+  "id": "w10-qisens",
+  "kind": "qisens_summary",
+  "source": "qisens",
+  "reference": "w10-qisens-ref",
+  "title": "QiSens video (9.9 min), 3 repeats each: reference vs speed_proposed.toml (approved summary)",
+  "finished_utc": "2026-11-07",
+  "approved_by": "Khurshid Ortikov",
+  "approved_utc": "2026-11-07",
+  "note": "Numbers only, as approved; configs, runs and full results stay under the QiSens data area.",
+  "videos": {
+    "w10-qisens-ref": {
+      "summary": {
+        "wall_s": {
+          "median": 392.2
+        },
+        "stages_s": {
+          "ingest": 0.9,
+          "shots": 33.0,
+          "reference": 15.8,
+          "pose_body": 265.6,
+          "tracking": 6.7,
+          "segmentation": 0.3,
+          "metrics": 0.4,
+          "overlay": 66.9
+        },
+        "pose_fps": 67.4,
+        "inference_fps": 83.2,
+        "gpu_util_mean": 41.1,
+        "pose_gpu_util_mean": 59.8,
+        "gpu_mem_peak_mb": 981
+      }
+    },
+    "w10-qisens-best": {
+      "summary": {
+        "wall_s": {
+          "median": 340.7
+        },
+        "stages_s": {
+          "ingest": 0.9,
+          "shots": 32.6,
+          "reference": 0.5,
+          "pose_body": 262.6,
+          "tracking": 0.4,
+          "segmentation": 0.3,
+          "metrics": 0.4,
+          "overlay": 39.9
+        },
+        "pose_fps": 68.1,
+        "inference_fps": 83.5,
+        "gpu_util_mean": 48.0,
+        "pose_gpu_util_mean": 60.8,
+        "gpu_mem_peak_mb": 1881
+      },
+      "equivalence": {
+        "verdict": "equivalent",
+        "pose": {
+          "share_within_1px": 1.0,
+          "kp_max_px": 0.0
+        }
+      }
+    }
+  }
+}
