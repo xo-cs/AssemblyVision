@@ -199,7 +199,7 @@ def fetch_rgb(root: Path, video: str, entry: dict, budget: Budget, crf: int = 18
     if meta.get("rgb", {}).get("done") and frames_json.is_file():
         return meta
     kw = {"opener": opener} if opener else {}
-    zf, raw = open_remote_zip(ha4m.DOWNLOAD_URL.format(file_id=entry["file_id"]), buffer_size=16 << 20, **kw)
+    zf, raw = open_remote_zip(ha4m.DOWNLOAD_URL.format(file_id=entry["file_id"]), buffer_size=64 << 20, **kw)
     color = sorted(_members(zf, video, "Color"), key=lambda i: ha4m.frame_id(i.filename) or -1)
     color = [i for i in color if ha4m.frame_id(i.filename) is not None]
     if not color:

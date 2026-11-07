@@ -4,17 +4,32 @@ HA4M ships one zip of 4 to 39 GB per video with every modality inside. The
 server answers range requests, so the central directory (a few MB) and the
 wanted members are read without downloading the whole zip. zipfile checks the
 CRC32 of every member it reads.
+
+Politeness (the server answered HTTP 429 to four parallel streams):
+- every request of the process goes through one Pacer, at least
+  min_interval_s after the previous one ends;
+- HTTP 429 (and 503) waits for Retry-After if the server sends it, else
+  backs off exponentially from backoff_start_s up to backoff_max_s; only
+  after limited_retries such waits does the request count as failed;
+- other network errors get a few short retries.
 """
 from __future__ import annotations
 
+import email.utils
 import io
+import logging
+import threading
 import time
 import urllib.error
 import urllib.request
 import zipfile
+from dataclasses import dataclass, field
 from typing import Callable
 
 USER_AGENT = "AssemblyVision/1.0 (research download)"
+LIMITED = (429, 503)
+
+log = logging.getLogger("assemblyvision.fetch_dataset")
 
 Opener = Callable[[urllib.request.Request, float], "io.BufferedIOBase"]
 
@@ -23,38 +38,106 @@ def _urlopen(req: urllib.request.Request, timeout: float):
     return urllib.request.urlopen(req, timeout=timeout)
 
 
+@dataclass
+class Pacer:
+    """One request at a time, at least min_interval_s apart (shared by every file)."""
+    min_interval_s: float = 3.0
+    backoff_start_s: float = 60.0
+    backoff_max_s: float = 1800.0
+    limited_retries: int = 8
+    sleep: Callable[[float], None] = time.sleep
+    clock: Callable[[], float] = time.monotonic
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    _last: float = field(default=-1e18, repr=False)
+    waits: list = field(default_factory=list, repr=False)      # (status, seconds) of every 429/503 wait
+
+    def run(self, fn):
+        """fn() under the lock, after the minimum interval since the previous request."""
+        with self._lock:
+            gap = self._last + self.min_interval_s - self.clock()
+            if gap > 0:
+                self.sleep(gap)
+            try:
+                return fn()
+            finally:
+                self._last = self.clock()
+
+    def limited_wait(self, attempt: int, retry_after: str | None) -> float:
+        """Seconds to wait after the attempt-th 429/503: Retry-After, else exponential."""
+        s = parse_retry_after(retry_after)
+        if s is None:
+            s = self.backoff_start_s * 2 ** attempt
+        return float(min(max(s, 1.0), self.backoff_max_s))
+
+
+def parse_retry_after(value: str | None, now: float | None = None) -> float | None:
+    """Retry-After as seconds (a number or an HTTP date), None if absent or unreadable."""
+    if not value:
+        return None
+    value = value.strip()
+    if value.isdigit():
+        return float(value)
+    try:
+        when = email.utils.parsedate_to_datetime(value).timestamp()
+    except (TypeError, ValueError):
+        return None
+    return max(0.0, when - (time.time() if now is None else now))
+
+
+DEFAULT_PACER = Pacer()
+
+
 class HttpRangeFile(io.RawIOBase):
-    """A read only, seekable file over HTTP range requests.
+    """A read only, seekable file over HTTP range requests (one request per read, paced).
 
-    Each read is one request (retried with backoff); stats counts requests and
-    bytes so a caller can report the transfer."""
+    stats counts requests, bytes and rate limit waits so a caller can report the transfer."""
 
-    def __init__(self, url: str, opener: Opener = _urlopen, timeout: float = 60.0, retries: int = 5,
-                 backoff_s: float = 2.0, sleep: Callable[[float], None] = time.sleep):
+    def __init__(self, url: str, opener: Opener = _urlopen, timeout: float = 120.0, retries: int = 4,
+                 backoff_s: float = 5.0, pacer: Pacer | None = None):
         super().__init__()
         self.url, self.opener, self.timeout = url, opener, timeout
-        self.retries, self.backoff_s, self.sleep = retries, backoff_s, sleep
+        self.retries, self.backoff_s = retries, backoff_s
+        self.pacer = pacer or DEFAULT_PACER
         self.pos = 0
-        self.stats = {"requests": 0, "bytes": 0}
-        head = self._get(0, 0)
-        cr = head.headers.get("Content-Range", "")
+        self.stats = {"requests": 0, "bytes": 0, "limited_waits": 0, "limited_wait_s": 0.0}
+        resp, _ = self._fetch(0, 0)
+        cr = resp.headers.get("Content-Range", "")
         if "/" not in cr:
             raise OSError(f"the server ignores range requests for {url}")
         self.size = int(cr.rsplit("/", 1)[1])
 
-    def _get(self, start: int, end: int):
+    def _fetch(self, start: int, end: int):
+        """(response, body) of one range request, with the 429 and error handling."""
         req = urllib.request.Request(self.url, headers={"Range": f"bytes={start}-{end}", "User-Agent": USER_AGENT})
-        for attempt in range(self.retries + 1):
+        errors = limited = 0
+        while True:
             try:
-                resp = self.opener(req, self.timeout)
-                if getattr(resp, "status", 206) != 206:
-                    raise OSError(f"HTTP {getattr(resp, 'status', '?')} instead of 206 for a range request")
+                def one():
+                    r = self.opener(req, self.timeout)
+                    if getattr(r, "status", 206) != 206:
+                        raise OSError(f"HTTP {getattr(r, 'status', '?')} instead of 206 for a range request")
+                    return r, r.read()
+                resp, body = self.pacer.run(one)
                 self.stats["requests"] += 1
-                return resp
-            except (urllib.error.URLError, OSError, TimeoutError):
-                if attempt == self.retries:
+                return resp, body
+            except urllib.error.HTTPError as e:
+                if e.code not in LIMITED:
                     raise
-                self.sleep(self.backoff_s * 2 ** attempt)
+                if limited >= self.pacer.limited_retries:
+                    raise
+                wait = self.pacer.limited_wait(limited, e.headers.get("Retry-After") if e.headers else None)
+                limited += 1
+                self.stats["limited_waits"] += 1
+                self.stats["limited_wait_s"] += wait
+                self.pacer.waits.append((e.code, wait))
+                log.warning("HTTP %d from the server: waiting %.0f s (wait %d of %d)", e.code, wait, limited,
+                            self.pacer.limited_retries)
+                self.pacer.sleep(wait)
+            except (urllib.error.URLError, OSError, TimeoutError):
+                if errors >= self.retries:
+                    raise
+                self.pacer.sleep(self.backoff_s * 2 ** errors)
+                errors += 1
 
     def readable(self) -> bool:
         return True
@@ -74,14 +157,7 @@ class HttpRangeFile(io.RawIOBase):
         out = bytearray()
         end = min(start + length, self.size)
         while start + len(out) < end:
-            for attempt in range(self.retries + 1):
-                try:
-                    data = self._get(start + len(out), end - 1).read()
-                    break
-                except (urllib.error.URLError, OSError, TimeoutError):
-                    if attempt == self.retries:
-                        raise
-                    self.sleep(self.backoff_s * 2 ** attempt)
+            _, data = self._fetch(start + len(out), end - 1)
             if not data:
                 raise OSError(f"empty response at byte {start + len(out)} of {self.url}")
             out += data

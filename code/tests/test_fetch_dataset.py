@@ -12,13 +12,27 @@ import numpy as np
 
 from assemblyvision.config import Config
 from assemblyvision.datasets import ha4m_fetch as hf
-from assemblyvision.datasets.remote import HttpRangeFile, member_span, open_remote_zip
+import urllib.error
+from email.message import Message
+
+from assemblyvision.datasets import remote
+from assemblyvision.datasets.remote import HttpRangeFile, Pacer, member_span, open_remote_zip, parse_retry_after
 from assemblyvision.errors import AvError
 from assemblyvision.tools import fetch_dataset
 from helpers import fake_root
 from test_datasets import skeleton_text
 
 CAM = "000124702712"
+
+
+def setUpModule():
+    global _interval
+    _interval = remote.DEFAULT_PACER.min_interval_s
+    remote.DEFAULT_PACER.min_interval_s = 0.0            # no real pauses in the tests
+
+
+def tearDownModule():
+    remote.DEFAULT_PACER.min_interval_s = _interval
 VID = "IDU001V001"
 
 
@@ -79,8 +93,91 @@ class RemoteZipTest(unittest.TestCase):
             calls.append(1)
             raise OSError("reset")
         with self.assertRaises(OSError):
-            HttpRangeFile("http://x", opener=flaky, retries=2, sleep=lambda s: None)
+            HttpRangeFile("http://x", opener=flaky, retries=2, pacer=Pacer(min_interval_s=0, sleep=lambda s: None))
         self.assertEqual(len(calls), 3)
+
+
+class FakeClock:
+    def __init__(self):
+        self.t, self.sleeps = 0.0, []
+
+    def clock(self):
+        return self.t
+
+    def sleep(self, s):
+        self.sleeps.append(round(s, 3))
+        self.t += s
+
+
+def http_429(retry_after=None):
+    h = Message()
+    if retry_after is not None:
+        h["Retry-After"] = retry_after
+    return urllib.error.HTTPError("http://x", 429, "Too Many Requests", h, None)
+
+
+class RateLimitTest(unittest.TestCase):
+    def pacer(self, **kw):
+        c = FakeClock()
+        return Pacer(sleep=c.sleep, clock=c.clock, **kw), c
+
+    def test_retry_after_then_exponential_backoff(self):
+        srv = Server(make_zip())
+        errors = [http_429("7"), http_429(), http_429()]
+
+        def opener(req, timeout):
+            if errors:
+                raise errors.pop(0)
+            return srv(req, timeout)
+        p, c = self.pacer(min_interval_s=0, backoff_start_s=60, backoff_max_s=1800)
+        f = HttpRangeFile("http://x", opener=opener, pacer=p)
+        self.assertEqual([w for _, w in p.waits], [7.0, 120.0, 240.0])      # Retry-After, then 60 x 2^1, 2^2
+        self.assertEqual(f.stats["limited_waits"], 3)
+        self.assertEqual(f.size, len(srv.data))
+
+    def test_backoff_is_capped_and_then_fails(self):
+        p, c = self.pacer(min_interval_s=0, backoff_start_s=60, backoff_max_s=1800, limited_retries=7)
+        self.assertEqual([p.limited_wait(a, None) for a in range(7)], [60, 120, 240, 480, 960, 1800, 1800])
+
+        def always(req, timeout):
+            raise http_429()
+        with self.assertRaises(urllib.error.HTTPError):
+            HttpRangeFile("http://x", opener=always, pacer=p)
+        self.assertEqual(len(p.waits), 7)                                     # 7 waits, then counted as failed
+
+    def test_other_http_errors_are_not_retried(self):
+        p, c = self.pacer(min_interval_s=0)
+
+        def not_found(req, timeout):
+            raise urllib.error.HTTPError("http://x", 404, "Not Found", Message(), None)
+        with self.assertRaises(urllib.error.HTTPError):
+            HttpRangeFile("http://x", opener=not_found, pacer=p)
+        self.assertEqual(p.waits, [])
+
+    def test_requests_are_paced(self):
+        p, c = self.pacer(min_interval_s=3.0)
+        f = HttpRangeFile("http://x", opener=Server(make_zip()), pacer=p)
+        f.read_range(0, 10)
+        f.read_range(10, 10)
+        self.assertEqual(c.sleeps, [3.0, 3.0])                                # no wait before the first request
+
+    def test_parse_retry_after(self):
+        self.assertEqual(parse_retry_after("120"), 120.0)
+        self.assertIsNone(parse_retry_after(None))
+        self.assertIsNone(parse_retry_after("soon"))
+        self.assertAlmostEqual(parse_retry_after("Sat, 07 Nov 2026 08:00:30 GMT", now=1794038400.0), 30.0)
+
+    def test_one_download_at_a_time(self):
+        tmp = fake_root()
+        root = Path(tmp.name) / "ha4m"
+        first = fetch_dataset.take_lock(root)
+        self.assertIsNotNone(first)
+        self.assertIsNone(fetch_dataset.take_lock(root))
+        first.close()
+        again = fetch_dataset.take_lock(root)
+        self.assertIsNotNone(again)
+        again.close()
+        tmp.cleanup()
 
 
 class FetchTest(unittest.TestCase):

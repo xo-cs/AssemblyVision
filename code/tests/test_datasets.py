@@ -57,6 +57,10 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(sk["body_id"].tolist(), [1, -1, 4])            # the most confident body
         self.assertEqual(sk["n_bodies"].tolist(), [2, 0, 1])
         self.assertTrue(np.isnan(sk["joints_2d_color"][1]).all())
+        only_invalid = skeleton_text({4294967295: 0.0})                    # K4ABT_INVALID_BODY_ID
+        self.assertEqual(ha4m.parse_skeleton_frame(only_invalid), {})
+        sk = ha4m.parse_skeletons({0: only_invalid + "\n".join(skeleton_text({2: 0.0}).splitlines()[1:])}, 1)
+        self.assertEqual(sk["body_id"].tolist(), [2])
 
     def test_kinect_to_coco(self):
         sk = ha4m.parse_skeletons({0: skeleton_text({1: 0.0})}, 1)

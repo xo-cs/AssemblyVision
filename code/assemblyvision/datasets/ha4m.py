@@ -38,6 +38,7 @@ CITATION = ("G. Cicirelli, R. Marani, L. Romeo, M. G. Dominguez, J. Heras, A. G.
 FPS = 30.0
 RGB_SIZE = (2048, 1536)
 N_JOINTS = 32
+INVALID_BODY = 0xFFFFFFFF      # K4ABT_INVALID_BODY_ID: rows of no tracked body
 # The two laboratories, told apart by the Azure Kinect serial in every member path
 # (checked on all 217 zips: subjects 001 to 022 and 023 to 041). Which serial is the
 # Italian (STIIMA-CNR, Bari) and which the Spanish lab (Universidad de La Rioja) is
@@ -100,7 +101,7 @@ def parse_skeleton_frame(text: str) -> dict[int, np.ndarray]:
         if len(parts) != 14:
             continue
         body, joint = int(float(parts[0])), int(float(parts[1]))
-        if not 0 <= joint < N_JOINTS:
+        if body == INVALID_BODY or not 0 <= joint < N_JOINTS:
             continue
         arr = bodies.setdefault(body, np.full((N_JOINTS, 12), np.nan, np.float32))
         arr[joint] = [float(p) for p in parts[2:]]
@@ -113,7 +114,7 @@ def parse_skeletons(files: dict[int, str], n_frames: int) -> dict[str, np.ndarra
     xyz = np.full((n_frames, N_JOINTS, 3), np.nan, np.float32)
     xy = np.full((n_frames, N_JOINTS, 2), np.nan, np.float32)
     conf = np.zeros((n_frames, N_JOINTS), np.float32)
-    body_id = np.full(n_frames, -1, np.int32)
+    body_id = np.full(n_frames, -1, np.int64)
     n_bodies = np.zeros(n_frames, np.int8)
     for fid, text in files.items():
         if not 0 <= fid < n_frames:

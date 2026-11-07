@@ -116,7 +116,10 @@ root = "data/public/datasets"
 split_seed = 42              # seeded subject splits (experiments/datasets/*_splits.json)
 cross_subject_test = 0.3     # share of subjects held out (HA4M benchmark: 70/30, no operator in both)
 max_transfer_gb = 5.0        # larger downloads need --yes (approval) in tools/fetch_dataset
-download_streams = 4         # parallel HTTP streams of the RGB download
+request_interval_s = 3.0     # pause between two requests to the dataset server (one stream only)
+backoff_start_s = 60.0       # first wait after HTTP 429/503 without Retry-After, doubled each time
+backoff_max_s = 1800.0       # longest wait after HTTP 429/503
+limited_retries = 8          # 429/503 waits before a request counts as failed
 
 [boundaries]
 # Targets of the taxonomy free boundary scorer (Engine B).

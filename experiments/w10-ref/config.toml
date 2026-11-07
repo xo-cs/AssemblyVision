@@ -190,7 +190,10 @@ root = "data/public/datasets"
 split_seed = 42
 cross_subject_test = 0.3
 max_transfer_gb = 5.0
-download_streams = 4
+request_interval_s = 3.0
+backoff_start_s = 60.0
+backoff_max_s = 1800.0
+limited_retries = 8
 
 [boundaries]
 tol_s = 0.2
