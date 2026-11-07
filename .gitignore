@@ -2,6 +2,7 @@
 data/
 models/
 env/
+envs/
 /tools/
 logs/
 tmp/

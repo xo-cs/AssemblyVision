@@ -36,6 +36,8 @@ code/configs/          default.toml (all settings), steps.toml (step vocabulary)
 code/tests/            unit tests (unittest)
 av.sh                  session setup (conda env, caches, CUDA_DEVICE_ORDER)
 CLAUDE.md              working rules for the project and its coding assistant
+docs_team/             team documents (labelling guide)
+scripts/               helper scripts (Label Studio launcher)
 ```
 
 Not in git: `data/`, `models/` (weights), `env/` (conda env), `docs/` (HLD and LLD),
@@ -44,7 +46,8 @@ Not in git: `data/`, `models/` (weights), `env/` (conda env), `docs/` (HLD and L
 ## Environment
 
 Ubuntu 20.04, conda env with Python 3.11, torch 2.14.1+cu126, ultralytics 8.4.178,
-opencv 5.0.0. Everything lives inside `~/AssemblyVision`.
+opencv 5.0.0. Everything lives inside `~/AssemblyVision`. The exact packages of the env are pinned in
+`code/requirements-pinned.txt`.
 
 ```bash
 source ~/AssemblyVision/av.sh          # activates ~/AssemblyVision/env, sets caches and CUDA_DEVICE_ORDER=PCI_BUS_ID
@@ -106,6 +109,40 @@ equivalent only if the pose output stays within 1 px (confidences within 0.01) a
 tracking, the Engine A steps and the motion metrics are unchanged. Public experiments are
 tracked in git. A QiSens experiment (`--source qisens`) keeps its config and results under
 `data/qisens/experiments/` only; just an approved summary row is added to `experiments/`.
+
+## Public datasets for Engine B
+
+Engine B (a taxonomy free boundary scorer) is pretrained on public data, using keypoints from our
+own pose model, so public and partner keypoints share model and format. Datasets live under
+`data/public/datasets/<name>/` only; the split lists and the joint mapping report are tracked in
+`experiments/datasets/`.
+
+```bash
+python -m assemblyvision.tools.fetch_dataset ha4m listing          # Science Data Bank V2 listing (217 zips, 3.2 TB)
+python -m assemblyvision.tools.fetch_dataset ha4m annotations      # Labels.txt + skeletons of every video (about 3 GB)
+python -m assemblyvision.tools.fetch_dataset ha4m rgb --videos IDU001V001,IDU023V001 --yes   # Color frames -> mp4
+python -m assemblyvision.tools.dataset_splits ha4m splits          # cross subject and cross location lists
+python -m assemblyvision.tools.dataset_pose --dataset ha4m --videos IDU001V001 --gpu 0       # our pose (GPU job)
+```
+
+The download reads only the wanted members of each remote zip (HTTP range requests); a transfer
+above 5 GB needs `--yes`; a stopped download resumes per video. InHARD has a loader interface and a
+BVH reader; its data is not downloaded until access is granted.
+
+## Pose labelling
+
+Ground truth for the detection precision and recall, OKS AP and PCK of our pose model comes from a
+local Label Studio (its own venv in `envs/labelstudio`, analytics off, 127.0.0.1 only) and a frame
+server; the team labels through an SSH tunnel. See `docs_team/labelling_guide.md`.
+
+```bash
+python -m assemblyvision.tools.sample_frames frames --run <run_dir> --n 200    # 150 to 300 stratified frames
+scripts/labelstudio.sh start <public|qisens>                                   # Label Studio on 127.0.0.1:8080
+python -m assemblyvision.tools.label_frames_server --run <run_dir>             # frames on 127.0.0.1:8081
+python -m assemblyvision.tools.sample_frames crops --run <run_dir> --boxes <box_export.json>
+python -m assemblyvision.tools.eval_pose_labels --run <run_dir> --boxes <box_export.json> \
+    --keypoints <keypoint_export.json> --labellers 1=khurshid,2=asel,3=kazi
+```
 
 ## Data layout
 

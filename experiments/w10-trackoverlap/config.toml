@@ -184,3 +184,15 @@ default_template = "workbench"
 model_keep_s = 600.0
 lift_knee_conf = 0.5
 lift_knee_seen = 0.6
+
+[datasets]
+root = "data/public/datasets"
+split_seed = 42
+cross_subject_test = 0.3
+max_transfer_gb = 5.0
+download_streams = 4
+
+[boundaries]
+tol_s = 0.2
+ignore_dont_care = false
+dont_care_label = 0

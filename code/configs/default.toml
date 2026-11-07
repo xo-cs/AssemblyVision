@@ -110,6 +110,20 @@ kappa_fps = 5                # frame sampling for Cohen's kappa (frames/s)
 overlaps = [0.10, 0.25, 0.50]   # IoU thresholds of the segmental F1
 label = ""                   # written into eval.json when set, e.g. "after error analysis, not blind"
 
+[datasets]
+# Public datasets for Engine B (Week 10): data/public/datasets/<name>/ only.
+root = "data/public/datasets"
+split_seed = 42              # seeded subject splits (experiments/datasets/*_splits.json)
+cross_subject_test = 0.3     # share of subjects held out (HA4M benchmark: 70/30, no operator in both)
+max_transfer_gb = 5.0        # larger downloads need --yes (approval) in tools/fetch_dataset
+download_streams = 4         # parallel HTTP streams of the RGB download
+
+[boundaries]
+# Targets of the taxonomy free boundary scorer (Engine B).
+tol_s = 0.2                  # a frame is positive within this time of an (action, repetition) change
+ignore_dont_care = false     # true: label 0 frames are merged into the action before them (ablation)
+dont_care_label = 0          # HA4M "don't care" action id
+
 [motion]
 # MotionAnalyzer (LLD 3.7). Add "gaze" to enabled for the rough gaze direction (FR-MOTION-08, Want).
 enabled = ["duration", "path", "back_bending", "repetition", "hand_travel", "two_hand", "idle"]
