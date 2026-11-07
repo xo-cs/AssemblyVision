@@ -481,7 +481,10 @@
         },
         "metrics": {
           "rows": 100,
-          "differences": 0
+          "differences": 0,
+          "max_rel_delta": 0.0,
+          "null_changes": 0,
+          "flag_changes": 0
         },
         "verdict": "different"
       },
@@ -553,6 +556,20 @@
           "differences": 4
         },
         "verdict": "different"
+      },
+      "noise": {
+        "within_noise": true,
+        "measures": {
+          "not_within_1px_share": 0.00011,
+          "track_changes_per_frame": 0.00011,
+          "metric_max_rel_delta": 0.0
+        },
+        "floor": {
+          "not_within_1px_share": 0.016835,
+          "track_changes_per_frame": 0.003367,
+          "metric_max_rel_delta": 0.0301
+        },
+        "failed": []
       }
     },
     "data/public/videos/12981262_1920_1080_25fps.mp4": {
@@ -980,7 +997,10 @@
         },
         "metrics": {
           "rows": 40,
-          "differences": 0
+          "differences": 0,
+          "max_rel_delta": 0.0,
+          "null_changes": 0,
+          "flag_changes": 0
         },
         "verdict": "different"
       },
@@ -1031,8 +1051,23 @@
           "differences": 0
         },
         "verdict": "different"
+      },
+      "noise": {
+        "within_noise": true,
+        "measures": {
+          "not_within_1px_share": 0.000561,
+          "track_changes_per_frame": 0.0,
+          "metric_max_rel_delta": 0.0
+        },
+        "floor": {
+          "not_within_1px_share": 0.016835,
+          "track_changes_per_frame": 0.003367,
+          "metric_max_rel_delta": 0.0301
+        },
+        "failed": []
       }
     }
   },
-  "finished_utc": "2026-11-07T06:27:25Z"
+  "finished_utc": "2026-11-07T06:27:25Z",
+  "rechecked_utc": "2026-11-07T21:46:20Z"
 }

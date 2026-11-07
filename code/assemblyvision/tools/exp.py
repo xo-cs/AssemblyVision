@@ -7,6 +7,7 @@
     python -m assemblyvision.tools.exp run <id> [--source qisens]
     python -m assemblyvision.tools.exp recheck <id> [--source qisens]
     python -m assemblyvision.tools.exp table <id> [<id> ...] [--source qisens] [--out FILE.md]
+    python -m assemblyvision.tools.exp noise-floor [--from w10-ref-notf32]
     python -m assemblyvision.tools.exp gpu-check [--gpu 0]
     python -m assemblyvision.tools.exp index
 
@@ -14,7 +15,10 @@ new stores the full configuration (the --from experiment's, else the defaults,
 then --set) in <area>/<id>/config.toml. run executes every repeat as a separate
 run_pose process with the profiler on (one GPU job; the GPU must be free of
 other processes) and writes results.json, table.md and, for public data,
-experiments/INDEX.md. recheck compares the stored runs again with the reference
+experiments/INDEX.md. noise-floor stores the floor of the rule "equivalent
+within numerical noise" (evaluation/equivalence.py NOISE_RULE) in
+experiments/noise_floor.json, from the equivalence records of the strict FP32
+experiment against the TF32 reference. recheck compares the stored runs again with the reference
 experiment's current runs (CPU only). With --source qisens everything (config, results, temp
 files, run folders) stays under data/qisens/; without it nothing there is opened.
 Exit codes: 0 success, 1 error, 2 wrong argument, 3 GPU in use by another process.
@@ -59,6 +63,8 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("ids", nargs="+")
     t.add_argument("--source", choices=("public", "qisens"), default="public")
     t.add_argument("--out", type=Path, default=None, help="also write the table to this file (in the area)")
+    nf = sub.add_parser("noise-floor", help="store the noise floor from the strict FP32 experiment")
+    nf.add_argument("--from", dest="base", default="w10-ref-notf32")
     g = sub.add_parser("gpu-check", help="list processes on a GPU; exit 3 if there are any")
     g.add_argument("--gpu", type=int, default=0)
     sub.add_parser("index", help="rebuild experiments/INDEX.md")
@@ -93,10 +99,11 @@ def main(argv: list[str] | None = None) -> int:
             exp = reg.load(args.id, args.source, paths_cfg)
             res = reg.recheck(exp, paths_cfg)
             for v, rec in res["videos"].items():
-                print(f"{Path(v).name}: {(rec.get('equivalence') or {}).get('verdict', 'reference')}")
+                print(f"{Path(v).name}: {reg.video_verdict(rec) or 'reference'}")
             return 0
         if args.cmd == "table":
-            text = reg.compare_table([reg.load_results(i, args.source, paths_cfg) for i in args.ids])
+            text = reg.noise_text(reg.area_dir("public", paths_cfg)) + \
+                reg.compare_table([reg.load_results(i, args.source, paths_cfg) for i in args.ids])
             print(text)
             if args.out is not None:
                 area = reg.area_dir(args.source, paths_cfg)
@@ -106,6 +113,9 @@ def main(argv: list[str] | None = None) -> int:
                     return 2
                 out.write_text(text)
                 print(f"wrote {out}")
+            return 0
+        if args.cmd == "noise-floor":
+            print(f"wrote {reg.write_noise_floor(args.base, paths_cfg)}")
             return 0
         if args.cmd == "gpu-check":
             procs = reg.default_gpu_check(args.gpu)

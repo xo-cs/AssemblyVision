@@ -106,7 +106,10 @@ python -m assemblyvision.tools.exp recheck w10-b16       # CPU: compare again af
 Each repeat is a separate full run with the stage profiler on (per stage times, the pose
 breakdown, GPU utilisation and memory from nvidia-smi). A speed variant counts as
 equivalent only if the pose output stays within 1 px (confidences within 0.01) and the
-tracking, the Engine A steps and the motion metrics are unchanged. Public experiments are
+tracking, the Engine A steps and the motion metrics are unchanged. The weaker verdict
+"equivalent within numerical noise" allows differences no larger than the measured noise
+floor of TF32 against strict FP32 at batch 1 (`exp noise-floor`, `experiments/noise_floor.json`;
+the rule is at the top of `experiments/INDEX.md`). Public experiments are
 tracked in git. A QiSens experiment (`--source qisens`) keeps its config and results under
 `data/qisens/experiments/` only; just an approved summary row is added to `experiments/`.
 
@@ -121,7 +124,8 @@ own pose model, so public and partner keypoints share model and format. Datasets
 python -m assemblyvision.tools.fetch_dataset ha4m listing          # Science Data Bank V2 listing (217 zips, 3.2 TB)
 python -m assemblyvision.tools.fetch_dataset ha4m annotations      # Labels.txt + skeletons of every video (about 3 GB)
 python -m assemblyvision.tools.engine_b_data ha4m                  # Engine B cache (extends as videos arrive)
-python -m assemblyvision.tools.dataset_splits ha4m splits          # cross subject and cross location lists
+python -m assemblyvision.tools.dataset_splits ha4m subjects        # fixed cross subject split of the 41 subjects (once)
+python -m assemblyvision.tools.dataset_splits ha4m splits          # cross subject and cross location video lists
 python -m assemblyvision.tools.ha4m_domain_gap fetch|run|compare   # YOLO26 x against the Kinect joints (run = GPU job)
 ```
 
@@ -135,6 +139,19 @@ window of frames per lab. The download reads only the wanted members of each rem
 requests), one paced stream, honouring HTTP 429; a transfer above 5 GB needs `--yes`; a stopped
 download resumes per video (`scripts/ha4m_download.sh` in the tmux window `dl`). InHARD has a loader
 interface and a BVH reader; its data is not downloaded until access is granted.
+
+The model (`analysis/segmentation/boundary_tcn.py`) is a 2 stage MS TCN on the 55 features at
+10 fps that gives a boundary probability per frame (targets: Gaussian bumps of sigma
+`boundaries.tol_s` on every action change, weighted BCE). In Engine A it is one more evidence
+term of the DP, off by default (`seg_a.engine_b_weight = 0`), pooled over `engine_b.pool_s`:
+
+```bash
+python -m assemblyvision.tools.train_engine_b --id w10-engine-b-v0 --gpu 0      # GPU job
+python -m assemblyvision.tools.run_pose --run RUN_DIR --gt GT_CSV --compare seg_a.engine_b_weight \
+    --set engine_b.model='"engine_b/w10-engine-b-v0.pt"'                       # CPU, writes nothing
+python -m assemblyvision.tools.run_pose --run RUN_DIR --gt GT_CSV --compare engine_b.pool_s=0,10,30,60 \
+    --set seg_a.engine_b_weight=0.4 --set engine_b.model='"engine_b/w10-engine-b-v0.pt"'
+```
 
 ## Pose labelling
 

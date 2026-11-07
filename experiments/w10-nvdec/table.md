@@ -132,6 +132,12 @@ Equivalence with w10-ref: **different** (frames within 1 px 0.1273, identical 0.
 - metrics: A-0010 bend_b0_s 40.5 vs 40.0667
 - metrics: 7 more
 
+Within numerical noise: **no** (measures not_within_1px_share 0.872713, track_changes_per_frame 0.418885, metric_max_rel_delta 1.0; floor not_within_1px_share 0.016835, track_changes_per_frame 0.003367, metric_max_rel_delta 0.0301).
+- not_within_1px_share 0.872713 above the floor 0.016835
+- track_changes_per_frame 0.418885 above the floor 0.003367
+- metric_max_rel_delta 1.0 above the floor 0.0301
+- metrics: 1 NULL decisions and 3 flags changed
+
 ## 12981262_1920_1080_25fps.mp4 (3 repeats, medians)
 
 | stage | median s |
@@ -199,3 +205,8 @@ Equivalence with w10-ref: **different** (frames within 1 px 0.0000, identical 0.
 - metrics: A-0002 two_hand_simultaneous coverage 0.0808 vs 0.0932
 - metrics: A-0002 two_hand_speed_corr coverage 0.0808 vs 0.0932
 - metrics: A-0002 two_hand_use_ratio coverage 0.0808 vs 0.0932
+
+Within numerical noise: **no** (measures not_within_1px_share 1.0, track_changes_per_frame 1.757576, metric_max_rel_delta 0.0526; floor not_within_1px_share 0.016835, track_changes_per_frame 0.003367, metric_max_rel_delta 0.0301).
+- not_within_1px_share 1.0 above the floor 0.016835
+- track_changes_per_frame 1.757576 above the floor 0.003367
+- metric_max_rel_delta 0.0526 above the floor 0.0301

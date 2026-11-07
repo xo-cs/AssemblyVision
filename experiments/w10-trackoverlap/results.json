@@ -460,7 +460,10 @@
         },
         "metrics": {
           "rows": 100,
-          "differences": 0
+          "differences": 0,
+          "max_rel_delta": 0.0,
+          "null_changes": 0,
+          "flag_changes": 0
         },
         "verdict": "equivalent"
       }
@@ -876,12 +879,15 @@
         },
         "metrics": {
           "rows": 40,
-          "differences": 0
+          "differences": 0,
+          "max_rel_delta": 0.0,
+          "null_changes": 0,
+          "flag_changes": 0
         },
         "verdict": "equivalent"
       }
     }
   },
   "finished_utc": "2026-11-06T09:24:58Z",
-  "rechecked_utc": "2026-11-06T09:59:48Z"
+  "rechecked_utc": "2026-11-07T21:46:36Z"
 }

@@ -41,6 +41,8 @@ Equivalence with w10-ref-notf32: **different** (frames within 1 px 0.9999, ident
 - pose: 1 frames not within 1 px (box max 1.3067 px, keypoint max 0.9381 px)
 - pose: confidence differs by up to 0.0567
 
+Within numerical noise: **yes** (measures not_within_1px_share 0.00011, track_changes_per_frame 0.00011, metric_max_rel_delta 0.0; floor not_within_1px_share 0.016835, track_changes_per_frame 0.003367, metric_max_rel_delta 0.0301).
+
 ## 12981262_1920_1080_25fps.mp4 (3 repeats, medians)
 
 | stage | median s |
@@ -76,3 +78,5 @@ Repeat consistency against repeat 1: equivalent, equivalent.
 
 Equivalence with w10-ref-notf32: **different** (frames within 1 px 0.9994, identical 0.0000, box max 0.7955 px, keypoint max 2.1403 px, keypoint mean 0.00011 px, conf max 0.0 / 0.0069).
 - pose: 1 frames not within 1 px (box max 0.7955 px, keypoint max 2.1403 px)
+
+Within numerical noise: **yes** (measures not_within_1px_share 0.000561, track_changes_per_frame 0.0, metric_max_rel_delta 0.0; floor not_within_1px_share 0.016835, track_changes_per_frame 0.003367, metric_max_rel_delta 0.0301).

@@ -14,14 +14,13 @@ from ..storage.files import utc_now
 from .base import VideoRef
 
 
-def cross_subject(videos: list[VideoRef], test_share: float, seed: int) -> dict:
-    """Seeded split of the subjects into train and test, stratified by location:
-    in each location round(test_share * subjects) subjects go to test."""
+def subject_split(subject_location: dict[str, str], test_share: float, seed: int) -> dict:
+    """Seeded split of a fixed list of subjects into train and test, stratified by
+    location: in each location round(test_share * subjects) subjects go to test.
+    Made from the dataset's subject IDs (not the fetched videos), so it never changes."""
     by_loc: dict[str, list[str]] = {}
-    for v in videos:
-        by_loc.setdefault(v.location, [])
-        if v.subject not in by_loc[v.location]:
-            by_loc[v.location].append(v.subject)
+    for sub, loc in sorted(subject_location.items()):
+        by_loc.setdefault(loc, []).append(sub)
     rng = random.Random(seed)
     test: set[str] = set()
     for loc in sorted(by_loc):
@@ -29,8 +28,20 @@ def cross_subject(videos: list[VideoRef], test_share: float, seed: int) -> dict:
         rng.shuffle(subs)
         k = max(1, round(test_share * len(subs))) if len(subs) > 1 else 0
         test.update(subs[:k])
+    return {"name": "cross_subject", "rule": f"seeded shuffle of the subjects per location, {test_share:.0%} to test",
+            "seed": seed, "test_share": test_share, "subjects": len(subject_location),
+            "locations": {loc: subs for loc, subs in sorted(by_loc.items())},
+            "train_subjects": sorted(set(subject_location) - test), "test_subjects": sorted(test)}
+
+
+def cross_subject(videos: list[VideoRef], test_share: float, seed: int, fixed: dict | None = None) -> dict:
+    """Cross subject fold of the videos: by the fixed subject split if given (its test
+    subjects), else a subject split of the subjects present in videos."""
+    if fixed is None:
+        fixed = subject_split({v.subject: v.location for v in videos}, test_share, seed)
+    test = set(fixed["test_subjects"])
     return _fold("cross_subject", videos, lambda v: v.subject in test,
-                 {"rule": f"seeded shuffle of the subjects per location, {test_share:.0%} to test", "seed": seed})
+                 {"rule": fixed["rule"], "seed": fixed["seed"]})
 
 
 def cross_location(videos: list[VideoRef]) -> list[dict]:
@@ -56,8 +67,9 @@ def check_disjoint(fold: dict) -> None:
         raise ValueError(f"{fold['name']}: a video is in train and test")
 
 
-def make_splits(dataset: str, videos: list[VideoRef], test_share: float, seed: int) -> dict:
-    folds = [cross_subject(videos, test_share, seed)] + cross_location(videos)
+def make_splits(dataset: str, videos: list[VideoRef], test_share: float, seed: int,
+                fixed: dict | None = None) -> dict:
+    folds = [cross_subject(videos, test_share, seed, fixed)] + cross_location(videos)
     for f in folds:
         check_disjoint(f)
     return {"dataset": dataset, "videos": len(videos), "subjects": len({v.subject for v in videos}),
@@ -78,3 +90,12 @@ def check_stored(path: Path, splits: dict) -> None:
     stored.pop("written_utc", None)
     if stored != splits:
         raise ValueError(f"{path} does not match the split rule for the current videos; regenerate it")
+
+
+def check_subject_split(path: Path, subject_location: dict[str, str], test_share: float, seed: int) -> dict:
+    """The stored subject split, checked against the rule; ValueError if it differs."""
+    stored = json.loads(path.read_text())
+    want = subject_split(subject_location, test_share, seed)
+    if {k: stored.get(k) for k in want} != want:
+        raise ValueError(f"{path} does not match the subject split rule; it must never change")
+    return stored

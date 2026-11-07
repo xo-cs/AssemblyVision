@@ -1,11 +1,15 @@
 """Write the split lists and the RGB subset of a dataset into experiments/datasets/ (tracked).
 
     source ~/AssemblyVision/av.sh && cd ~/AssemblyVision/code
+    python -m assemblyvision.tools.dataset_splits ha4m subjects
     python -m assemblyvision.tools.dataset_splits ha4m splits
     python -m assemblyvision.tools.dataset_splits ha4m rgb-subset [--subjects-per-location 6] [--videos-per-subject 2]
 
-splits: cross subject (seeded, datasets.cross_subject_test held out per location,
-no subject in both) and cross location (train on one lab, test on the other),
+subjects: the fixed cross subject split of all 41 subject IDs (from SOURCE.json,
+location from the camera serial of each video), written once to
+experiments/datasets/ha4m_subject_split.json; it never changes as videos arrive.
+splits: cross subject (by that fixed split when it exists, else (seeded, datasets.cross_subject_test held out per location,
+no subject in both)) and cross location (train on one lab, test on the other),
 from the fetched labels. rgb-subset: subjects chosen seeded per location from
 both folds of the cross subject split (in its train and test proportion), the
 pilot videos first, then seeded videos per subject.
@@ -58,21 +62,57 @@ def rgb_subset(split: dict, videos: list, per_location: int, per_subject: int, s
             "test_subjects_in_subset": sorted(s for s in picks if s in test), "written_utc": utc_now()}
 
 
+def subject_locations(loader: HA4MLoader) -> dict[str, str]:
+    """Every subject of the dataset listing (SOURCE.json files) with its location, the
+    camera serial of its fetched videos (all of them must agree)."""
+    from ..datasets.ha4m import video_subject
+    from ..errors import AvError
+    names = sorted(Path(f).stem for f in loader.source()["files"])
+    out: dict[str, str] = {}
+    for vid in names:
+        sub = video_subject(vid)
+        try:
+            loc = loader.video_location(vid)
+        except AvError:
+            continue                                     # not fetched yet
+        if out.setdefault(sub, loc) != loc:
+            raise ValueError(f"subject {sub} has videos of two cameras")
+    missing = sorted({video_subject(v) for v in names} - set(out))
+    if missing:
+        raise ValueError(f"no fetched video gives the location of {', '.join(missing)}")
+    return out
+
+
 def main(argv: list[str] | None = None, repo_root: Path = REPO_ROOT) -> int:
     p = argparse.ArgumentParser(prog="python -m assemblyvision.tools.dataset_splits")
     p.add_argument("dataset", choices=("ha4m",))
-    p.add_argument("what", choices=("splits", "rgb-subset"))
+    p.add_argument("what", choices=("subjects", "splits", "rgb-subset"))
     p.add_argument("--subjects-per-location", type=int, default=6)
     p.add_argument("--videos-per-subject", type=int, default=2)
     args = p.parse_args(argv)
     cfg = Config.load()
     d = cfg["datasets"]
-    videos = HA4MLoader(cfg, repo_root=repo_root).videos()
+    out_dir = repo_root / "experiments" / "datasets"
+    loader = HA4MLoader(cfg, repo_root=repo_root)
+    fixed_path = out_dir / f"{args.dataset}_subject_split.json"
+    if args.what == "subjects":
+        subj = subject_locations(loader)
+        if fixed_path.is_file():
+            splits.check_subject_split(fixed_path, subj, d["cross_subject_test"], d["split_seed"])
+            print(f"{fixed_path} exists and matches the rule; it is never rewritten")
+            return 0
+        rec = splits.subject_split(subj, d["cross_subject_test"], d["split_seed"])
+        out_dir.mkdir(parents=True, exist_ok=True)
+        fixed_path.write_text(json.dumps({"dataset": args.dataset, **rec, "written_utc": utc_now()}, indent=1) + "\n")
+        print(f"{len(rec['train_subjects'])} train / {len(rec['test_subjects'])} test subjects -> {fixed_path}")
+        return 0
+    fixed = splits.check_subject_split(fixed_path, subject_locations(loader), d["cross_subject_test"],
+                                       d["split_seed"]) if fixed_path.is_file() else None
+    videos = loader.videos()
     if not videos:
         print("no fetched labels yet (fetch_dataset ha4m annotations)", file=sys.stderr)
         return 2
-    s = splits.make_splits(args.dataset, videos, d["cross_subject_test"], d["split_seed"])
-    out_dir = repo_root / "experiments" / "datasets"
+    s = splits.make_splits(args.dataset, videos, d["cross_subject_test"], d["split_seed"], fixed)
     if args.what == "splits":
         path = splits.write_splits(out_dir / f"{args.dataset}_splits.json", s)
         for f in s["folds"]:

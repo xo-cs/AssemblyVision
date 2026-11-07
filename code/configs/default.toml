@@ -97,6 +97,10 @@ strength_cut = 0.2
 activity_change = false      # add the subject activity change to cut, cut_pause and pause candidates
 ac_weight = 0.4              # strength += ac_weight * change (0 to 1); fixed before any QiSens result, see rules.py
 ac_window_s = 10.0           # window before and after a candidate compared for the change (s)
+engine_b_weight = 0.0        # strength += engine_b_weight * Engine B evidence (0 to 1); 0 = off, results unchanged
+engine_b_window_s = 1.0      # a candidate's Engine B evidence: the highest pooled probability within this time of it (s)
+engine_b_norm = "max"        # "max": pooled probability divided by its maximum in the active span; "none": as it is
+engine_b_candidates = false  # true: peaks of the pooled probability become extra point candidates (kind engine_b)
 
 [steps]
 # The vocabulary lives in configs/steps.toml (LLD 3.0.5); this is the empty default.
@@ -139,6 +143,24 @@ conf_visible = 0.9           # keypoint confidence given to a Kinect "visible" j
 conf_predicted = 0.4         # keypoint confidence given to a Kinect "predicted / occluded" joint (0.33)
 conf_noise = 0.1             # Gaussian noise added to that confidence (clipped to 0..1)
 aug_seed = 42
+# Model (analysis/segmentation/boundary_tcn.py): MS TCN, per frame boundary probability at model_fps.
+model = ""                   # weights under models/ for Engine A's evidence term, e.g. "engine_b/w10-engine-b-v0.pt"
+model_fps = 10               # time base of the model (frames sampled at k / model_fps)
+stages = 2                   # stage 1 on the features, later stages refine the probability of the stage before
+layers = 10                  # dilated residual layers per stage (dilation 1, 2, 4, ...; 2047 steps receptive field)
+channels = 64
+dropout = 0.5
+epochs = 60
+lr = 0.0005                  # Adam
+weight_decay = 0.0
+batch_videos = 8             # videos per batch (padded and masked)
+crop_s = 120.0               # training crop length (s); videos longer than this are cropped at random
+pos_weight = 0.0             # BCE weight of the positives; 0 = negatives / positives of the training targets
+train_seed = 42
+peak_threshold = 0.5         # boundary = local maximum of the probability at or above this
+peak_min_gap_s = 0.5         # peaks closer than this are merged (the higher stays)
+eval_tols_s = [0.2, 0.5]     # boundary F1 tolerances (s)
+pool_s = 0.0                 # moving average of the probability before it becomes DP evidence (s; 0 = none)
 
 [motion]
 # MotionAnalyzer (LLD 3.7). Add "gaze" to enabled for the rough gaze direction (FR-MOTION-08, Want).

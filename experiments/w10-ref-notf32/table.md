@@ -63,6 +63,8 @@ Equivalence with w10-ref: **different** (frames within 1 px 0.9887, identical 0.
 - metrics: A-0010 hand_travel_l 376.009 vs 371.662
 - metrics: A-0010 hand_travel_l_torso 2.99787 vs 2.94857
 
+Within numerical noise: **yes** (measures not_within_1px_share 0.011291, track_changes_per_frame 0.002193, metric_max_rel_delta 0.0301; floor not_within_1px_share 0.016835, track_changes_per_frame 0.003367, metric_max_rel_delta 0.0301).
+
 ## 12981262_1920_1080_25fps.mp4 (3 repeats, medians)
 
 | stage | median s |
@@ -103,3 +105,5 @@ Equivalence with w10-ref: **different** (frames within 1 px 0.9832, identical 0.
 - tracking: shot s001 duplicates_suppressed 1054 vs 1053
 - pose: 30 frames not within 1 px (box max 17.5217 px, keypoint max 106.7459 px)
 - pose: confidence differs by up to 0.1226
+
+Within numerical noise: **yes** (measures not_within_1px_share 0.016835, track_changes_per_frame 0.003367, metric_max_rel_delta 0.0012; floor not_within_1px_share 0.016835, track_changes_per_frame 0.003367, metric_max_rel_delta 0.0301).

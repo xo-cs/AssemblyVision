@@ -512,9 +512,30 @@
         },
         "metrics": {
           "rows": 100,
-          "differences": 10
+          "differences": 10,
+          "max_rel_delta": 0.0844,
+          "null_changes": 0,
+          "flag_changes": 0
         },
         "verdict": "different"
+      },
+      "noise": {
+        "within_noise": false,
+        "measures": {
+          "not_within_1px_share": 0.114558,
+          "track_changes_per_frame": 0.009318,
+          "metric_max_rel_delta": 0.0844
+        },
+        "floor": {
+          "not_within_1px_share": 0.016835,
+          "track_changes_per_frame": 0.003367,
+          "metric_max_rel_delta": 0.0301
+        },
+        "failed": [
+          "not_within_1px_share 0.114558 above the floor 0.016835",
+          "track_changes_per_frame 0.009318 above the floor 0.003367",
+          "metric_max_rel_delta 0.0844 above the floor 0.0301"
+        ]
       }
     },
     "data/public/videos/12981262_1920_1080_25fps.mp4": {
@@ -942,11 +963,32 @@
         },
         "metrics": {
           "rows": 40,
-          "differences": 0
+          "differences": 0,
+          "max_rel_delta": 0.0033,
+          "null_changes": 0,
+          "flag_changes": 0
         },
         "verdict": "different"
+      },
+      "noise": {
+        "within_noise": false,
+        "measures": {
+          "not_within_1px_share": 0.262626,
+          "track_changes_per_frame": 1.137486,
+          "metric_max_rel_delta": 0.0033
+        },
+        "floor": {
+          "not_within_1px_share": 0.016835,
+          "track_changes_per_frame": 0.003367,
+          "metric_max_rel_delta": 0.0301
+        },
+        "failed": [
+          "not_within_1px_share 0.262626 above the floor 0.016835",
+          "track_changes_per_frame 1.137486 above the floor 0.003367"
+        ]
       }
     }
   },
-  "finished_utc": "2026-11-06T10:26:28Z"
+  "finished_utc": "2026-11-06T10:26:28Z",
+  "rechecked_utc": "2026-11-07T21:46:19Z"
 }

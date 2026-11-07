@@ -88,6 +88,11 @@ Equivalence with w10-ref: **different** (frames within 1 px 0.8854, identical 0.
 - metrics: A-0010 idle_share 0.219586 vs 0.237226
 - metrics: A-0010 idle_time_s 12.0333 vs 13
 
+Within numerical noise: **no** (measures not_within_1px_share 0.114558, track_changes_per_frame 0.009318, metric_max_rel_delta 0.0844; floor not_within_1px_share 0.016835, track_changes_per_frame 0.003367, metric_max_rel_delta 0.0301).
+- not_within_1px_share 0.114558 above the floor 0.016835
+- track_changes_per_frame 0.009318 above the floor 0.003367
+- metric_max_rel_delta 0.0844 above the floor 0.0301
+
 ## 12981262_1920_1080_25fps.mp4 (3 repeats, medians)
 
 | stage | median s |
@@ -135,3 +140,7 @@ Equivalence with w10-ref: **different** (frames within 1 px 0.7374, identical 0.
 - tracking: shot s001 short_tracks 31 vs 32
 - pose: 468 frames not within 1 px (box max 67.9955 px, keypoint max 67.826 px)
 - pose: confidence differs by up to 0.2981
+
+Within numerical noise: **no** (measures not_within_1px_share 0.262626, track_changes_per_frame 1.137486, metric_max_rel_delta 0.0033; floor not_within_1px_share 0.016835, track_changes_per_frame 0.003367, metric_max_rel_delta 0.0301).
+- not_within_1px_share 0.262626 above the floor 0.016835
+- track_changes_per_frame 1.137486 above the floor 0.003367

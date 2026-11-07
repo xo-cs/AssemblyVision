@@ -1,23 +1,33 @@
+Verdicts: **equivalent** = every strict check of evaluation/equivalence.py holds; **equivalent within numerical noise** (within noise) = against the reference, (1) the share of frames not within 1 px, (2) the track changes per frame and (3) the largest relative delta of a reported motion metric (deltas under 0.01 absolute ignored) are each no larger than the noise floor, the same measures of strict FP32 against the default TF32 at batch 1 (w10-ref-notf32 against w10-ref, the larger of the two public clips); (4) the Engine A steps are identical (labels, boundaries within one frame); (5) every NULL decision and every flag of the motion metrics is identical; **different** otherwise.
+
+Noise floor (w10-ref-notf32 against w10-ref, measured 2026-11-07):
+
+| measure | floor | process_480p30.mp4 / 12981262_1920_1080_25fps.mp4 |
+| --- | --- | --- |
+| not_within_1px_share | 0.016835 | 0.011291 / 0.016835 |
+| track_changes_per_frame | 0.003367 | 0.002193 / 0.003367 |
+| metric_max_rel_delta | 0.0301 | 0.0301 / 0.0012 |
+
 ### process_480p30.mp4
 
-| experiment | ingest | shots | ref | pose | tracking | seg | metrics | overlay | full run s | pose fps | infer fps | GPU util % | pose util % | peak MB | torch MB | within 1 px | verdict |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| w10-ref | 0.4 | 15.4 | 16.5 | 149.8 | 7.3 | 0.3 | 0.2 | 42.9 | 235.7 | 65.3 | 80.6 | 39.9 | 58.1 | 981 | 583 | ref | reference |
-| w10-ref-notf32 | 0.4 | 15.4 | 18.8 | 188.6 | 7.1 | 0.3 | 0.2 | 42.3 | 276.9 | 51.9 | 61.0 | 62.6 | 85.0 | 913 | 583 | 0.9887 | different |
-| w10-b8 | 0.4 | 16.2 | 16.1 | 91.2 | 7.3 | 0.3 | 0.2 | 41.8 | 176.7 | 107.2 | 142.9 | 44.3 | 77.6 | 1799 | 1154 | 0.9761 | different |
-| w10-b8-notf32 | 0.4 | 15.4 | 19.1 | 195.5 | 7.3 | 0.3 | 0.3 | 42.3 | 284.2 | 50.0 | 56.9 | 66.0 | 89.1 | 6685 | 5823 | 0.9999 | different |
-| w10-best | 0.4 | 15.5 | 0.5 | 147.4 | 0.1 | 0.3 | 0.2 | 24.6 | 192.7 | 66.4 | 81.7 | 46.6 | 58.9 | 1881 | 583 | 1.0000 | equivalent |
-| w10-best-b8 | 0.4 | 15.4 | 0.5 | 90.3 | 0.1 | 0.3 | 0.2 | 24.2 | 134.7 | 108.4 | 142.9 | 54.9 | 78.7 | 2793 | 1154 | 0.9761 | different |
-| w10-shots-ds | 0.4 | 14.9 | 16.4 | 147.8 | 7.2 | 0.3 | 0.3 | 42.5 | 233.3 | 66.2 | 81.6 | 40.3 | 58.9 | 981 | 583 | 1.0000 | equivalent |
+| experiment | ingest | shots | ref | pose | tracking | seg | metrics | overlay | full run s | pose fps | infer fps | GPU util % | pose util % | peak MB | torch MB | within 1 px | track changes / frame | metric max rel delta | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| w10-ref | 0.4 | 15.4 | 16.5 | 149.8 | 7.3 | 0.3 | 0.2 | 42.9 | 235.7 | 65.3 | 80.6 | 39.9 | 58.1 | 981 | 583 | ref | ref | ref | reference |
+| w10-ref-notf32 | 0.4 | 15.4 | 18.8 | 188.6 | 7.1 | 0.3 | 0.2 | 42.3 | 276.9 | 51.9 | 61.0 | 62.6 | 85.0 | 913 | 583 | 0.9887 | 0.0022 | 0.0301 | within noise |
+| w10-b8 | 0.4 | 16.2 | 16.1 | 91.2 | 7.3 | 0.3 | 0.2 | 41.8 | 176.7 | 107.2 | 142.9 | 44.3 | 77.6 | 1799 | 1154 | 0.9761 | 0.0066 | 0.0744 | different |
+| w10-b8-notf32 | 0.4 | 15.4 | 19.1 | 195.5 | 7.3 | 0.3 | 0.3 | 42.3 | 284.2 | 50.0 | 56.9 | 66.0 | 89.1 | 6685 | 5823 | 0.9999 | 0.0001 | 0.0000 | within noise |
+| w10-best | 0.4 | 15.5 | 0.5 | 147.4 | 0.1 | 0.3 | 0.2 | 24.6 | 192.7 | 66.4 | 81.7 | 46.6 | 58.9 | 1881 | 583 | 1.0000 | 0.0000 | 0.0000 | equivalent |
+| w10-best-b8 | 0.4 | 15.4 | 0.5 | 90.3 | 0.1 | 0.3 | 0.2 | 24.2 | 134.7 | 108.4 | 142.9 | 54.9 | 78.7 | 2793 | 1154 | 0.9761 | 0.0066 | 0.0744 | different |
+| w10-shots-ds | 0.4 | 14.9 | 16.4 | 147.8 | 7.2 | 0.3 | 0.3 | 42.5 | 233.3 | 66.2 | 81.6 | 40.3 | 58.9 | 981 | 583 | 1.0000 | 0.0000 | 0.0000 | equivalent |
 
 ### 12981262_1920_1080_25fps.mp4
 
-| experiment | ingest | shots | ref | pose | tracking | seg | metrics | overlay | full run s | pose fps | infer fps | GPU util % | pose util % | peak MB | torch MB | within 1 px | verdict |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| w10-ref | 0.3 | 9.7 | 1.9 | 29.6 | 1.6 | 0.1 | 0.0 | 25.1 | 71.7 | 60.3 | 80.8 | 22.6 | 52.3 | 981 | 583 | ref | reference |
-| w10-ref-notf32 | 0.3 | 9.8 | 1.8 | 36.1 | 1.6 | 0.1 | 0.0 | 25.6 | 78.5 | 49.5 | 62.9 | 37.1 | 77.8 | 913 | 583 | 0.9832 | different |
-| w10-b8 | 0.3 | 10.1 | 1.6 | 21.0 | 1.7 | 0.1 | 0.0 | 25.5 | 63.8 | 85.2 | 145.2 | 21.4 | 60.5 | 1799 | 1154 | 0.9248 | different |
-| w10-b8-notf32 | 0.3 | 9.6 | 1.9 | 39.5 | 1.7 | 0.1 | 0.0 | 24.9 | 81.8 | 45.2 | 58.2 | 39.7 | 78.5 | 6685 | 5823 | 0.9994 | different |
-| w10-best | 0.4 | 12.5 | 0.6 | 29.7 | 2.8 | 0.1 | 0.0 | 13.7 | 63.1 | 60.3 | 80.1 | 27.0 | 52.5 | 2020 | 583 | 1.0000 | equivalent |
-| w10-best-b8 | 0.3 | 9.7 | 0.5 | 19.0 | 2.8 | 0.1 | 0.0 | 14.2 | 50.2 | 94.3 | 145.3 | 28.8 | 67.2 | 2932 | 1154 | 0.9248 | different |
-| w10-shots-ds | 0.3 | 9.6 | 1.8 | 29.6 | 1.7 | 0.1 | 0.0 | 24.8 | 71.0 | 60.5 | 81.7 | 22.8 | 53.1 | 981 | 583 | 1.0000 | equivalent |
+| experiment | ingest | shots | ref | pose | tracking | seg | metrics | overlay | full run s | pose fps | infer fps | GPU util % | pose util % | peak MB | torch MB | within 1 px | track changes / frame | metric max rel delta | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| w10-ref | 0.3 | 9.7 | 1.9 | 29.6 | 1.6 | 0.1 | 0.0 | 25.1 | 71.7 | 60.3 | 80.8 | 22.6 | 52.3 | 981 | 583 | ref | ref | ref | reference |
+| w10-ref-notf32 | 0.3 | 9.8 | 1.8 | 36.1 | 1.6 | 0.1 | 0.0 | 25.6 | 78.5 | 49.5 | 62.9 | 37.1 | 77.8 | 913 | 583 | 0.9832 | 0.0034 | 0.0012 | within noise |
+| w10-b8 | 0.3 | 10.1 | 1.6 | 21.0 | 1.7 | 0.1 | 0.0 | 25.5 | 63.8 | 85.2 | 145.2 | 21.4 | 60.5 | 1799 | 1154 | 0.9248 | 0.0045 | 0.0009 | different |
+| w10-b8-notf32 | 0.3 | 9.6 | 1.9 | 39.5 | 1.7 | 0.1 | 0.0 | 24.9 | 81.8 | 45.2 | 58.2 | 39.7 | 78.5 | 6685 | 5823 | 0.9994 | 0.0000 | 0.0000 | within noise |
+| w10-best | 0.4 | 12.5 | 0.6 | 29.7 | 2.8 | 0.1 | 0.0 | 13.7 | 63.1 | 60.3 | 80.1 | 27.0 | 52.5 | 2020 | 583 | 1.0000 | 0.0000 | 0.0000 | equivalent |
+| w10-best-b8 | 0.3 | 9.7 | 0.5 | 19.0 | 2.8 | 0.1 | 0.0 | 14.2 | 50.2 | 94.3 | 145.3 | 28.8 | 67.2 | 2932 | 1154 | 0.9248 | 0.0045 | 0.0009 | different |
+| w10-shots-ds | 0.3 | 9.6 | 1.8 | 29.6 | 1.7 | 0.1 | 0.0 | 24.8 | 71.0 | 60.5 | 81.7 | 22.8 | 53.1 | 981 | 583 | 1.0000 | 0.0000 | 0.0000 | equivalent |

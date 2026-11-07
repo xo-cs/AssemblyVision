@@ -39,8 +39,10 @@ from ..storage.files import REPO_ROOT, RUN_ID_RE, RunPaths, check_video_source, 
 ID_RE = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
 KINDS = ("full_run",)
 STAGE_ORDER = ("ingest", "shots", "reference", "pose_body", "tracking", "segmentation", "metrics", "overlay", "eval")
+NOISE_FLOOR_FILE = "noise_floor.json"      # experiments/noise_floor.json (tracked, public measurement)
 INDEX_HEAD = ("# Experiments\n\nOne line per experiment (public data only; QiSens rows only as approved summaries).\n"
               "Regenerate any table with `python -m assemblyvision.tools.exp table <id> ...`.\n\n"
+              "{noise}"
               "| id | date | title | per video: full run median s, pose fps, mean GPU util %, peak GPU MB | verdict |\n"
               "| --- | --- | --- | --- | --- |\n")
 
@@ -156,8 +158,10 @@ def _repeat_record(manifest: dict, wall_s: float, run_dir: Path, repo_root: Path
     bd = pb.get("breakdown_s", {})
     frames = pb.get("frames") or 0
     stages = {k: v.get("seconds") for k, v in manifest.get("stages", {}).items() if v.get("seconds") is not None}
+    ev = manifest.get("eval")
     return {"run_id": manifest["run_id"], "run_dir": run_dir.relative_to(repo_root).as_posix(),
             "status": manifest.get("status"), "wall_s": round(wall_s, 3), "stages_s": stages,
+            "eval": {k: v for k, v in ev.items() if k != "path"} if ev else None,
             "stage_sum_s": round(sum(stages.values()), 3),
             "pose": {"frames": frames, "pose_fps": pb.get("pose_fps"),
                      "inference_fps": round(frames / bd["inference"], 1) if bd.get("inference") else None,
@@ -186,7 +190,48 @@ def summarise(repeats: list[dict]) -> dict:
             "pose_gpu_util_mean": _median([g.get("gpu_util_mean") for g in pose_gpu]),
             "torch_peak_mb": max([r["pose"]["torch_peak_mb"] or 0 for r in repeats]) or None,
             "pose_breakdown_s": {k: _median([r["pose"]["breakdown_s"].get(k) for r in repeats])
-                                 for k in repeats[0]["pose"]["breakdown_s"]}}
+                                 for k in repeats[0]["pose"]["breakdown_s"]},
+            "eval": repeats[0].get("eval"),
+            "eval_same_in_repeats": len({json.dumps(r.get("eval"), sort_keys=True) for r in repeats}) == 1}
+
+
+def load_noise_floor(repo_root: Path = REPO_ROOT) -> dict | None:
+    """The noise floor of the "equivalent within numerical noise" rule, or None if not measured yet."""
+    f = repo_root / "experiments" / NOISE_FLOOR_FILE
+    return json.loads(f.read_text())["floor"] if f.is_file() else None
+
+
+def add_noise(rec: dict, repo_root: Path = REPO_ROOT) -> None:
+    """rec["noise"] = the noise check of rec["equivalence"] when the strict check fails."""
+    from ..evaluation.equivalence import noise_check
+    eq, floor = rec.get("equivalence"), load_noise_floor(repo_root)
+    rec.pop("noise", None)
+    if eq and eq["verdict"] != "equivalent" and floor:
+        rec["noise"] = noise_check(eq, floor)
+
+
+def write_noise_floor(exp_id: str, paths_cfg: dict, repo_root: Path = REPO_ROOT) -> Path:
+    """experiments/noise_floor.json from the equivalence records of exp_id (strict FP32 against TF32)."""
+    from ..evaluation.equivalence import noise_floor, noise_measures
+    res = load_results(exp_id, "public", paths_cfg, repo_root)
+    eqs = {v: rec["equivalence"] for v, rec in res["videos"].items() if rec.get("equivalence")}
+    if not eqs:
+        raise ExperimentError(f"{exp_id} has no equivalence records")
+    out = {"source": f"{exp_id} against {res['reference']}", "measured_utc": res.get("rechecked_utc")
+           or res.get("finished_utc"), "floor": noise_floor(list(eqs.values())),
+           "per_video": {v: noise_measures(e) for v, e in eqs.items()}}
+    path = repo_root / "experiments" / NOISE_FLOOR_FILE
+    path.write_text(json.dumps(out, indent=1) + "\n")
+    return path
+
+
+def video_verdict(rec: dict) -> str | None:
+    eq = rec.get("equivalence")
+    if not eq:
+        return None
+    if eq["verdict"] == "equivalent":
+        return "equivalent"
+    return "within noise" if rec.get("noise", {}).get("within_noise") else "different"
 
 
 def _settings_file(exp: Experiment, paths_cfg: dict, repo_root: Path) -> Path:
@@ -244,6 +289,7 @@ def run(exp: Experiment, paths_cfg: dict, *, repo_root: Path = REPO_ROOT,
             ref = _reference_run(exp, v, paths_cfg, repo_root)
             if ref is not None:
                 rec["equivalence"] = equivalence(ref, first)
+                add_noise(rec, repo_root)
             results["videos"][v] = rec
     finally:
         layer.unlink(missing_ok=True)
@@ -266,6 +312,7 @@ def recheck(exp: Experiment, paths_cfg: dict, *, repo_root: Path = REPO_ROOT,
         ref = _reference_run(exp, v, paths_cfg, repo_root)
         if ref is not None:
             rec["equivalence"] = equivalence(ref, repo_root / rec["repeats"][0]["run_dir"])
+            add_noise(rec, repo_root)
     results["rechecked_utc"] = utc_now()
     (exp.dir / "results.json").write_text(json.dumps(results, indent=2, ensure_ascii=False))
     (exp.dir / "table.md").write_text(format_table(results))
@@ -327,6 +374,12 @@ def format_table(res: dict) -> str:
                   "", "| pose breakdown | median s |", "| --- | --- |"]
         lines += [f"| {k} | {_f(x, 2)} |" for k, x in s["pose_breakdown_s"].items()]
         lines += ["", f"Repeat consistency against repeat 1: {', '.join(rec['repeat_consistency']) or 'n/a'}."]
+        ev = s.get("eval")
+        if ev:
+            f1 = ", ".join(f"F1@{k[3:]} {x}" for k, x in ev.items() if k.startswith("f1_"))
+            lines += ["", f"Engine A eval against {ev.get('gt_file')}: frame accuracy {ev.get('frame_accuracy')}, edit "
+                          f"{ev.get('edit')}, {f1}, boundary MAE {ev.get('boundary_mae_s')} s"
+                          f"{'' if s.get('eval_same_in_repeats', True) else ' (differs between repeats)'}."]
         eq = rec.get("equivalence")
         if eq:
             p = eq.get("pose", {})
@@ -335,6 +388,12 @@ def format_table(res: dict) -> str:
                           f"box max {p.get('box_max_px')} px, keypoint max {p.get('kp_max_px')} px, "
                           f"keypoint mean {p.get('kp_mean_px')} px, conf max {p.get('det_conf_max')} / {p.get('kp_conf_max')})."]
             lines += [f"- {d}" for d in eq["differences"]]
+            nz = rec.get("noise")
+            if nz:
+                lines += ["", f"Within numerical noise: **{'yes' if nz['within_noise'] else 'no'}** (measures "
+                              + ", ".join(f"{k} {v}" for k, v in nz["measures"].items()) + "; floor "
+                              + ", ".join(f"{k} {v}" for k, v in nz["floor"].items()) + ")."]
+                lines += [f"- {d}" for d in nz["failed"]]
         lines.append("")
     return "\n".join(lines)
 
@@ -348,9 +407,10 @@ def _index_line(res: dict) -> str:
         s = rec["summary"]
         cells.append(f"{Path(v).name}: {_f(s['wall_s']['median'])} s, {_f(s['pose_fps'])} fps, "
                      f"{_f(s['gpu_util_mean'])} %, {_f(s['gpu_mem_peak_mb'], 0)} MB")
-    verdicts = {rec.get("equivalence", {}).get("verdict") for rec in res["videos"].values()} - {None}
+    verdicts = {video_verdict(rec) for rec in res["videos"].values()} - {None}
     verdict = "reference" if not res.get("reference") or res["reference"] == res["id"] else \
-        ("equivalent" if verdicts == {"equivalent"} else "different" if verdicts else "n/a")
+        ("equivalent" if verdicts == {"equivalent"} else "within noise" if verdicts <= {"equivalent", "within noise"}
+         and verdicts else "different" if verdicts else "n/a")
     return (f"| [{res['id']}]({res['id']}/table.md) | {res.get('finished_utc', '')[:10]} | {res.get('title', '')} | "
             f"{'<br>'.join(cells)} | {verdict} |")
 
@@ -365,12 +425,29 @@ def write_index(root: Path) -> Path:
                 lines.append(_index_line(json.loads(f.read_text())))
                 break
     path = root / "INDEX.md"
-    path.write_text(INDEX_HEAD + "\n".join(lines) + "\n")
+    path.write_text(INDEX_HEAD.format(noise=noise_text(root)) + "\n".join(lines) + "\n")
     return path
+
+
+def noise_text(root: Path) -> str:
+    """The rule "equivalent within numerical noise" and the measured floor, for INDEX.md and the w10 table."""
+    from ..evaluation.equivalence import NOISE_RULE
+    f = root / NOISE_FLOOR_FILE
+    if not f.is_file():
+        return ""
+    nf = json.loads(f.read_text())
+    rows = "".join(f"| {k} | {v} | {' / '.join(str(x[k]) for x in nf['per_video'].values())} |\n"
+                   for k, v in nf["floor"].items())
+    name, _, rule = NOISE_RULE.partition(": ")
+    return (f"Verdicts: **equivalent** = every strict check of evaluation/equivalence.py holds; **{name}** "
+            f"(within noise) = {rule}; **different** otherwise.\n\n"
+            f"Noise floor ({nf['source']}, measured {nf['measured_utc'][:10]}):\n\n"
+            f"| measure | floor | {' / '.join(Path(v).name for v in nf['per_video'])} |\n| --- | --- | --- |\n{rows}\n")
 
 
 def compare_table(results: list[dict]) -> str:
     """One table per video over several experiments: stage medians, full run, pose fps, cost, verdict."""
+    from ..evaluation.equivalence import noise_measures
     videos = []
     for r in results:
         videos += [v for v in r["videos"] if v not in videos]
@@ -380,18 +457,21 @@ def compare_table(results: list[dict]) -> str:
         stages = [s for s in STAGE_ORDER if any(s in r["videos"].get(v, {}).get("summary", {}).get("stages_s", {})
                                                 for r in results)]
         head = ["experiment", *[short.get(s, s) for s in stages], "full run s", "pose fps", "infer fps",
-                "GPU util %", "pose util %", "peak MB", "torch MB", "within 1 px", "verdict"]
+                "GPU util %", "pose util %", "peak MB", "torch MB", "within 1 px", "track changes / frame", "metric max rel delta", "verdict"]
         rows = []
         for r in results:
             rec = r["videos"].get(v)
             if rec is None:
                 continue
             s, eq = rec["summary"], rec.get("equivalence") or {}
+            nm = noise_measures(eq) if eq else {}
             rows.append([r["id"], *[_f(s["stages_s"].get(x), 1) for x in stages], _f(s["wall_s"]["median"], 1),
                          _f(s["pose_fps"]), _f(s["inference_fps"]), _f(s["gpu_util_mean"]),
                          _f(s["pose_gpu_util_mean"]), _f(s["gpu_mem_peak_mb"], 0), _f(s["torch_peak_mb"], 0),
                          _f(eq.get("pose", {}).get("share_within_1px"), 4) if eq else "ref",
-                         eq.get("verdict", "reference")])
+                         _f(nm.get("track_changes_per_frame"), 4) if eq else "ref",
+                         _f(nm.get("metric_max_rel_delta"), 4) if eq else "ref",
+                         video_verdict(rec) or "reference"])
         out += [f"### {Path(v).name}", "", "| " + " | ".join(head) + " |", "|" + " --- |" * len(head)]
         out += ["| " + " | ".join(row) + " |" for row in rows]
         out.append("")

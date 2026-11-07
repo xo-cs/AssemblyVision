@@ -13,6 +13,19 @@ gets strength = base + seg_a.ac_weight * activity change, where the change
 before and after the candidate. no_person keeps its strength. Off (default):
 the strengths and the result are exactly the ones without this feature.
 
+With seg_a.engine_b_weight > 0 (default 0 = off, nothing changes) the Engine B
+boundary probability (boundary_tcn.py, on the run clock) is one more evidence
+term: it is pooled by a centred moving average of engine_b.pool_s (0 = none,
+so that a scorer trained on short actions does not fire on every action
+change inside a phase), divided by its maximum over the active span (seg_a.engine_b_norm = "max",
+so a model that is less confident on QiSens than on HA4M still reaches 1;
+"none" uses it as it is), and every point
+candidate gets strength += engine_b_weight * the highest such value within
+seg_a.engine_b_window_s of it. With seg_a.engine_b_candidates the peaks of the
+pooled probability (engine_b.peak_threshold, at least max(peak_min_gap_s,
+pool_s) apart, not near another candidate) become extra point candidates of
+kind engine_b with strength engine_b_weight * value.
+
 Phase mode (steps.step not empty): K phases in the order of steps.toml, each
 at most once and never backwards. Leading and trailing stretches without a
 person are other. Limits per phase: T = first to last frame with a person,
@@ -61,6 +74,7 @@ class Evidence:
     strength: float
     used: bool = False
     activity_change: float | None = None    # set only with seg_a.activity_change on
+    engine_b: float | None = None           # set only with seg_a.engine_b_weight > 0
 
 
 class RuleBasedEngine(SegmentationEngine):
@@ -113,7 +127,46 @@ class RuleBasedEngine(SegmentationEngine):
         ev.sort(key=lambda e: (e.start, e.end))
         if s["activity_change"] and tl.activity:
             self.add_activity_change(tl, ev, a, b)
+        if s["engine_b_weight"] > 0 and tl.boundary_prob is not None:
+            self.add_engine_b(tl, ev, a, b, empty)
+            ev.sort(key=lambda e: (e.start, e.end))
         return ev
+
+    def engine_b_evidence(self, tl: RunTimeline, a: int, b: int) -> np.ndarray:
+        """Pooled (engine_b.pool_s) and normalized (seg_a.engine_b_norm) Engine B probability [N]."""
+        from .boundary_tcn import pool
+        p = pool(np.nan_to_num(tl.boundary_prob[:tl.n_frames]), int(round(self.cfg["engine_b"]["pool_s"] * tl.fps)))
+        if self.s["engine_b_norm"] == "max" and b > a:
+            top = float(p[a:b].max())
+            p = p / top if top > 0 else p
+        return np.clip(p, 0.0, 1.0)
+
+    def add_engine_b(self, tl: RunTimeline, ev: list[Evidence], a: int, b: int, empty: list[tuple[int, int]]) -> None:
+        from .boundary_tcn import peaks
+        val = self.engine_b_evidence(tl, a, b)
+        raw = tl.boundary_prob[:tl.n_frames]
+        w = int(round(self.s["engine_b_window_s"] * tl.fps))
+        weight = self.s["engine_b_weight"]
+
+        def near(lo: int, hi: int) -> float:
+            lo, hi = max(a, lo - w), min(b, hi + w + 1)
+            return float(val[lo:hi].max()) if hi > lo else 0.0
+        if self.s["engine_b_candidates"]:
+            from .boundary_tcn import pool
+            e = self.cfg["engine_b"]
+            pooled = pool(np.nan_to_num(raw), int(round(e["pool_s"] * tl.fps)))
+            gap = int(round(max(e["peak_min_gap_s"], e["pool_s"]) * tl.fps))
+            taken = [(x.start, x.end) for x in ev]
+            for f in peaks(pooled[a:b], e["peak_threshold"], gap) + a:
+                f = int(f)
+                if not a < f < b or any(p - w <= f <= q + w for p, q in taken + empty):
+                    continue
+                ev.append(Evidence(f, f, "engine_b", 0.0))
+        for e in ev:
+            if e.kind == "no_person":
+                continue
+            e.engine_b = round(near(e.start, e.end), 4)
+            e.strength = e.strength + weight * e.engine_b
 
     def add_activity_change(self, tl: RunTimeline, ev: list[Evidence], a: int, b: int) -> None:
         win = max(1, int(round(self.s["ac_window_s"] * tl.fps)))
@@ -284,13 +337,20 @@ class RuleBasedEngine(SegmentationEngine):
         ev.sort(key=lambda e: (e.start, e.end))
         rep["evidence"] = [{"start_s": tl.t(e.start), "end_s": tl.t(e.end), "kind": e.kind,
                             "strength": round(e.strength, 4), "used": e.used,
-                            **({} if e.activity_change is None else {"activity_change": e.activity_change})}
+                            **({} if e.activity_change is None else {"activity_change": e.activity_change}),
+                            **({} if e.engine_b is None else {"engine_b": e.engine_b})}
                            for e in ev]
         if self.s["activity_change"]:
             rep["activity_change"] = {"on": bool(tl.activity), "ac_weight": self.s["ac_weight"],
                                       "ac_window_s": self.s["ac_window_s"]}
+        if self.s["engine_b_weight"] > 0:
+            rep["engine_b"] = {"on": tl.boundary_prob is not None, "engine_b_weight": self.s["engine_b_weight"],
+                               "pool_s": self.cfg["engine_b"]["pool_s"], "norm": self.s["engine_b_norm"],
+                               "window_s": self.s["engine_b_window_s"], "candidates": self.s["engine_b_candidates"],
+                               **tl.boundary_info}
         rep["evidence_counts"] = {k: sum(e.kind == k for e in ev)
-                                  for k in ("no_person", "cut_pause", "pause", "cut", "forced")}
+                                  for k in ("no_person", "cut_pause", "pause", "cut",
+                                            *(("engine_b",) if self.s["engine_b_weight"] > 0 else ()), "forced")}
         check_contract(steps, tl, self.vocabulary)
         return steps
 

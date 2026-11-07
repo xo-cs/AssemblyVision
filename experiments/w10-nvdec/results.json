@@ -556,9 +556,31 @@
         },
         "metrics": {
           "rows": 100,
-          "differences": 27
+          "differences": 27,
+          "max_rel_delta": 1.0,
+          "null_changes": 1,
+          "flag_changes": 3
         },
         "verdict": "different"
+      },
+      "noise": {
+        "within_noise": false,
+        "measures": {
+          "not_within_1px_share": 0.872713,
+          "track_changes_per_frame": 0.418885,
+          "metric_max_rel_delta": 1.0
+        },
+        "floor": {
+          "not_within_1px_share": 0.016835,
+          "track_changes_per_frame": 0.003367,
+          "metric_max_rel_delta": 0.0301
+        },
+        "failed": [
+          "not_within_1px_share 0.872713 above the floor 0.016835",
+          "track_changes_per_frame 0.418885 above the floor 0.003367",
+          "metric_max_rel_delta 1.0 above the floor 0.0301",
+          "metrics: 1 NULL decisions and 3 flags changed"
+        ]
       }
     },
     "data/public/videos/12981262_1920_1080_25fps.mp4": {
@@ -1006,12 +1028,33 @@
         },
         "metrics": {
           "rows": 40,
-          "differences": 7
+          "differences": 7,
+          "max_rel_delta": 0.0526,
+          "null_changes": 0,
+          "flag_changes": 0
         },
         "verdict": "different"
+      },
+      "noise": {
+        "within_noise": false,
+        "measures": {
+          "not_within_1px_share": 1.0,
+          "track_changes_per_frame": 1.757576,
+          "metric_max_rel_delta": 0.0526
+        },
+        "floor": {
+          "not_within_1px_share": 0.016835,
+          "track_changes_per_frame": 0.003367,
+          "metric_max_rel_delta": 0.0301
+        },
+        "failed": [
+          "not_within_1px_share 1.0 above the floor 0.016835",
+          "track_changes_per_frame 1.757576 above the floor 0.003367",
+          "metric_max_rel_delta 0.0526 above the floor 0.0301"
+        ]
       }
     }
   },
   "finished_utc": "2026-11-06T08:15:28Z",
-  "rechecked_utc": "2026-11-06T09:59:42Z"
+  "rechecked_utc": "2026-11-07T21:46:24Z"
 }

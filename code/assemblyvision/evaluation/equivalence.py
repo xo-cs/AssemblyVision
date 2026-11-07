@@ -16,7 +16,9 @@ checks, from the stored files of both run folders:
   relative or 0.01 absolute; the same NULL or reported decision; identical flags.
 
 The verdict is "equivalent" only if every check holds; every difference is
-listed either way. Shot, segment and track IDs carry the run ID, so they are
+listed either way. noise_check() adds the weaker rule "equivalent within
+numerical noise" (NOISE_RULE): no difference larger than the measured TF32 vs
+strict FP32 difference of the batch 1 reference (NOISE_FLOOR). Shot, segment and track IDs carry the run ID, so they are
 compared without it (shots by their order).
 """
 from __future__ import annotations
@@ -257,6 +259,7 @@ def compare_metrics(ref: Path, cand: Path, mr: dict, mc: dict, out: dict) -> Non
         return
     a, b = _metric_rows(pa, mr["run_id"]), _metric_rows(pb, mc["run_id"])
     bad = []
+    max_rel, nulls, flags = 0.0, 0, 0
     for key in sorted(set(a) | set(b)):
         x, y = a.get(key), b.get(key)
         name = f"{key[0].replace('<run>-', '')} {key[1]}"
@@ -265,9 +268,13 @@ def compare_metrics(ref: Path, cand: Path, mr: dict, mc: dict, out: dict) -> Non
             continue
         if (x["value"] == "") != (y["value"] == ""):
             bad.append(f"metrics: {name} reported in one run, NULL in the other")
+            nulls += 1
         elif x["value"] != "":
             try:
-                if not _close(float(x["value"]), float(y["value"])):
+                u, v = float(x["value"]), float(y["value"])
+                if abs(u - v) > METRIC_ABS:
+                    max_rel = max(max_rel, abs(u - v) / max(abs(u), abs(v)))
+                if not _close(u, v):
                     bad.append(f"metrics: {name} {x['value']} vs {y['value']}")
             except ValueError:
                 if x["value"] != y["value"]:
@@ -276,10 +283,12 @@ def compare_metrics(ref: Path, cand: Path, mr: dict, mc: dict, out: dict) -> Non
                 x.get("coverage") and y.get("coverage") and _close(float(x["coverage"]), float(y["coverage"]))):
             bad.append(f"metrics: {name} coverage {x.get('coverage')} vs {y.get('coverage')}")
         if _flags(x["flags"]) != _flags(y["flags"]):
+            flags += 1
             bad.append(f"metrics: {name} flags {x['flags'] or '-'} vs {y['flags'] or '-'}")
         if x.get("unit") != y.get("unit"):
             bad.append(f"metrics: {name} unit {x.get('unit')} vs {y.get('unit')}")
-    out["metrics"] = {"rows": len(a), "differences": len(bad)}
+    out["metrics"] = {"rows": len(a), "differences": len(bad), "max_rel_delta": round(max_rel, 4),
+                      "null_changes": nulls, "flag_changes": flags}
     out["differences"].extend(bad[:MAX_LISTED] + ([f"metrics: {len(bad) - MAX_LISTED} more"] if len(bad) > MAX_LISTED else []))
     out["checks"]["metrics"] = not bad
 
@@ -296,3 +305,46 @@ def compare_runs(reference: Path, candidate: Path) -> dict:
         compare_metrics(reference, candidate, mr, mc, out)
     out["verdict"] = "equivalent" if all(out["checks"].values()) else "different"
     return out
+
+
+# equivalent within numerical noise ------------------------------------------------------
+
+NOISE_RULE = ("equivalent within numerical noise: against the reference, (1) the share of frames not within "
+              "1 px, (2) the track changes per frame and (3) the largest relative delta of a reported motion "
+              "metric (deltas under 0.01 absolute ignored) are each no larger than the noise floor, the same "
+              "measures of strict FP32 against the default TF32 at batch 1 (w10-ref-notf32 against w10-ref, the "
+              "larger of the two public clips); (4) the Engine A steps are identical (labels, boundaries within "
+              "one frame); (5) every NULL decision and every flag of the motion metrics is identical")
+
+
+def noise_measures(eq: dict) -> dict:
+    """The three noise measures of one equivalence record."""
+    p, m = eq.get("pose", {}), eq.get("metrics", {})
+    frames = max(p.get("frames", 0), 1)
+    return {"not_within_1px_share": round(1.0 - p.get("share_within_1px", 1.0), 6),
+            "track_changes_per_frame": round(eq.get("tracking", {}).get("differences", 0) / frames, 6),
+            "metric_max_rel_delta": m.get("max_rel_delta")}
+
+
+def noise_floor(records: list[dict]) -> dict:
+    """Floor = per measure the largest value over the equivalence records of strict FP32 against TF32."""
+    ms = [noise_measures(r) for r in records]
+    return {k: max((x[k] for x in ms if x[k] is not None), default=None) for k in ms[0]}
+
+
+def noise_check(eq: dict, floor: dict) -> dict:
+    """{"within_noise": bool, "measures", "floor", "failed": [reasons]} for one equivalence record."""
+    ms, failed = noise_measures(eq), []
+    for k, v in ms.items():
+        if v is None or floor.get(k) is None:
+            failed.append(f"{k}: not measured")
+        elif v > floor[k] + 1e-12:
+            failed.append(f"{k} {v} above the floor {floor[k]}")
+    if not eq.get("checks", {}).get("steps", False):
+        failed.append("Engine A steps differ")
+    m = eq.get("metrics", {})
+    if m.get("null_changes", 1) or m.get("flag_changes", 1):
+        failed.append(f"metrics: {m.get('null_changes')} NULL decisions and {m.get('flag_changes')} flags changed")
+    if not eq.get("checks", {}).get("shots", False):
+        failed.append("shots differ")
+    return {"within_noise": not failed, "measures": ms, "floor": floor, "failed": failed}

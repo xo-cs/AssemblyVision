@@ -39,6 +39,8 @@ class RunTimeline:
     cuts: list[int] = field(default_factory=list)   # first frames of shots 2..n
     offset_s: float = 0.0              # added to all times (one shot timelines)
     activity: dict = field(default_factory=dict)    # per frame subject activity channels (activity.py), or empty
+    boundary_prob: np.ndarray | None = None         # float32 [N] Engine B boundary probability, or None
+    boundary_info: dict = field(default_factory=dict)   # model file, sha256, frames scored
 
     @property
     def duration_s(self) -> float:

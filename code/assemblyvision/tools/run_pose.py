@@ -16,13 +16,19 @@ Rerun stages of an existing run from its stored files (CPU, no pose, no tracking
     python -m assemblyvision.tools.run_pose --run RUN_DIR --stages segmentation,metrics,overlay,eval \
         [--gt GT_CSV] [--set SECTION.KEY=VALUE] [--config FILE]
 
-Compare one boolean setting off and on, in memory (CPU, nothing in the run folder is written):
+Compare values of one setting, in memory (CPU, nothing in the run folder is written):
 
     python -m assemblyvision.tools.run_pose --run RUN_DIR --compare seg_a.activity_change --gt GT_CSV \
         [--set SECTION.KEY=VALUE] [--config FILE]
+    python -m assemblyvision.tools.run_pose --run RUN_DIR --compare seg_a.engine_b_weight --gt GT_CSV
+    python -m assemblyvision.tools.run_pose --run RUN_DIR --compare engine_b.pool_s=0,10,30 --gt GT_CSV \
+        --set seg_a.engine_b_weight=0.4
 
-It segments and evaluates the run twice (KEY = false, KEY = true) on top of
-the stored configuration, --config and --set, and prints one table.
+It segments and evaluates the run once per value on top of the stored
+configuration, --config and --set, and prints one table. A boolean alone
+compares false and true; seg_a.engine_b_weight alone compares 0, 0.2, 0.4 and
+0.8 (Engine B scored once, from engine_b.model under models/); any setting
+takes KEY=V1,V2,... in TOML syntax.
 
 (engine is accepted for segmentation.) The rerun takes the configuration stored
 in the run's manifest, then --config files, then --set, and overwrites
@@ -71,8 +77,9 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     p.add_argument("--gpu", type=int, help="GPU index in PCI bus order, -1 for CPU")
     p.add_argument("--run", type=Path, help="existing run folder, with --stages")
     p.add_argument("--stages", help=f"comma list of {', '.join(RERUN_STAGES)} (with --run)")
-    p.add_argument("--compare", metavar="SECTION.KEY",
-                   help="boolean setting: segment and evaluate off and on in memory, write nothing (with --run, --gt)")
+    p.add_argument("--compare", metavar="SECTION.KEY[=V1,V2,...]",
+                   help="segment and evaluate once per value in memory, write nothing (with --run, --gt); "
+                        "a boolean alone compares false and true")
     p.add_argument("--gt", type=Path, help="step GT CSV (step,label,start_s,end_s,source); adds the eval stage")
     p.add_argument("--config", action="append", type=Path, default=[],
                    help="extra TOML layer over configs/default.toml and steps.toml (repeatable)")
@@ -208,11 +215,33 @@ def _versions() -> dict:
 
 # stages that work from the stored files of a run (used by both modes) -------------
 
-def segment_stored(manifest: dict, root: Path, cfg: Config, ctx) -> tuple:
-    """(engine, steps) of Engine A from the stored files of a run; writes nothing."""
+def boundary_probability(manifest: dict, root: Path, cfg: Config, ctx) -> dict | None:
+    """Engine B probability on the run clock (CPU) when seg_a.engine_b_weight > 0, else None.
+    Without weights (engine_b.model empty or missing) AV-SEG-001 is noticed and Engine A
+    runs without the term."""
+    if cfg["seg_a"]["engine_b_weight"] <= 0:
+        return None
+    from ..analysis.segmentation.boundary_tcn import run_probability
+    name = cfg["engine_b"]["model"]
+    path = REPO_ROOT / cfg["paths"]["models_dir"] / name if name else None
+    if path is None or not path.is_file():
+        if ctx is not None:
+            ctx.notice(AvError("AV-SEG-001", detail=f"engine_b.model = {name!r}"), "segmentation")
+        return None
+    return run_probability(manifest, root, cfg, path)
+
+
+def segment_stored(manifest: dict, root: Path, cfg: Config, ctx, bprob: dict | None = None) -> tuple:
+    """(engine, steps) of Engine A from the stored files of a run; writes nothing.
+    bprob: a boundary_probability() result to reuse (compare mode), else computed here."""
     from ..analysis.segmentation import build_timeline, create_engine
     engine = create_engine("A", cfg, ctx)
     tl = build_timeline(manifest, root, engine.cleaner, cfg["motion"] if cfg["seg_a"]["activity_change"] else None)
+    if cfg["seg_a"]["engine_b_weight"] > 0:
+        bp = bprob if bprob is not None else boundary_probability(manifest, root, cfg, ctx)
+        if bp is not None:
+            tl.boundary_prob = bp["prob"]
+            tl.boundary_info = {k: v for k, v in bp.items() if k != "prob"}
     return engine, engine.segment_run(tl)
 
 
@@ -312,25 +341,58 @@ class _MemoryCtx:
         self.notices.append(f"{err.code}: {err.text}")
 
 
-def compare_run(manifest: dict, root: Path, source: str, cfg: Config, key: str, gt_path: Path) -> list[dict]:
-    """Segment and evaluate the stored run with the boolean setting key off and
-    on, in memory. Returns one row per setting; nothing is written."""
+COMPARE_DEFAULTS = {"seg_a.engine_b_weight": [0.0, 0.2, 0.4, 0.8]}    # values when only the key is given
+
+
+def compare_values(spec: str, cfg: Config) -> tuple[str, list]:
+    """"KEY" (a boolean: false, true; or a key of COMPARE_DEFAULTS) or "KEY=V1,V2,..." (TOML values)
+    -> (key, values). The key must exist and every value must have its type."""
+    key, sep, vals = spec.partition("=")
+    key = key.strip()
+    section, _, name = key.partition(".")
+    current = cfg.snapshot().get(section, {}).get(name, None) if name else None
+    if current is None:
+        raise AvError("AV-CFG-002", key=key, value="", range="an existing setting")
+    if sep:
+        try:
+            values = tomllib.loads(f"v = [{vals}]")["v"]
+        except tomllib.TOMLDecodeError as e:
+            raise AvError("AV-CFG-002", key=key, value=repr(vals), range=f"comma separated TOML values ({e})") from e
+    elif isinstance(current, bool):
+        values = [False, True]
+    elif key in COMPARE_DEFAULTS:
+        values = list(COMPARE_DEFAULTS[key])
+    else:
+        raise AvError("AV-CFG-002", key=key, value=repr(current),
+                      range="a boolean setting, or KEY=V1,V2,... for any other setting")
+    if len(values) < 2:
+        raise AvError("AV-CFG-002", key=key, value=repr(vals), range="at least two values")
+    return key, values
+
+
+def _toml_value(v) -> str:
+    return str(v).lower() if isinstance(v, bool) else repr(v) if isinstance(v, str) else str(v)
+
+
+def compare_run(manifest: dict, root: Path, source: str, cfg: Config, spec: str, gt_path: Path) -> list[dict]:
+    """Segment and evaluate the stored run once per value of the setting (spec, see
+    compare_values), in memory. Returns one row per value; nothing is written."""
     from ..evaluation.steps_eval import score_steps
     from ..evaluation.steps_io import read_steps_csv
+    key, values = compare_values(spec, cfg)
     section, _, name = key.partition(".")
-    current = cfg.snapshot().get(section, {}).get(name) if name else None
-    if not isinstance(current, bool):
-        raise AvError("AV-CFG-002", key=key, value=repr(current), range="an existing boolean setting")
     gt = read_steps_csv(gt_path)
     duration = float(manifest["ingest"]["cfr"]["duration_s"])
-    rows = []
-    for value in (False, True):
+    rows, bprob = [], None
+    for value in values:
         c = Config.load(overrides=deep_merge(cfg.snapshot(), {section: {name: value}}))
         mctx = _MemoryCtx(source)
-        engine, steps = segment_stored(manifest, root, c, mctx)
+        if bprob is None and c["seg_a"]["engine_b_weight"] > 0:
+            bprob = boundary_probability(manifest, root, c, mctx) or {}
+        engine, steps = segment_stored(manifest, root, c, mctx, bprob or None)
         res, bounds, mapping = score_steps(steps, gt, Path(gt_path).name, engine.vocabulary, source, c, duration)
         rep = engine.report
-        rows.append({"setting": f"{key} = {str(value).lower()}", "metrics": res, "boundaries": bounds,
+        rows.append({"setting": f"{key} = {_toml_value(value)}", "metrics": res, "boundaries": bounds,
                      "mapping": mapping, "notices": mctx.notices,
                      "phases": f"{rep.get('phases_found')}/{rep.get('phases_expected')}" if rep.get("mode") == "phases"
                      else rep.get("mode"),
@@ -379,7 +441,7 @@ def compare(args: argparse.Namespace) -> int:
         return 1
     except AvError as e:
         return _fail(e)
-    print(f"{manifest['run_id']}: {args.compare} off and on against {Path(args.gt).name}\n")
+    print(f"{manifest['run_id']}: {args.compare} compared against {Path(args.gt).name}\n")
     print(format_compare(rows))
     return 0
 
