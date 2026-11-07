@@ -44,6 +44,7 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "pose.ref_conf_min": (lambda v: 0 <= v <= 1, "0 to 1"),
     "pose.ref_search_s": (lambda v: v > 0, "> 0"),
     "pose.half": (lambda v: isinstance(v, bool), "true or false"),
+    "pose.tf32": (lambda v: isinstance(v, bool), "true or false"),
     "pose.hand_crop_margin": (lambda v: 0 <= v <= 1, "0 to 1"),
     "pose.batch": (lambda v: 1 <= v <= 256, "1 to 256"),
     "pose.decode": (lambda v: v in ("opencv", "prefetch", "ffmpeg_cuda"), "opencv, prefetch or ffmpeg_cuda"),

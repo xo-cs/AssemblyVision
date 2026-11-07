@@ -84,6 +84,7 @@ class PoseEstimator:
         self.variant: str | None = None
         self.half = False                  # precision in use, set by load_models (resolve_half)
         self.gpu_cc: str | None = None
+        self.tf32: dict[str, bool] | None = None   # TF32 flags in use on CUDA, set by load_models (apply_tf32)
         self.pass_refs: list[dict] = []     # reference frames found by the pose pass (with_reference)
 
     def resolve_half(self, torch) -> bool:
@@ -97,6 +98,16 @@ class PoseEstimator:
             self.ctx.log.info("pose.half is true but GPU compute capability %s has no tensor cores: FP32",
                               self.gpu_cc)
         return bool(self.pcfg["half"]) and major >= 7
+
+    def apply_tf32(self, torch) -> dict[str, bool] | None:
+        """pose.tf32 = false turns TF32 off (strict FP32 convolutions and matmul);
+        true leaves the PyTorch defaults. Returns the flags in use (None off CUDA)."""
+        if not self.device.startswith("cuda"):
+            return None
+        if not self.pcfg["tf32"]:
+            torch.backends.cudnn.allow_tf32 = False
+            torch.backends.cuda.matmul.allow_tf32 = False
+        return {"cudnn": bool(torch.backends.cudnn.allow_tf32), "matmul": bool(torch.backends.cuda.matmul.allow_tf32)}
 
     def load_models(self, variant: str) -> None:
         """Load YOLO26 pose of one variant from models/ (AV-POS-001, 002)."""
@@ -118,7 +129,9 @@ class PoseEstimator:
             raise AvError("AV-POS-001", name=name, detail=repr(e)) from e
         self.model, self.variant = model, variant
         self.half = self.resolve_half(torch)
-        self.ctx.log.info("loaded %s on %s (%s)", name, self.device, "FP16" if self.half else "FP32")
+        self.tf32 = self.apply_tf32(torch)
+        self.ctx.log.info("loaded %s on %s (%s, TF32 %s)", name, self.device, "FP16" if self.half else "FP32",
+                          self.tf32)
 
     def _infer(self, frame: np.ndarray, conf: float | None = None):
         # Ultralytics 8.4.178 replaced half with quantize (32 = FP32, 16 = FP16).
@@ -428,6 +441,7 @@ class PoseEstimator:
             "fallback": state["fell_back"],
             "imgsz": self.pcfg["imgsz"], "conf": self.pcfg["det_conf_min"],
             "half_requested": self.pcfg["half"], "half": self.half, "precision": "FP16" if self.half else "FP32",
+            "tf32_requested": self.pcfg["tf32"], "tf32": self.tf32,
             "batch": int(self.pcfg["batch"]), "batch_used": state["batch"], "decode": self.pcfg["decode"],
             "reference_in_pass": bool(with_reference),
             "frames": n_frames,

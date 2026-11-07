@@ -55,6 +55,7 @@ det_conf_min = 0.1
 ref_conf_min = 0.5
 ref_search_s = 5.0
 half = false
+tf32 = true
 hand_crop_margin = 0.15
 batch = 1
 decode = "ffmpeg_cuda"

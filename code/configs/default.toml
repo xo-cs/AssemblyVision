@@ -48,6 +48,8 @@ ref_conf_min = 0.50          # threshold for the reference frame
 ref_search_s = 5.0           # seconds scanned for a reference frame
 half = false                 # FP32; FP16 gave no speedup on the A5000 (Week 9 benchmark) and its accuracy cost is unmeasured.
                              # true asks for FP16, used only on tensor core GPUs (compute capability >= 7.0)
+tf32 = true                  # true: PyTorch default (cuDNN convolutions in TF32 on Ampere, matmul in FP32);
+                             # false: strict FP32 (TF32 off for convolutions and matmul). FP16 runs ignore it.
 hand_crop_margin = 0.15      # margin added to the box for RTMW
 batch = 1                    # frames per inference call; 1 = one frame at a time (reference)
 decode = "opencv"            # frame reader of the pose pass: opencv, prefetch (reader thread) or ffmpeg_cuda (NVDEC)

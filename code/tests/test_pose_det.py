@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import numpy as np
 import torch
 
+from assemblyvision.config import Config
 from assemblyvision.errors import AvError
 from assemblyvision.output.overlay import render_pose_overlay
 from assemblyvision.perception.pose import PoseEstimator, load_det
@@ -147,6 +148,26 @@ class PrecisionTest(unittest.TestCase):
         self.assertEqual(self.resolve("cuda:0", (6, 1)), (False, "6.1"))       # Pascal GTX 1080 Ti
         self.assertEqual(self.resolve("cuda:0", (8, 6), half=False), (False, "8.6"))
         self.assertEqual(self.resolve("cpu", (8, 6)), (False, None))
+
+    def tf32(self, device, tf32):
+        pose = PoseEstimator(self.cfg, self.ctx, device=device, models_dir=Path(self._tmp.name))
+        pose.pcfg = {**self.cfg["pose"], "tf32": tf32}
+        fake = SimpleNamespace(backends=SimpleNamespace(cudnn=SimpleNamespace(allow_tf32=True),
+                                                        cuda=SimpleNamespace(matmul=SimpleNamespace(allow_tf32=False))))
+        return pose.apply_tf32(fake), fake
+
+    def test_apply_tf32(self):
+        self.assertIs(self.cfg["pose"]["tf32"], True)                        # default: PyTorch defaults kept
+        flags, fake = self.tf32("cuda:0", True)
+        self.assertEqual(flags, {"cudnn": True, "matmul": False})
+        flags, fake = self.tf32("cuda:0", False)                             # strict FP32
+        self.assertEqual(flags, {"cudnn": False, "matmul": False})
+        self.assertFalse(fake.backends.cudnn.allow_tf32)
+        flags, fake = self.tf32("cpu", False)
+        self.assertIsNone(flags)
+        self.assertTrue(fake.backends.cudnn.allow_tf32)                      # untouched off CUDA
+        with self.assertRaises(AvError):
+            Config.load(overrides={"pose": {"tf32": "off"}})
 
 
 if __name__ == "__main__":

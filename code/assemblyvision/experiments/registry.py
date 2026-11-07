@@ -162,7 +162,7 @@ def _repeat_record(manifest: dict, wall_s: float, run_dir: Path, repo_root: Path
             "pose": {"frames": frames, "pose_fps": pb.get("pose_fps"),
                      "inference_fps": round(frames / bd["inference"], 1) if bd.get("inference") else None,
                      "batch": pb.get("batch"), "batch_used": pb.get("batch_used"), "precision": pb.get("precision"),
-                     "decode": pb.get("decode"), "torch_peak_mb": pb.get("gpu_peak_mb"), "breakdown_s": bd},
+                     "tf32": pb.get("tf32"), "decode": pb.get("decode"), "torch_peak_mb": pb.get("gpu_peak_mb"), "breakdown_s": bd},
             "gpu": {"run": prof.get("run"), "stages": {k: {x: v.get(x) for x in ("gpu_util_mean", "gpu_util_max",
                                                                                "gpu_mem_peak_mb")}
                                                        for k, v in prof.get("stages", {}).items()}},
