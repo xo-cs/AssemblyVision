@@ -77,16 +77,19 @@ def main(argv: list[str] | None = None) -> int:
             base = None
             if args.base:
                 try:
-                    base = reg.load(args.base, args.source, paths_cfg)
-                except reg.ExperimentError:
-                    if args.source != "qisens":
+                    base = reg.load(args.base, args.source, paths_cfg, fill_new=True)
+                except reg.ExperimentError as err:
+                    if args.source != "qisens" or "no experiment" not in str(err):
                         raise
-                    base = reg.load(args.base, "public", paths_cfg)     # public settings for a QiSens run
+                    base = reg.load(args.base, "public", paths_cfg, fill_new=True)   # public settings for a QiSens run
             gt = Path(args.gt).absolute().relative_to(REPO_ROOT).as_posix() if args.gt else ""
             exp = reg.create(args.id, source=args.source, videos=[str(Path(v).absolute()) for v in args.video],
                              paths_cfg=paths_cfg, title=args.title, repeats=args.repeats, reference=args.reference,
                              gpu=args.gpu, variant=args.variant, gt=gt, base=base, sets=parse_sets(args.set),
                              overwrite=args.overwrite)
+            for key in exp.meta.get("filled_from_defaults", []):
+                print(f"filled from the defaults at commit {exp.meta['filled_at_commit'][:12]}: {key} "
+                      f"(added after {base.id} was stored; a no-op default)")
             print(f"wrote {exp.dir / 'config.toml'}")
             return 0
         if args.cmd == "run":

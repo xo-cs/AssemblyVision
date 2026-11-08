@@ -82,7 +82,48 @@ def config_text(meta: dict, settings: dict) -> str:
     return "\n".join(head) + "\n\n" + Config(settings, []).to_toml()
 
 
-def load(exp_id: str, source: str, paths_cfg: dict, repo_root: Path = REPO_ROOT) -> Experiment:
+# Settings added after an experiment was stored that may be filled from the current defaults
+# by exp new --from: key -> test on (default value, full settings) that the default changes
+# nothing in a run of the stored experiment. Any other missing key is refused.
+def _engine_b_off(v, st) -> bool:
+    return st.get("seg_a", {}).get("engine_b_weight", 0) == 0
+
+
+NO_OP_DEFAULTS = {
+    "seg_a.engine_b_weight": lambda v, st: v == 0,
+    "seg_a.engine_b_window_s": _engine_b_off,
+    "seg_a.engine_b_norm": _engine_b_off,
+    "seg_a.engine_b_candidates": lambda v, st: v is False or _engine_b_off(v, st),
+    "engine_b.model": _engine_b_off,
+    "engine_b.pool_s": _engine_b_off,
+    "engine_b.hip_calibration": lambda v, st: v is False,
+    "engine_b.calibration_from": lambda v, st: st.get("engine_b", {}).get("hip_calibration") is False,
+}
+
+
+def fill_missing(data: dict, default: dict) -> list[str]:
+    """Fill the settings missing in data from default, in place, when every one of them is
+    a no-op default (NO_OP_DEFAULTS). Returns the filled keys; ExperimentError otherwise."""
+    missing = [(s, k) for s, vals in default.items() for k in vals if k not in data.get(s, {})]
+    if not missing:
+        return []
+    filled = deep_merge(default, data)          # the stored values win; only missing keys come from default
+    bad = [f"{s}.{k} = {_toml_value(default[s][k])}" for s, k in missing
+           if f"{s}.{k}" not in NO_OP_DEFAULTS or not NO_OP_DEFAULTS[f"{s}.{k}"](default[s][k], filled)]
+    if bad:
+        raise ExperimentError("the source experiment predates settings whose current default is not a no-op, "
+                              f"so it cannot be reused unchanged: {', '.join(bad[:8])}. Give them with --set "
+                              "or start from an experiment stored after they were added.")
+    for s, k in missing:
+        data.setdefault(s, {})[k] = default[s][k]
+    return [f"{s}.{k}" for s, k in missing]
+
+
+def load(exp_id: str, source: str, paths_cfg: dict, repo_root: Path = REPO_ROOT,
+         fill_new: bool = False) -> Experiment:
+    """The stored experiment. fill_new (exp new --from): settings added after it was
+    stored are filled from the current defaults if they are no-op defaults (fill_missing);
+    meta["filled_from_defaults"] lists them."""
     _check_id(exp_id)
     d = area_dir(source, paths_cfg, repo_root) / exp_id
     path = d / "config.toml"
@@ -93,6 +134,11 @@ def load(exp_id: str, source: str, paths_cfg: dict, repo_root: Path = REPO_ROOT)
     if not meta or meta.get("source") != source or meta.get("id") != exp_id:
         raise ExperimentError(f"{path}: the [experiment] section does not match id {exp_id}, source {source}")
     default = Config.load().snapshot()
+    if fill_new:
+        try:
+            meta["filled_from_defaults"] = fill_missing(data, default)
+        except ExperimentError as err:
+            raise ExperimentError(f"{path}: {err}") from None
     missing = [f"{s}.{k}" for s, vals in default.items() for k in vals if k not in data.get(s, {})]
     if missing:
         raise ExperimentError(f"{path}: not every setting is stored, missing {', '.join(missing[:8])}")
@@ -129,6 +175,11 @@ def create(exp_id: str, *, source: str, videos: list[str], paths_cfg: dict, titl
     meta = {"id": exp_id, "title": title, "kind": kind, "source": source, "videos": rel_videos,
             "repeats": repeats, "reference": reference, "gpu": gpu, "variant": cfg["pose"]["variant"], "gt": gt,
             "from": base.id if base is not None else "", "created_utc": utc_now()}
+    filled = base.meta.get("filled_from_defaults", []) if base is not None else []
+    if filled:
+        from .provenance import git_state
+        meta["filled_from_defaults"] = filled
+        meta["filled_at_commit"] = git_state(repo_root).get("commit") or ""
     d.mkdir(parents=True, exist_ok=True)
     (d / "config.toml").write_text(config_text(meta, cfg.snapshot()))
     return Experiment(exp_id, d, meta, cfg.snapshot())

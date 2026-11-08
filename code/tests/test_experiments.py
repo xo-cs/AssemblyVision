@@ -97,6 +97,40 @@ class RegistryTest(unittest.TestCase):
                           exp.settings["overlay"]["workers"]), (16, True, 4))
         self.assertEqual(exp.meta["from"], "w10-ref")
 
+    def strip(self, exp, *keys):
+        text = (exp.dir / "config.toml").read_text()
+        for k in keys:
+            text, n = re.subn(rf"\n{k} = [^\n]*\n", "\n", text, count=1)
+            self.assertEqual(n, 1, k)
+        (exp.dir / "config.toml").write_text(text)
+
+    def test_from_fills_settings_added_later_when_they_are_no_ops(self):
+        old = self.new()
+        self.strip(old, "hip_calibration", "calibration_from")              # stored before these keys existed
+        with self.assertRaises(reg.ExperimentError):
+            reg.load("w10-ref", "public", self.pc, self.root)                # a plain load stays strict
+        base = reg.load("w10-ref", "public", self.pc, self.root, fill_new=True)
+        self.assertEqual(base.meta["filled_from_defaults"], ["engine_b.hip_calibration", "engine_b.calibration_from"])
+        exp = self.new("w10-new", base=base)
+        stored = reg.load("w10-new", "public", self.pc, self.root)
+        self.assertFalse(stored.settings["engine_b"]["hip_calibration"])
+        self.assertEqual(stored.meta["filled_from_defaults"], ["engine_b.hip_calibration", "engine_b.calibration_from"])
+        self.assertIn("filled_at_commit", stored.meta)
+        self.assertIn("filled_from_defaults", (exp.dir / "config.toml").read_text())
+
+    def test_from_refuses_a_missing_setting_that_is_not_a_no_op(self):
+        old = self.new()
+        self.strip(old, "batch")                                             # pose.batch: not a known no-op
+        with self.assertRaises(reg.ExperimentError) as cm:
+            reg.load("w10-ref", "public", self.pc, self.root, fill_new=True)
+        self.assertIn("pose.batch = 8", str(cm.exception))
+        self.assertIn("not a no-op", str(cm.exception))
+        old2 = self.new("w10-eb", sets={"seg_a": {"engine_b_weight": 0.4}})
+        self.strip(old2, "pool_s")                                           # a no-op only while the weight is 0
+        with self.assertRaises(reg.ExperimentError) as cm:
+            reg.load("w10-eb", "public", self.pc, self.root, fill_new=True)
+        self.assertIn("engine_b.pool_s = 30.0", str(cm.exception))
+
     def test_bad_values_and_ids_are_refused(self):
         with self.assertRaises(AvError):
             self.new(sets={"pose": {"batch": 0}})
