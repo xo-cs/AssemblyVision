@@ -111,7 +111,7 @@ class RegistryTest(unittest.TestCase):
     def test_incomplete_config_is_refused(self):
         exp = self.new()
         text = (exp.dir / "config.toml").read_text()
-        (exp.dir / "config.toml").write_text(re.sub(r"\nbatch = 1\n", "\n", text, count=1))
+        (exp.dir / "config.toml").write_text(re.sub(r"\nbatch = \d+\n", "\n", text, count=1))
         with self.assertRaises(reg.ExperimentError) as cm:
             reg.load("w10-ref", "public", self.pc, self.root)
         self.assertIn("pose.batch", str(cm.exception))

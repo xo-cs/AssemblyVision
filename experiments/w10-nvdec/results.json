@@ -559,7 +559,149 @@
           "differences": 27,
           "max_rel_delta": 1.0,
           "null_changes": 1,
-          "flag_changes": 3
+          "flag_changes": 3,
+          "changes": [
+            {
+              "metric": "A-0006 repetition_count",
+              "reference": 14.6258,
+              "candidate": 0.0,
+              "abs_delta": -14.6258,
+              "rel_delta": 1.0
+            },
+            {
+              "metric": "A-0006 repetition_share",
+              "reference": 0.142857,
+              "candidate": 0.0,
+              "abs_delta": -0.142857,
+              "rel_delta": 1.0
+            },
+            {
+              "metric": "A-0004 idle_share",
+              "reference": 0.34137,
+              "candidate": 0.288219,
+              "abs_delta": -0.053151,
+              "rel_delta": 0.1557
+            },
+            {
+              "metric": "A-0004 idle_time_s",
+              "reference": 20.7667,
+              "candidate": 17.5333,
+              "abs_delta": -3.2334,
+              "rel_delta": 0.1557
+            },
+            {
+              "metric": "A-0010 idle_share",
+              "reference": 0.219586,
+              "candidate": 0.251825,
+              "abs_delta": 0.032239,
+              "rel_delta": 0.128
+            },
+            {
+              "metric": "A-0010 idle_time_s",
+              "reference": 12.0333,
+              "candidate": 13.8,
+              "abs_delta": 1.7667,
+              "rel_delta": 0.128
+            },
+            {
+              "metric": "A-0006 hand_travel_l",
+              "reference": 889.044,
+              "candidate": 994.542,
+              "abs_delta": 105.498,
+              "rel_delta": 0.1061
+            },
+            {
+              "metric": "A-0006 hand_travel_l_torso",
+              "reference": 6.83463,
+              "candidate": 7.30532,
+              "abs_delta": 0.47069,
+              "rel_delta": 0.0644
+            },
+            {
+              "metric": "A-0010 hand_travel_r_torso",
+              "reference": 4.25963,
+              "candidate": 4.05265,
+              "abs_delta": -0.20698,
+              "rel_delta": 0.0486
+            },
+            {
+              "metric": "A-0006 hand_travel_r_torso",
+              "reference": 11.1236,
+              "candidate": 10.6925,
+              "abs_delta": -0.4311,
+              "rel_delta": 0.0388
+            },
+            {
+              "metric": "A-0002 two_hand_speed_corr",
+              "reference": 0.337827,
+              "candidate": 0.350171,
+              "abs_delta": 0.012344,
+              "rel_delta": 0.0353
+            },
+            {
+              "metric": "A-0010 hand_travel_l_torso",
+              "reference": 2.99787,
+              "candidate": 2.89651,
+              "abs_delta": -0.10136,
+              "rel_delta": 0.0338
+            },
+            {
+              "metric": "A-0002 hand_travel_r",
+              "reference": 3546.83,
+              "candidate": 3467.32,
+              "abs_delta": -79.51,
+              "rel_delta": 0.0224
+            },
+            {
+              "metric": "A-0010 hand_travel_r",
+              "reference": 735.732,
+              "candidate": 719.546,
+              "abs_delta": -16.186,
+              "rel_delta": 0.022
+            },
+            {
+              "metric": "A-0006 idle_time_s",
+              "reference": 25.3,
+              "candidate": 24.7667,
+              "abs_delta": -0.5333,
+              "rel_delta": 0.0211
+            },
+            {
+              "metric": "A-0004 two_hand_use_ratio",
+              "reference": 0.757637,
+              "candidate": 0.742455,
+              "abs_delta": -0.015182,
+              "rel_delta": 0.02
+            },
+            {
+              "metric": "A-0002 hand_travel_r_torso",
+              "reference": 21.4699,
+              "candidate": 21.0462,
+              "abs_delta": -0.4237,
+              "rel_delta": 0.0197
+            },
+            {
+              "metric": "A-0008 hand_travel_r",
+              "reference": 1083.34,
+              "candidate": 1104.69,
+              "abs_delta": 21.35,
+              "rel_delta": 0.0193
+            },
+            {
+              "metric": "A-0010 bend_b1_s",
+              "reference": 2.06667,
+              "candidate": 2.03333,
+              "abs_delta": -0.03334,
+              "rel_delta": 0.0161
+            },
+            {
+              "metric": "A-0002 two_hand_use_ratio",
+              "reference": 0.948636,
+              "candidate": 0.935897,
+              "abs_delta": -0.012739,
+              "rel_delta": 0.0134
+            }
+          ]
         },
         "verdict": "different"
       },
@@ -580,6 +722,92 @@
           "track_changes_per_frame 0.418885 above the floor 0.003367",
           "metric_max_rel_delta 1.0 above the floor 0.0301",
           "metrics: 1 NULL decisions and 3 flags changed"
+        ],
+        "metrics_above_floor": [
+          {
+            "metric": "A-0006 repetition_count",
+            "reference": 14.6258,
+            "candidate": 0.0,
+            "abs_delta": -14.6258,
+            "rel_delta": 1.0
+          },
+          {
+            "metric": "A-0006 repetition_share",
+            "reference": 0.142857,
+            "candidate": 0.0,
+            "abs_delta": -0.142857,
+            "rel_delta": 1.0
+          },
+          {
+            "metric": "A-0004 idle_share",
+            "reference": 0.34137,
+            "candidate": 0.288219,
+            "abs_delta": -0.053151,
+            "rel_delta": 0.1557
+          },
+          {
+            "metric": "A-0004 idle_time_s",
+            "reference": 20.7667,
+            "candidate": 17.5333,
+            "abs_delta": -3.2334,
+            "rel_delta": 0.1557
+          },
+          {
+            "metric": "A-0010 idle_share",
+            "reference": 0.219586,
+            "candidate": 0.251825,
+            "abs_delta": 0.032239,
+            "rel_delta": 0.128
+          },
+          {
+            "metric": "A-0010 idle_time_s",
+            "reference": 12.0333,
+            "candidate": 13.8,
+            "abs_delta": 1.7667,
+            "rel_delta": 0.128
+          },
+          {
+            "metric": "A-0006 hand_travel_l",
+            "reference": 889.044,
+            "candidate": 994.542,
+            "abs_delta": 105.498,
+            "rel_delta": 0.1061
+          },
+          {
+            "metric": "A-0006 hand_travel_l_torso",
+            "reference": 6.83463,
+            "candidate": 7.30532,
+            "abs_delta": 0.47069,
+            "rel_delta": 0.0644
+          },
+          {
+            "metric": "A-0010 hand_travel_r_torso",
+            "reference": 4.25963,
+            "candidate": 4.05265,
+            "abs_delta": -0.20698,
+            "rel_delta": 0.0486
+          },
+          {
+            "metric": "A-0006 hand_travel_r_torso",
+            "reference": 11.1236,
+            "candidate": 10.6925,
+            "abs_delta": -0.4311,
+            "rel_delta": 0.0388
+          },
+          {
+            "metric": "A-0002 two_hand_speed_corr",
+            "reference": 0.337827,
+            "candidate": 0.350171,
+            "abs_delta": 0.012344,
+            "rel_delta": 0.0353
+          },
+          {
+            "metric": "A-0010 hand_travel_l_torso",
+            "reference": 2.99787,
+            "candidate": 2.89651,
+            "abs_delta": -0.10136,
+            "rel_delta": 0.0338
+          }
         ]
       }
     },
@@ -1031,7 +1259,51 @@
           "differences": 7,
           "max_rel_delta": 0.0526,
           "null_changes": 0,
-          "flag_changes": 0
+          "flag_changes": 0,
+          "changes": [
+            {
+              "metric": "A-0001 two_hand_simultaneous",
+              "reference": 0.419608,
+              "candidate": 0.442886,
+              "abs_delta": 0.023278,
+              "rel_delta": 0.0526
+            },
+            {
+              "metric": "A-0001 two_hand_use_ratio",
+              "reference": 0.668203,
+              "candidate": 0.698113,
+              "abs_delta": 0.02991,
+              "rel_delta": 0.0428
+            },
+            {
+              "metric": "A-0001 idle_time_s",
+              "reference": 7.32,
+              "candidate": 7.36,
+              "abs_delta": 0.04,
+              "rel_delta": 0.0054
+            },
+            {
+              "metric": "A-0001 hand_travel_l_torso",
+              "reference": 11.8098,
+              "candidate": 11.8469,
+              "abs_delta": 0.0371,
+              "rel_delta": 0.0031
+            },
+            {
+              "metric": "A-0001 hand_travel_l",
+              "reference": 4978.47,
+              "candidate": 4992.64,
+              "abs_delta": 14.17,
+              "rel_delta": 0.0028
+            },
+            {
+              "metric": "A-0001 hand_travel_r",
+              "reference": 7229.36,
+              "candidate": 7228.5,
+              "abs_delta": -0.86,
+              "rel_delta": 0.0001
+            }
+          ]
         },
         "verdict": "different"
       },
@@ -1051,10 +1323,26 @@
           "not_within_1px_share 1.0 above the floor 0.016835",
           "track_changes_per_frame 1.757576 above the floor 0.003367",
           "metric_max_rel_delta 0.0526 above the floor 0.0301"
+        ],
+        "metrics_above_floor": [
+          {
+            "metric": "A-0001 two_hand_simultaneous",
+            "reference": 0.419608,
+            "candidate": 0.442886,
+            "abs_delta": 0.023278,
+            "rel_delta": 0.0526
+          },
+          {
+            "metric": "A-0001 two_hand_use_ratio",
+            "reference": 0.668203,
+            "candidate": 0.698113,
+            "abs_delta": 0.02991,
+            "rel_delta": 0.0428
+          }
         ]
       }
     }
   },
   "finished_utc": "2026-11-06T08:15:28Z",
-  "rechecked_utc": "2026-11-07T21:46:24Z"
+  "rechecked_utc": "2026-11-08T10:57:10Z"
 }

@@ -396,17 +396,19 @@ def compare_run(manifest: dict, root: Path, source: str, cfg: Config, spec: str,
                      "mapping": mapping, "notices": mctx.notices,
                      "phases": f"{rep.get('phases_found')}/{rep.get('phases_expected')}" if rep.get("mode") == "phases"
                      else rep.get("mode"),
+                     "engine_b_rate": (f"{rep['engine_b'].get('peaks_per_min_raw')}/{rep['engine_b'].get('peaks_per_min_pooled')}"
+                                       if rep.get("engine_b", {}).get("on") else "-"),
                      "steps": [(s.label, s.start_s, s.end_s) for s in steps if s.label != "other"]})
     return rows
 
 
 def format_compare(rows: list[dict]) -> str:
     f1 = [k for k in rows[0]["metrics"] if k.startswith("f1_")]
-    head = ["setting", "frame acc", "edit", *[f"F1@{k[3:]}" for k in f1], "MAE s", "phases"]
+    head = ["setting", "frame acc", "edit", *[f"F1@{k[3:]}" for k in f1], "MAE s", "phases", "B peaks/min raw/pooled"]
     body = [[r["setting"], f"{r['metrics']['frame_accuracy']:.2f}", f"{r['metrics']['edit']:.2f}",
              *[f"{r['metrics'][k]:.2f}" for k in f1],
              "n/a" if r["metrics"]["boundary_mae_s"] is None else f"{r['metrics']['boundary_mae_s']:.2f}",
-             str(r["phases"])] for r in rows]
+             str(r["phases"]), r.get("engine_b_rate", "-")] for r in rows]
     w = [max(len(x[i]) for x in [head, *body]) for i in range(len(head))]
     lines = ["  ".join(x[i].ljust(w[i]) for i in range(len(head))) for x in [head, *body]]
     lines.insert(1, "  ".join("-" * n for n in w))

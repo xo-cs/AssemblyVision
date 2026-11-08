@@ -216,7 +216,7 @@ class SpeedOptionsTest(unittest.TestCase):
 
     def test_overlap_pose_needs_reference_in_pass(self):
         with self.assertRaises(AvError):
-            Config.load(overrides={"track": {"overlap_pose": True}})
+            Config.load(overrides={"track": {"overlap_pose": True}, "pose": {"reference_in_pass": False}})
         Config.load(overrides={"track": {"overlap_pose": True}, "pose": {"reference_in_pass": True}})
 
 
@@ -279,7 +279,7 @@ class ChunkedOverlayTest(unittest.TestCase):
         self.assertEqual(len(overlay.chunk_bounds(0, 40, 8, [])), 1)       # too short to split
 
     def test_parallel_overlay_file_has_every_frame(self):
-        cfg = Config.load(overrides={"overlay": {"workers": 3}})
+        cfg = Config.load(overrides={"overlay": {"workers": 3, "encoder": "libx264"}})
         out = overlay.render_track_overlay(self.video, self.shots, self.items, self.ctx.paths.tracks_overlay, 10.0,
                                            cfg, self.ctx, steps=self.steps, hud=self.hud)
         cap = cv2.VideoCapture(str(out))

@@ -13,6 +13,8 @@ Noise floor (w10-ref-notf32 against w10-ref, measured 2026-11-07):
 | track_changes_per_frame | 0.003367 | 0.002193 / 0.003367 |
 | metric_max_rel_delta | 0.0301 | 0.0301 / 0.0012 |
 
+Default profile (decision of 2026-11-08): the w10-best-b8 settings (pose batch 8, TF32), recorded as **above the noise floor; Engine A steps, NULL decisions and flags identical** (the metric changes above the floor are listed with their absolute values in w10_summary.md). Accuracy checks use configs/reference.toml (batch 1, strict FP32, the w10-ref-notf32 settings). The QiSens run w10-qisens-b8 decides whether this default stays.
+
 | id | date | title | per video: full run median s, pose fps, mean GPU util %, peak GPU MB | verdict |
 | --- | --- | --- | --- | --- |
 | [w10-b16](w10-b16/table.md) | 2026-11-06 | pose batch 16, FP32 | process_480p30.mp4: 175.8 s, 108.2 fps, 44.4 %, 2717 MB<br>12981262_1920_1080_25fps.mp4: 62.5 s, 84.3 fps, 21.6 %, 2717 MB | different |
@@ -22,6 +24,10 @@ Noise floor (w10-ref-notf32 against w10-ref, measured 2026-11-07):
 | [w10-b8-notf32](w10-b8-notf32/table.md) | 2026-11-07 | pose batch 8, strict FP32 (TF32 off) | process_480p30.mp4: 284.2 s, 50.0 fps, 66.0 %, 6685 MB<br>12981262_1920_1080_25fps.mp4: 81.8 s, 45.2 fps, 39.7 %, 6685 MB | within noise |
 | [w10-best](w10-best/table.md) | 2026-11-06 | equivalent winners combined (batch 1, FP32) | process_480p30.mp4: 192.7 s, 66.4 fps, 46.6 %, 1881 MB<br>12981262_1920_1080_25fps.mp4: 63.1 s, 60.3 fps, 27.0 %, 2020 MB | equivalent |
 | [w10-best-b8](w10-best-b8/table.md) | 2026-11-07 | proposal (speed_proposed.toml) at pose batch 8, FP32 | process_480p30.mp4: 134.7 s, 108.4 fps, 54.9 %, 2793 MB<br>12981262_1920_1080_25fps.mp4: 50.2 s, 94.3 fps, 28.8 %, 2932 MB | different |
+| [w10-engine-b-firing](w10-engine-b-firing/table.md) | 2026-11-08 | Engine B firing rate on the HA4M test subjects (w10-engine-b-v0) | true 10.87 changes/min; peaks/min pool 0 s: 11.3, pool 2 s: 8.93, pool 5 s: 3.86, pool 10 s: 2.13, pool 30 s: 0.88, pool 60 s: 0.69 | measurement |
+| [w10-engine-b-pool](w10-engine-b-pool/table.md) | 2026-11-08 | Engine B weight and pool window | chosen engine_b.pool_s = 30, seg_a.engine_b_weight = 0.4 (process clip unchanged, frame acc 92.33; shots_check frame acc 30.04 to 46.11) | measurement |
+| [w10-engine-b-v0](w10-engine-b-v0/table.md) | 2026-11-08 | Engine B v0: MS TCN boundary scorer, HA4M | cross subject: boundary F1@0.2 s 0.7471 (P 0.7329, R 0.7618)<br>cross subject: boundary F1@0.5 s 0.8916 (P 0.8747, R 0.9092)<br>cross location, test lab_a: F1@0.2 s 0.6294, F1@0.5 s 0.7876<br>cross location, test lab_b: F1@0.2 s 0.5454, F1@0.5 s 0.7549 | measurement |
+| [w10-engine-b-v0-hipcal](w10-engine-b-v0-hipcal/table.md) | 2026-11-08 | Engine B v0 with hip calibration | cross subject: boundary F1@0.2 s 0.7447 (P 0.7291, R 0.7609)<br>cross subject: boundary F1@0.5 s 0.8872 (P 0.8686, R 0.9066)<br>cross location, test lab_a: F1@0.2 s 0.6312, F1@0.5 s 0.7833<br>cross location, test lab_b: F1@0.2 s 0.5348, F1@0.5 s 0.7506 | measurement |
 | [w10-ha4m-domain-gap](w10-ha4m-domain-gap/table.md) | 2026-11-07 | Domain gap: YOLO26 x against the HA4M Kinect 2D joints, one video per lab | IDU001V001 (lab_a): found 1.0, PCK@0.1 0.8682, 45.7 px<br>IDU023V001 (lab_b): found 1.0, PCK@0.1 0.8316, 30.89 px | measurement |
 | [w10-nvdec](w10-nvdec/table.md) | 2026-11-06 | ffmpeg NVDEC reader (batch 1) | process_480p30.mp4: 230.0 s, 67.6 fps, 42.1 %, 1214 MB<br>12981262_1920_1080_25fps.mp4: 72.4 s, 58.2 fps, 23.1 %, 1305 MB | different |
 | [w10-ovl-nvenc](w10-ovl-nvenc/table.md) | 2026-11-06 | overlay encoder h264_nvenc | process_480p30.mp4: 223.0 s, 66.8 fps, 42.7 %, 1206 MB<br>12981262_1920_1080_25fps.mp4: 64.2 s, 62.1 fps, 26.5 %, 1241 MB | equivalent |

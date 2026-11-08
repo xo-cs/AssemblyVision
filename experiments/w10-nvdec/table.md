@@ -137,6 +137,18 @@ Within numerical noise: **no** (measures not_within_1px_share 0.872713, track_ch
 - track_changes_per_frame 0.418885 above the floor 0.003367
 - metric_max_rel_delta 1.0 above the floor 0.0301
 - metrics: 1 NULL decisions and 3 flags changed
+- above the floor: A-0006 repetition_count 14.6258 to 0 (-14.6258, 100.0 %)
+- above the floor: A-0006 repetition_share 0.142857 to 0 (-0.142857, 100.0 %)
+- above the floor: A-0004 idle_share 0.34137 to 0.288219 (-0.053151, 15.6 %)
+- above the floor: A-0004 idle_time_s 20.7667 to 17.5333 (-3.2334, 15.6 %)
+- above the floor: A-0010 idle_share 0.219586 to 0.251825 (+0.032239, 12.8 %)
+- above the floor: A-0010 idle_time_s 12.0333 to 13.8 (+1.7667, 12.8 %)
+- above the floor: A-0006 hand_travel_l 889.044 to 994.542 (+105.498, 10.6 %)
+- above the floor: A-0006 hand_travel_l_torso 6.83463 to 7.30532 (+0.47069, 6.4 %)
+- above the floor: A-0010 hand_travel_r_torso 4.25963 to 4.05265 (-0.20698, 4.9 %)
+- above the floor: A-0006 hand_travel_r_torso 11.1236 to 10.6925 (-0.4311, 3.9 %)
+- above the floor: A-0002 two_hand_speed_corr 0.337827 to 0.350171 (+0.012344, 3.5 %)
+- above the floor: A-0010 hand_travel_l_torso 2.99787 to 2.89651 (-0.10136, 3.4 %)
 
 ## 12981262_1920_1080_25fps.mp4 (3 repeats, medians)
 
@@ -210,3 +222,5 @@ Within numerical noise: **no** (measures not_within_1px_share 1.0, track_changes
 - not_within_1px_share 1.0 above the floor 0.016835
 - track_changes_per_frame 1.757576 above the floor 0.003367
 - metric_max_rel_delta 0.0526 above the floor 0.0301
+- above the floor: A-0001 two_hand_simultaneous 0.419608 to 0.442886 (+0.023278, 5.3 %)
+- above the floor: A-0001 two_hand_use_ratio 0.668203 to 0.698113 (+0.02991, 4.3 %)

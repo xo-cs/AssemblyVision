@@ -1,4 +1,5 @@
-# Week 10 speed proposal (a layer over default.toml, NOT the default).
+# Week 10 speed proposal (a layer over default.toml). Since 2026-11-08 these settings and
+# pose batch 8 are the default, so this layer now only sets pose.batch back to 1 (w10-best).
 # Use: run_pose ... --config configs/speed_proposed.toml
 # Only options whose output was equivalent to w10-ref on both public clips
 # (pose within 1 px, same tracking, steps and metrics): experiments w10-prefetch,
@@ -7,6 +8,7 @@
 # experiments/INDEX.md). shots.motion_seek is left off: equivalent but not faster.
 
 [pose]
+batch = 1                    # w10-best (batch 8 is the default now)
 decode = "prefetch"          # frames read in a thread ahead of the model
 reference_in_pass = true     # reference frames from the pose pass (no second decode)
 

@@ -83,6 +83,8 @@ Within numerical noise: **no** (measures not_within_1px_share 0.025104, track_ch
 - not_within_1px_share 0.025104 above the floor 0.016835
 - track_changes_per_frame 0.007455 above the floor 0.003367
 - metric_max_rel_delta 0.0744 above the floor 0.0301
+- above the floor: A-0010 idle_share 0.219586 to 0.237226 (+0.01764, 7.4 %)
+- above the floor: A-0010 idle_time_s 12.0333 to 13 (+0.9667, 7.4 %)
 
 ## 12981262_1920_1080_25fps.mp4 (3 repeats, medians)
 

@@ -24,7 +24,9 @@ candidate gets strength += engine_b_weight * the highest such value within
 seg_a.engine_b_window_s of it. With seg_a.engine_b_candidates the peaks of the
 pooled probability (engine_b.peak_threshold, at least max(peak_min_gap_s,
 pool_s) apart, not near another candidate) become extra point candidates of
-kind engine_b with strength engine_b_weight * value.
+kind engine_b with strength engine_b_weight * value. The report gives the firing rate:
+peaks per minute of the raw probability and of the pooled, normalized evidence
+(engine_b.peak_threshold; gap peak_min_gap_s, and max(peak_min_gap_s, pool_s) pooled).
 
 Phase mode (steps.step not empty): K phases in the order of steps.toml, each
 at most once and never backwards. Leading and trailing stretches without a
@@ -162,6 +164,12 @@ class RuleBasedEngine(SegmentationEngine):
                 if not a < f < b or any(p - w <= f <= q + w for p, q in taken + empty):
                     continue
                 ev.append(Evidence(f, f, "engine_b", 0.0))
+        e_cfg, minutes = self.cfg["engine_b"], max((b - a) / tl.fps / 60.0, 1e-9)
+        g_raw = int(round(e_cfg["peak_min_gap_s"] * tl.fps))
+        g_pool = int(round(max(e_cfg["peak_min_gap_s"], e_cfg["pool_s"]) * tl.fps))
+        self._b_rate = {"peaks_per_min_raw": round(len(peaks(np.nan_to_num(raw[a:b]), e_cfg["peak_threshold"], g_raw))
+                                                   / minutes, 2),
+                        "peaks_per_min_pooled": round(len(peaks(val[a:b], e_cfg["peak_threshold"], g_pool)) / minutes, 2)}
         for e in ev:
             if e.kind == "no_person":
                 continue
@@ -302,6 +310,7 @@ class RuleBasedEngine(SegmentationEngine):
         idx = np.flatnonzero(tl.person)
         rep = {"engine": "A", "vocabulary": self.vocabulary, "fps": tl.fps, "duration_s": round(tl.duration_s, 3)}
         self.report = rep
+        self._b_rate = {}
         if len(idx) == 0:
             rep.update(mode="phases" if self.vocabulary else "fallback", phases_expected=len(self.vocabulary),
                        phases_found=0, note="no person in the whole run", evidence=[])
@@ -347,7 +356,7 @@ class RuleBasedEngine(SegmentationEngine):
             rep["engine_b"] = {"on": tl.boundary_prob is not None, "engine_b_weight": self.s["engine_b_weight"],
                                "pool_s": self.cfg["engine_b"]["pool_s"], "norm": self.s["engine_b_norm"],
                                "window_s": self.s["engine_b_window_s"], "candidates": self.s["engine_b_candidates"],
-                               **tl.boundary_info}
+                               **getattr(self, "_b_rate", {}), **tl.boundary_info}
         rep["evidence_counts"] = {k: sum(e.kind == k for e in ev)
                                   for k in ("no_person", "cut_pause", "pause", "cut",
                                             *(("engine_b",) if self.s["engine_b_weight"] > 0 else ()), "forced")}

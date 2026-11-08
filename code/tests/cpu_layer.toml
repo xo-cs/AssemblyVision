@@ -1,0 +1,4 @@
+# Test layer (tests/helpers.py adds it to the default layers): the overlay is encoded on the
+# CPU, so the unit tests never use the GPU encoder of the default profile.
+[overlay]
+encoder = "libx264"

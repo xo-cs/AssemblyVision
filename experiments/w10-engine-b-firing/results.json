@@ -1,0 +1,154 @@
+{
+  "id": "w10-engine-b-firing",
+  "kind": "engine_b_firing",
+  "source": "public",
+  "title": "Engine B firing rate on the HA4M test subjects (w10-engine-b-v0)",
+  "reference": "w10-engine-b-v0",
+  "data": {
+    "videos": 65,
+    "minutes": 107.38,
+    "mean_video_s": 99.1,
+    "true_changes": 1167,
+    "true_changes_per_min": 10.87,
+    "model": {
+      "file": "models/engine_b/w10-engine-b-v0.pt",
+      "sha256": "d8c7e3f073661f7e93d37e98ef736d269150b2d0a55ab270c16155e3e998650d",
+      "parameters": 334082
+    },
+    "hip_calibration": false
+  },
+  "rows": [
+    {
+      "pool_s": 0.0,
+      "peaks": 1213,
+      "peaks_per_min": 11.3,
+      "f1": {
+        "0.2": 0.7471,
+        "0.5": 0.8916,
+        "2": 0.9479
+      },
+      "precision": {
+        "0.2": 0.7329,
+        "0.5": 0.8747,
+        "2": 0.9299
+      },
+      "recall": {
+        "0.2": 0.7618,
+        "0.5": 0.9092,
+        "2": 0.9666
+      }
+    },
+    {
+      "pool_s": 2.0,
+      "peaks": 959,
+      "peaks_per_min": 8.93,
+      "f1": {
+        "0.2": 0.4704,
+        "0.5": 0.6651,
+        "2": 0.873
+      },
+      "precision": {
+        "0.2": 0.5214,
+        "0.5": 0.7372,
+        "2": 0.9677
+      },
+      "recall": {
+        "0.2": 0.4284,
+        "0.5": 0.6058,
+        "2": 0.7952
+      }
+    },
+    {
+      "pool_s": 5.0,
+      "peaks": 414,
+      "peaks_per_min": 3.86,
+      "f1": {
+        "0.2": 0.067,
+        "0.5": 0.1379,
+        "2": 0.4731
+      },
+      "precision": {
+        "0.2": 0.128,
+        "0.5": 0.2633,
+        "2": 0.9034
+      },
+      "recall": {
+        "0.2": 0.0454,
+        "0.5": 0.0934,
+        "2": 0.3205
+      }
+    },
+    {
+      "pool_s": 10.0,
+      "peaks": 229,
+      "peaks_per_min": 2.13,
+      "f1": {
+        "0.2": 0.0473,
+        "0.5": 0.1203,
+        "2": 0.2679
+      },
+      "precision": {
+        "0.2": 0.1441,
+        "0.5": 0.3668,
+        "2": 0.8166
+      },
+      "recall": {
+        "0.2": 0.0283,
+        "0.5": 0.072,
+        "2": 0.1602
+      }
+    },
+    {
+      "pool_s": 30.0,
+      "peaks": 95,
+      "peaks_per_min": 0.88,
+      "f1": {
+        "0.2": 0.0206,
+        "0.5": 0.0396,
+        "2": 0.1315
+      },
+      "precision": {
+        "0.2": 0.1368,
+        "0.5": 0.2632,
+        "2": 0.8737
+      },
+      "recall": {
+        "0.2": 0.0111,
+        "0.5": 0.0214,
+        "2": 0.0711
+      }
+    },
+    {
+      "pool_s": 60.0,
+      "peaks": 74,
+      "peaks_per_min": 0.69,
+      "f1": {
+        "0.2": 0.0145,
+        "0.5": 0.0306,
+        "2": 0.1064
+      },
+      "precision": {
+        "0.2": 0.1216,
+        "0.5": 0.2568,
+        "2": 0.8919
+      },
+      "recall": {
+        "0.2": 0.0077,
+        "0.5": 0.0163,
+        "2": 0.0566
+      }
+    }
+  ],
+  "provenance": {
+    "date_utc": "2026-11-08T11:10:23Z",
+    "command": "/home/qisens/AssemblyVision/code/assemblyvision/tools/engine_b_firing.py --id w10-engine-b-firing --model w10-engine-b-v0 --pool 0,2,5,10,30,60",
+    "data_area": "public"
+  },
+  "finished_utc": "2026-11-08T11:10:23Z",
+  "index": {
+    "cells": [
+      "true 10.87 changes/min; peaks/min pool 0 s: 11.3, pool 2 s: 8.93, pool 5 s: 3.86, pool 10 s: 2.13, pool 30 s: 0.88, pool 60 s: 0.69"
+    ],
+    "verdict": "measurement"
+  }
+}

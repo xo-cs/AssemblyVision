@@ -109,7 +109,10 @@ equivalent only if the pose output stays within 1 px (confidences within 0.01) a
 tracking, the Engine A steps and the motion metrics are unchanged. The weaker verdict
 "equivalent within numerical noise" allows differences no larger than the measured noise
 floor of TF32 against strict FP32 at batch 1 (`exp noise-floor`, `experiments/noise_floor.json`;
-the rule is at the top of `experiments/INDEX.md`). Public experiments are
+the rule is at the top of `experiments/INDEX.md`; metrics above the floor are listed with their
+absolute values). The default profile is the w10-best-b8 setting (pose batch 8, TF32), which is
+above that floor with identical Engine A steps, NULL decisions and flags; accuracy checks use
+`--config configs/reference.toml` (batch 1, strict FP32). Public experiments are
 tracked in git. A QiSens experiment (`--source qisens`) keeps its config and results under
 `data/qisens/experiments/` only; just an approved summary row is added to `experiments/`.
 
@@ -143,10 +146,20 @@ interface and a BVH reader; its data is not downloaded until access is granted.
 The model (`analysis/segmentation/boundary_tcn.py`) is a 2 stage MS TCN on the 55 features at
 10 fps that gives a boundary probability per frame (targets: Gaussian bumps of sigma
 `boundaries.tol_s` on every action change, weighted BCE). In Engine A it is one more evidence
-term of the DP, off by default (`seg_a.engine_b_weight = 0`), pooled over `engine_b.pool_s`:
+term of the DP, off by default (`seg_a.engine_b_weight = 0`), pooled over `engine_b.pool_s` (30 s, chosen
+on public runs in w10-engine-b-pool together with the weight 0.4 to try):
+
+`engine_b.hip_calibration` (off by default) first moves every Kinect joint by the mean YOLO26 x
+offset of that joint over both labs (w10-ha4m-domain-gap). `--folds` adds the cross location folds
+(one model each). `engine_b_firing` gives the peaks per minute against the true change rate per pool
+window; the compare table shows the same rate on a run ("B peaks/min raw/pooled").
 
 ```bash
-python -m assemblyvision.tools.train_engine_b --id w10-engine-b-v0 --gpu 0      # GPU job
+python -m assemblyvision.tools.train_engine_b --id w10-engine-b-v0 --gpu 0 \
+    --folds cross_subject,cross_location_test_lab_a,cross_location_test_lab_b   # GPU job
+python -m assemblyvision.tools.engine_b_firing --id w10-engine-b-firing --model w10-engine-b-v0   # CPU
+python -m assemblyvision.tools.engine_b_grid --id w10-engine-b-pool --model engine_b/w10-engine-b-v0.pt \
+    --run ../data/public/runs/RUN --gt ../data/public/videos/CLIP_gt.csv     # CPU, public runs only
 python -m assemblyvision.tools.run_pose --run RUN_DIR --gt GT_CSV --compare seg_a.engine_b_weight \
     --set engine_b.model='"engine_b/w10-engine-b-v0.pt"'                       # CPU, writes nothing
 python -m assemblyvision.tools.run_pose --run RUN_DIR --gt GT_CSV --compare engine_b.pool_s=0,10,30,60 \

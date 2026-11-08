@@ -502,7 +502,149 @@
           "differences": 4,
           "max_rel_delta": 0.0301,
           "null_changes": 0,
-          "flag_changes": 0
+          "flag_changes": 0,
+          "changes": [
+            {
+              "metric": "A-0006 repetition_count",
+              "reference": 14.6258,
+              "candidate": 15.08,
+              "abs_delta": 0.4542,
+              "rel_delta": 0.0301
+            },
+            {
+              "metric": "A-0006 repetition_period_s",
+              "reference": 0.683725,
+              "candidate": 0.663132,
+              "abs_delta": -0.020593,
+              "rel_delta": 0.0301
+            },
+            {
+              "metric": "A-0010 hand_travel_l_torso",
+              "reference": 2.99787,
+              "candidate": 2.94857,
+              "abs_delta": -0.0493,
+              "rel_delta": 0.0164
+            },
+            {
+              "metric": "A-0010 hand_travel_l",
+              "reference": 376.009,
+              "candidate": 371.662,
+              "abs_delta": -4.347,
+              "rel_delta": 0.0116
+            },
+            {
+              "metric": "A-0006 hand_travel_r_torso",
+              "reference": 11.1236,
+              "candidate": 11.0233,
+              "abs_delta": -0.1003,
+              "rel_delta": 0.009
+            },
+            {
+              "metric": "A-0008 idle_time_s",
+              "reference": 7.4,
+              "candidate": 7.43333,
+              "abs_delta": 0.03333,
+              "rel_delta": 0.0045
+            },
+            {
+              "metric": "A-0006 hand_travel_r",
+              "reference": 1646.95,
+              "candidate": 1640.67,
+              "abs_delta": -6.28,
+              "rel_delta": 0.0038
+            },
+            {
+              "metric": "A-0006 hand_travel_l_torso",
+              "reference": 6.83463,
+              "candidate": 6.85345,
+              "abs_delta": 0.01882,
+              "rel_delta": 0.0027
+            },
+            {
+              "metric": "A-0006 bend_mean_deg",
+              "reference": 6.65079,
+              "candidate": 6.66319,
+              "abs_delta": 0.0124,
+              "rel_delta": 0.0019
+            },
+            {
+              "metric": "A-0008 hand_travel_r",
+              "reference": 1083.34,
+              "candidate": 1085.31,
+              "abs_delta": 1.97,
+              "rel_delta": 0.0018
+            },
+            {
+              "metric": "A-0004 idle_time_s",
+              "reference": 20.7667,
+              "candidate": 20.7333,
+              "abs_delta": -0.0334,
+              "rel_delta": 0.0016
+            },
+            {
+              "metric": "A-0010 bend_b0_s",
+              "reference": 40.5,
+              "candidate": 40.5667,
+              "abs_delta": 0.0667,
+              "rel_delta": 0.0016
+            },
+            {
+              "metric": "A-0008 hand_travel_l_torso",
+              "reference": 18.9607,
+              "candidate": 18.9793,
+              "abs_delta": 0.0186,
+              "rel_delta": 0.001
+            },
+            {
+              "metric": "A-0006 hand_travel_l",
+              "reference": 889.044,
+              "candidate": 889.878,
+              "abs_delta": 0.834,
+              "rel_delta": 0.0009
+            },
+            {
+              "metric": "A-0004 hand_travel_l",
+              "reference": 4399.78,
+              "candidate": 4396.26,
+              "abs_delta": -3.52,
+              "rel_delta": 0.0008
+            },
+            {
+              "metric": "A-0002 hand_travel_l",
+              "reference": 3293.83,
+              "candidate": 3291.96,
+              "abs_delta": -1.87,
+              "rel_delta": 0.0006
+            },
+            {
+              "metric": "A-0004 hand_travel_l_torso",
+              "reference": 20.6217,
+              "candidate": 20.6092,
+              "abs_delta": -0.0125,
+              "rel_delta": 0.0006
+            },
+            {
+              "metric": "A-0004 hand_travel_r",
+              "reference": 3047.96,
+              "candidate": 3049.38,
+              "abs_delta": 1.42,
+              "rel_delta": 0.0005
+            },
+            {
+              "metric": "A-0006 bend_b0_s",
+              "reference": 62.3,
+              "candidate": 62.3333,
+              "abs_delta": 0.0333,
+              "rel_delta": 0.0005
+            },
+            {
+              "metric": "A-0008 hand_travel_l",
+              "reference": 4013.68,
+              "candidate": 4015.75,
+              "abs_delta": 2.07,
+              "rel_delta": 0.0005
+            }
+          ]
         },
         "verdict": "different"
       },
@@ -518,7 +660,8 @@
           "track_changes_per_frame": 0.003367,
           "metric_max_rel_delta": 0.0301
         },
-        "failed": []
+        "failed": [],
+        "metrics_above_floor": []
       }
     },
     "data/public/videos/12981262_1920_1080_25fps.mp4": {
@@ -954,7 +1097,30 @@
           "differences": 0,
           "max_rel_delta": 0.0012,
           "null_changes": 0,
-          "flag_changes": 0
+          "flag_changes": 0,
+          "changes": [
+            {
+              "metric": "A-0001 hand_travel_l_torso",
+              "reference": 11.8098,
+              "candidate": 11.7961,
+              "abs_delta": -0.0137,
+              "rel_delta": 0.0012
+            },
+            {
+              "metric": "A-0001 hand_travel_l",
+              "reference": 4978.47,
+              "candidate": 4973.33,
+              "abs_delta": -5.14,
+              "rel_delta": 0.001
+            },
+            {
+              "metric": "A-0001 hand_travel_r",
+              "reference": 7229.36,
+              "candidate": 7227.8,
+              "abs_delta": -1.56,
+              "rel_delta": 0.0002
+            }
+          ]
         },
         "verdict": "different"
       },
@@ -970,10 +1136,11 @@
           "track_changes_per_frame": 0.003367,
           "metric_max_rel_delta": 0.0301
         },
-        "failed": []
+        "failed": [],
+        "metrics_above_floor": []
       }
     }
   },
   "finished_utc": "2026-11-07T06:09:03Z",
-  "rechecked_utc": "2026-11-07T21:46:30Z"
+  "rechecked_utc": "2026-11-08T10:57:16Z"
 }

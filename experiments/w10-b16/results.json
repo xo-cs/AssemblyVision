@@ -506,7 +506,149 @@
           "differences": 4,
           "max_rel_delta": 0.0744,
           "null_changes": 0,
-          "flag_changes": 0
+          "flag_changes": 0,
+          "changes": [
+            {
+              "metric": "A-0010 idle_share",
+              "reference": 0.219586,
+              "candidate": 0.237226,
+              "abs_delta": 0.01764,
+              "rel_delta": 0.0744
+            },
+            {
+              "metric": "A-0010 idle_time_s",
+              "reference": 12.0333,
+              "candidate": 13.0,
+              "abs_delta": 0.9667,
+              "rel_delta": 0.0744
+            },
+            {
+              "metric": "A-0006 hand_travel_l_torso",
+              "reference": 6.83463,
+              "candidate": 6.99283,
+              "abs_delta": 0.1582,
+              "rel_delta": 0.0226
+            },
+            {
+              "metric": "A-0006 hand_travel_l",
+              "reference": 889.044,
+              "candidate": 898.766,
+              "abs_delta": 9.722,
+              "rel_delta": 0.0108
+            },
+            {
+              "metric": "A-0006 repetition_count",
+              "reference": 14.6258,
+              "candidate": 14.5232,
+              "abs_delta": -0.1026,
+              "rel_delta": 0.007
+            },
+            {
+              "metric": "A-0002 bend_b1_s",
+              "reference": 7.56667,
+              "candidate": 7.53333,
+              "abs_delta": -0.03334,
+              "rel_delta": 0.0044
+            },
+            {
+              "metric": "A-0008 hand_travel_r",
+              "reference": 1083.34,
+              "candidate": 1079.32,
+              "abs_delta": -4.02,
+              "rel_delta": 0.0037
+            },
+            {
+              "metric": "A-0006 hand_travel_r_torso",
+              "reference": 11.1236,
+              "candidate": 11.084,
+              "abs_delta": -0.0396,
+              "rel_delta": 0.0036
+            },
+            {
+              "metric": "A-0008 hand_travel_r_torso",
+              "reference": 7.65083,
+              "candidate": 7.63147,
+              "abs_delta": -0.01936,
+              "rel_delta": 0.0025
+            },
+            {
+              "metric": "A-0010 hand_travel_r_torso",
+              "reference": 4.25963,
+              "candidate": 4.26974,
+              "abs_delta": 0.01011,
+              "rel_delta": 0.0024
+            },
+            {
+              "metric": "A-0010 hand_travel_r",
+              "reference": 735.732,
+              "candidate": 737.309,
+              "abs_delta": 1.577,
+              "rel_delta": 0.0021
+            },
+            {
+              "metric": "A-0008 hand_travel_l_torso",
+              "reference": 18.9607,
+              "candidate": 18.9978,
+              "abs_delta": 0.0371,
+              "rel_delta": 0.002
+            },
+            {
+              "metric": "A-0004 idle_time_s",
+              "reference": 20.7667,
+              "candidate": 20.7333,
+              "abs_delta": -0.0334,
+              "rel_delta": 0.0016
+            },
+            {
+              "metric": "A-0006 bend_b0_s",
+              "reference": 62.3,
+              "candidate": 62.4,
+              "abs_delta": 0.1,
+              "rel_delta": 0.0016
+            },
+            {
+              "metric": "A-0008 hand_travel_l",
+              "reference": 4013.68,
+              "candidate": 4017.81,
+              "abs_delta": 4.13,
+              "rel_delta": 0.001
+            },
+            {
+              "metric": "A-0002 hand_travel_r",
+              "reference": 3546.83,
+              "candidate": 3543.69,
+              "abs_delta": -3.14,
+              "rel_delta": 0.0009
+            },
+            {
+              "metric": "A-0004 hand_travel_r",
+              "reference": 3047.96,
+              "candidate": 3050.51,
+              "abs_delta": 2.55,
+              "rel_delta": 0.0008
+            },
+            {
+              "metric": "A-0002 hand_travel_r_torso",
+              "reference": 21.4699,
+              "candidate": 21.4541,
+              "abs_delta": -0.0158,
+              "rel_delta": 0.0007
+            },
+            {
+              "metric": "A-0004 hand_travel_r_torso",
+              "reference": 16.3669,
+              "candidate": 16.3779,
+              "abs_delta": 0.011,
+              "rel_delta": 0.0007
+            },
+            {
+              "metric": "A-0006 hand_travel_r",
+              "reference": 1646.95,
+              "candidate": 1645.74,
+              "abs_delta": -1.21,
+              "rel_delta": 0.0007
+            }
+          ]
         },
         "verdict": "different"
       },
@@ -526,6 +668,22 @@
           "not_within_1px_share 0.025104 above the floor 0.016835",
           "track_changes_per_frame 0.007455 above the floor 0.003367",
           "metric_max_rel_delta 0.0744 above the floor 0.0301"
+        ],
+        "metrics_above_floor": [
+          {
+            "metric": "A-0010 idle_share",
+            "reference": 0.219586,
+            "candidate": 0.237226,
+            "abs_delta": 0.01764,
+            "rel_delta": 0.0744
+          },
+          {
+            "metric": "A-0010 idle_time_s",
+            "reference": 12.0333,
+            "candidate": 13.0,
+            "abs_delta": 0.9667,
+            "rel_delta": 0.0744
+          }
         ]
       }
     },
@@ -953,7 +1111,23 @@
           "differences": 0,
           "max_rel_delta": 0.0004,
           "null_changes": 0,
-          "flag_changes": 0
+          "flag_changes": 0,
+          "changes": [
+            {
+              "metric": "A-0001 hand_travel_r",
+              "reference": 7229.36,
+              "candidate": 7226.14,
+              "abs_delta": -3.22,
+              "rel_delta": 0.0004
+            },
+            {
+              "metric": "A-0001 hand_travel_l",
+              "reference": 4978.47,
+              "candidate": 4979.75,
+              "abs_delta": 1.28,
+              "rel_delta": 0.0003
+            }
+          ]
         },
         "verdict": "different"
       },
@@ -972,10 +1146,11 @@
         "failed": [
           "not_within_1px_share 0.077441 above the floor 0.016835",
           "track_changes_per_frame 0.003928 above the floor 0.003367"
-        ]
+        ],
+        "metrics_above_floor": []
       }
     }
   },
   "finished_utc": "2026-11-06T07:33:10Z",
-  "rechecked_utc": "2026-11-07T21:46:16Z"
+  "rechecked_utc": "2026-11-08T10:57:01Z"
 }

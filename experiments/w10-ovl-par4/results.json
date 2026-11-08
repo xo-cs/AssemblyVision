@@ -463,7 +463,8 @@
           "differences": 0,
           "max_rel_delta": 0.0,
           "null_changes": 0,
-          "flag_changes": 0
+          "flag_changes": 0,
+          "changes": []
         },
         "verdict": "equivalent"
       }
@@ -882,12 +883,13 @@
           "differences": 0,
           "max_rel_delta": 0.0,
           "null_changes": 0,
-          "flag_changes": 0
+          "flag_changes": 0,
+          "changes": []
         },
         "verdict": "equivalent"
       }
     }
   },
   "finished_utc": "2026-11-06T08:56:12Z",
-  "rechecked_utc": "2026-11-07T21:46:28Z"
+  "rechecked_utc": "2026-11-08T10:57:13Z"
 }

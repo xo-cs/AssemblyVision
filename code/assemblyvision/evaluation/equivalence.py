@@ -259,7 +259,7 @@ def compare_metrics(ref: Path, cand: Path, mr: dict, mc: dict, out: dict) -> Non
         return
     a, b = _metric_rows(pa, mr["run_id"]), _metric_rows(pb, mc["run_id"])
     bad = []
-    max_rel, nulls, flags = 0.0, 0, 0
+    max_rel, nulls, flags, changes = 0.0, 0, 0, []
     for key in sorted(set(a) | set(b)):
         x, y = a.get(key), b.get(key)
         name = f"{key[0].replace('<run>-', '')} {key[1]}"
@@ -273,7 +273,10 @@ def compare_metrics(ref: Path, cand: Path, mr: dict, mc: dict, out: dict) -> Non
             try:
                 u, v = float(x["value"]), float(y["value"])
                 if abs(u - v) > METRIC_ABS:
-                    max_rel = max(max_rel, abs(u - v) / max(abs(u), abs(v)))
+                    rel = abs(u - v) / max(abs(u), abs(v))
+                    max_rel = max(max_rel, rel)
+                    changes.append({"metric": name, "reference": u, "candidate": v,
+                                    "abs_delta": round(v - u, 6), "rel_delta": round(rel, 4)})
                 if not _close(u, v):
                     bad.append(f"metrics: {name} {x['value']} vs {y['value']}")
             except ValueError:
@@ -288,7 +291,8 @@ def compare_metrics(ref: Path, cand: Path, mr: dict, mc: dict, out: dict) -> Non
         if x.get("unit") != y.get("unit"):
             bad.append(f"metrics: {name} unit {x.get('unit')} vs {y.get('unit')}")
     out["metrics"] = {"rows": len(a), "differences": len(bad), "max_rel_delta": round(max_rel, 4),
-                      "null_changes": nulls, "flag_changes": flags}
+                      "null_changes": nulls, "flag_changes": flags,
+                      "changes": sorted(changes, key=lambda c: -c["rel_delta"])[:MAX_LISTED]}
     out["differences"].extend(bad[:MAX_LISTED] + ([f"metrics: {len(bad) - MAX_LISTED} more"] if len(bad) > MAX_LISTED else []))
     out["checks"]["metrics"] = not bad
 
@@ -347,4 +351,13 @@ def noise_check(eq: dict, floor: dict) -> dict:
         failed.append(f"metrics: {m.get('null_changes')} NULL decisions and {m.get('flag_changes')} flags changed")
     if not eq.get("checks", {}).get("shots", False):
         failed.append("shots differ")
-    return {"within_noise": not failed, "measures": ms, "floor": floor, "failed": failed}
+    lim = floor.get("metric_max_rel_delta")
+    above = [c for c in m.get("changes", []) if lim is not None and c["rel_delta"] > lim + 1e-12]
+    return {"within_noise": not failed, "measures": ms, "floor": floor, "failed": failed,
+            "metrics_above_floor": above}
+
+
+def change_text(c: dict) -> str:
+    """One metric change with its absolute values, e.g. "w1 idle_share 0.31 to 0.33 (+0.02, 7.4 %)"."""
+    return (f"{c['metric']} {c['reference']:g} to {c['candidate']:g} ({c['abs_delta']:+g}, "
+            f"{100 * c['rel_delta']:.1f} %)")

@@ -16,6 +16,10 @@ Augmentation (train only, [engine_b]) works on the image coordinates before
 the normalization, so it looks like YOLO26 output: Gaussian joint jitter (sigma
 jitter_torso torso lengths, scaled per joint by the COCO sigmas), joint and
 frame dropout, and Kinect confidence levels mapped to YOLO like values plus noise.
+Hip calibration (engine_b.hip_calibration, train and test data alike): every Kinect
+joint is first moved by the mean YOLO26 x minus Kinect offset of that joint over both
+labs of the domain gap experiment (body frame, torso lengths), one global offset per
+joint (QiSens is neither lab, so no per lab offsets).
 """
 from __future__ import annotations
 
@@ -106,6 +110,36 @@ def augment(xy: np.ndarray, kinect_conf: np.ndarray, a: AugmentConfig,
     xy[drop] = np.nan
     conf[drop] = 0.0
     return xy, conf
+
+
+def calibration_offsets(domain_gap_results: dict) -> np.ndarray:
+    """[17,2] mean YOLO26 x minus Kinect residual per joint (body frame, torso lengths), the
+    plain mean over the videos (labs) of a domain gap experiment; NaN -> 0."""
+    per = [[j.get("offset_torso") or [np.nan, np.nan] for j in v["joints"]]
+           for v in domain_gap_results["videos"].values()]
+    arr = np.array(per, np.float64)
+    n = np.isfinite(arr).sum(axis=0)
+    return np.where(n > 0, np.nansum(arr, axis=0) / np.maximum(n, 1), 0.0)
+
+
+def load_calibration(repo_root: Path, exp_id: str) -> np.ndarray:
+    path = Path(repo_root) / "experiments" / exp_id / "results.json"
+    if not path.is_file():
+        raise FileNotFoundError(f"engine_b.hip_calibration needs {path}")
+    return calibration_offsets(json.loads(path.read_text()))
+
+
+def calibrate(xy: np.ndarray, kinect_conf: np.ndarray, offsets: np.ndarray) -> np.ndarray:
+    """Kinect image joints [T,17,2] moved by the per joint offsets [17,2] (body frame of
+    the Kinect pose, torso lengths), so they sit where YOLO26 x puts them on average.
+    Frames without a torso stay as they are."""
+    xy = np.array(xy, np.float64)
+    m = (np.asarray(kinect_conf) > 0)[..., None] & np.isfinite(xy)
+    _, ex, ey, L = body_axes(np.where(m, xy, np.nan))
+    ok = np.isfinite(L) & (L > 0) & np.isfinite(ex).all(1) & np.isfinite(ey).all(1)
+    d = (offsets[None, :, 0:1] * ex[:, None, :] + offsets[None, :, 1:2] * ey[:, None, :]) * L[:, None, None]
+    xy[ok] += d[ok]
+    return xy
 
 
 def cache_dir(dataset_root: Path) -> Path:

@@ -8,6 +8,8 @@ Noise floor (w10-ref-notf32 against w10-ref, measured 2026-11-07):
 | track_changes_per_frame | 0.003367 | 0.002193 / 0.003367 |
 | metric_max_rel_delta | 0.0301 | 0.0301 / 0.0012 |
 
+Default profile (decision of 2026-11-08): the w10-best-b8 settings (pose batch 8, TF32), recorded as **above the noise floor; Engine A steps, NULL decisions and flags identical** (the metric changes above the floor are listed with their absolute values in w10_summary.md). Accuracy checks use configs/reference.toml (batch 1, strict FP32, the w10-ref-notf32 settings). The QiSens run w10-qisens-b8 decides whether this default stays.
+
 ### process_480p30.mp4
 
 | experiment | ingest | shots | ref | pose | tracking | seg | metrics | overlay | full run s | pose fps | infer fps | GPU util % | pose util % | peak MB | torch MB | within 1 px | track changes / frame | metric max rel delta | verdict |
@@ -19,6 +21,12 @@ Noise floor (w10-ref-notf32 against w10-ref, measured 2026-11-07):
 | w10-best | 0.4 | 15.5 | 0.5 | 147.4 | 0.1 | 0.3 | 0.2 | 24.6 | 192.7 | 66.4 | 81.7 | 46.6 | 58.9 | 1881 | 583 | 1.0000 | 0.0000 | 0.0000 | equivalent |
 | w10-best-b8 | 0.4 | 15.4 | 0.5 | 90.3 | 0.1 | 0.3 | 0.2 | 24.2 | 134.7 | 108.4 | 142.9 | 54.9 | 78.7 | 2793 | 1154 | 0.9761 | 0.0066 | 0.0744 | different |
 | w10-shots-ds | 0.4 | 14.9 | 16.4 | 147.8 | 7.2 | 0.3 | 0.3 | 42.5 | 233.3 | 66.2 | 81.6 | 40.3 | 58.9 | 981 | 583 | 1.0000 | 0.0000 | 0.0000 | equivalent |
+
+Metrics above the noise floor (reference to candidate, absolute change, relative change):
+- w10-b8: A-0010 idle_share 0.219586 to 0.237226 (+0.01764, 7.4 %)
+- w10-b8: A-0010 idle_time_s 12.0333 to 13 (+0.9667, 7.4 %)
+- w10-best-b8: A-0010 idle_share 0.219586 to 0.237226 (+0.01764, 7.4 %)
+- w10-best-b8: A-0010 idle_time_s 12.0333 to 13 (+0.9667, 7.4 %)
 
 ### 12981262_1920_1080_25fps.mp4
 

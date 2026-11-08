@@ -505,7 +505,149 @@
           "differences": 4,
           "max_rel_delta": 0.0744,
           "null_changes": 0,
-          "flag_changes": 0
+          "flag_changes": 0,
+          "changes": [
+            {
+              "metric": "A-0010 idle_share",
+              "reference": 0.219586,
+              "candidate": 0.237226,
+              "abs_delta": 0.01764,
+              "rel_delta": 0.0744
+            },
+            {
+              "metric": "A-0010 idle_time_s",
+              "reference": 12.0333,
+              "candidate": 13.0,
+              "abs_delta": 0.9667,
+              "rel_delta": 0.0744
+            },
+            {
+              "metric": "A-0006 hand_travel_l_torso",
+              "reference": 6.83463,
+              "candidate": 6.99917,
+              "abs_delta": 0.16454,
+              "rel_delta": 0.0235
+            },
+            {
+              "metric": "A-0006 hand_travel_l",
+              "reference": 889.044,
+              "candidate": 898.859,
+              "abs_delta": 9.815,
+              "rel_delta": 0.0109
+            },
+            {
+              "metric": "A-0008 hand_travel_r",
+              "reference": 1083.34,
+              "candidate": 1077.49,
+              "abs_delta": -5.85,
+              "rel_delta": 0.0054
+            },
+            {
+              "metric": "A-0006 repetition_count",
+              "reference": 14.6258,
+              "candidate": 14.5593,
+              "abs_delta": -0.0665,
+              "rel_delta": 0.0045
+            },
+            {
+              "metric": "A-0008 idle_time_s",
+              "reference": 7.4,
+              "candidate": 7.43333,
+              "abs_delta": 0.03333,
+              "rel_delta": 0.0045
+            },
+            {
+              "metric": "A-0008 hand_travel_r_torso",
+              "reference": 7.65083,
+              "candidate": 7.62421,
+              "abs_delta": -0.02662,
+              "rel_delta": 0.0035
+            },
+            {
+              "metric": "A-0006 hand_travel_r_torso",
+              "reference": 11.1236,
+              "candidate": 11.1559,
+              "abs_delta": 0.0323,
+              "rel_delta": 0.0029
+            },
+            {
+              "metric": "A-0010 hand_travel_l",
+              "reference": 376.009,
+              "candidate": 375.149,
+              "abs_delta": -0.86,
+              "rel_delta": 0.0023
+            },
+            {
+              "metric": "A-0004 idle_time_s",
+              "reference": 20.7667,
+              "candidate": 20.7333,
+              "abs_delta": -0.0334,
+              "rel_delta": 0.0016
+            },
+            {
+              "metric": "A-0006 hand_travel_r",
+              "reference": 1646.95,
+              "candidate": 1649.58,
+              "abs_delta": 2.63,
+              "rel_delta": 0.0016
+            },
+            {
+              "metric": "A-0010 bend_b0_s",
+              "reference": 40.5,
+              "candidate": 40.4333,
+              "abs_delta": -0.0667,
+              "rel_delta": 0.0016
+            },
+            {
+              "metric": "A-0006 bend_b0_s",
+              "reference": 62.3,
+              "candidate": 62.3667,
+              "abs_delta": 0.0667,
+              "rel_delta": 0.0011
+            },
+            {
+              "metric": "A-0002 hand_travel_r",
+              "reference": 3546.83,
+              "candidate": 3543.45,
+              "abs_delta": -3.38,
+              "rel_delta": 0.001
+            },
+            {
+              "metric": "A-0002 hand_travel_r_torso",
+              "reference": 21.4699,
+              "candidate": 21.4523,
+              "abs_delta": -0.0176,
+              "rel_delta": 0.0008
+            },
+            {
+              "metric": "A-0004 hand_travel_l",
+              "reference": 4399.78,
+              "candidate": 4396.16,
+              "abs_delta": -3.62,
+              "rel_delta": 0.0008
+            },
+            {
+              "metric": "A-0002 hand_travel_l_torso",
+              "reference": 19.8049,
+              "candidate": 19.8176,
+              "abs_delta": 0.0127,
+              "rel_delta": 0.0006
+            },
+            {
+              "metric": "A-0004 hand_travel_l_torso",
+              "reference": 20.6217,
+              "candidate": 20.6106,
+              "abs_delta": -0.0111,
+              "rel_delta": 0.0005
+            },
+            {
+              "metric": "A-0008 hand_travel_l",
+              "reference": 4013.68,
+              "candidate": 4014.79,
+              "abs_delta": 1.11,
+              "rel_delta": 0.0003
+            }
+          ]
         },
         "verdict": "different"
       },
@@ -525,6 +667,22 @@
           "not_within_1px_share 0.023898 above the floor 0.016835",
           "track_changes_per_frame 0.006578 above the floor 0.003367",
           "metric_max_rel_delta 0.0744 above the floor 0.0301"
+        ],
+        "metrics_above_floor": [
+          {
+            "metric": "A-0010 idle_share",
+            "reference": 0.219586,
+            "candidate": 0.237226,
+            "abs_delta": 0.01764,
+            "rel_delta": 0.0744
+          },
+          {
+            "metric": "A-0010 idle_time_s",
+            "reference": 12.0333,
+            "candidate": 13.0,
+            "abs_delta": 0.9667,
+            "rel_delta": 0.0744
+          }
         ]
       }
     },
@@ -952,7 +1110,30 @@
           "differences": 0,
           "max_rel_delta": 0.0009,
           "null_changes": 0,
-          "flag_changes": 0
+          "flag_changes": 0,
+          "changes": [
+            {
+              "metric": "A-0001 hand_travel_r",
+              "reference": 7229.36,
+              "candidate": 7222.85,
+              "abs_delta": -6.51,
+              "rel_delta": 0.0009
+            },
+            {
+              "metric": "A-0001 hand_travel_r_torso",
+              "reference": 17.1493,
+              "candidate": 17.1332,
+              "abs_delta": -0.0161,
+              "rel_delta": 0.0009
+            },
+            {
+              "metric": "A-0001 hand_travel_l",
+              "reference": 4978.47,
+              "candidate": 4977.35,
+              "abs_delta": -1.12,
+              "rel_delta": 0.0002
+            }
+          ]
         },
         "verdict": "different"
       },
@@ -971,10 +1152,11 @@
         "failed": [
           "not_within_1px_share 0.075196 above the floor 0.016835",
           "track_changes_per_frame 0.004489 above the floor 0.003367"
-        ]
+        ],
+        "metrics_above_floor": []
       }
     }
   },
   "finished_utc": "2026-11-06T09:59:37Z",
-  "rechecked_utc": "2026-11-07T21:46:18Z"
+  "rechecked_utc": "2026-11-08T10:57:04Z"
 }

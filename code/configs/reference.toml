@@ -1,0 +1,17 @@
+# Reference profile (a layer over default.toml): batch 1, strict FP32, the settings of
+# w10-ref-notf32, against which the noise floor in experiments/INDEX.md was measured.
+# Use it for accuracy checks: run_pose ... --config configs/reference.toml
+# (tools/exp: --set pose.batch=1 ... or --from w10-ref-notf32).
+
+[pose]
+batch = 1                    # one frame at a time
+tf32 = false                 # strict FP32 (TF32 off for convolutions and matmul)
+decode = "opencv"
+reference_in_pass = false
+
+[track]
+overlap_pose = false
+
+[overlay]
+encoder = "libx264"
+workers = 1

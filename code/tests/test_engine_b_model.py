@@ -75,9 +75,7 @@ class ModelTest(unittest.TestCase):
 
 def two_phase_cfg(**seg_a):
     over = {"steps": {"use": True, "step": [{"name": "A"}, {"name": "B"}]}, "seg_a": seg_a}
-    pool = seg_a.pop("pool_s", None)
-    if pool is not None:
-        over["engine_b"] = {"pool_s": pool}
+    over["engine_b"] = {"pool_s": seg_a.pop("pool_s", 0.0)}          # raw probability unless a test pools
     return Config.load(overrides=over)
 
 
@@ -123,6 +121,8 @@ class EngineAEvidenceTest(unittest.TestCase):
         self.assertLess(ev[40.0]["engine_b"], 0.5)
         self.assertTrue(eng.report["engine_b"]["on"])
         self.assertIn("engine_b", eng.report["evidence_counts"])
+        minutes = eng.report["active"]["T_s"] / 60
+        self.assertAlmostEqual(eng.report["engine_b"]["peaks_per_min_raw"], 1 / minutes, places=1)   # the one spike
 
     def test_pooling_prefers_a_lasting_change_over_a_spike(self):
         p = self.prob(spike_s=80, bump=(30, 50))
@@ -287,3 +287,91 @@ class StoredRunTest(unittest.TestCase):
         rows = compare_run(manifest, ctx.paths.root, "qisens", cfg, "seg_a.engine_b_weight=0,0.4", gt)
         self.assertEqual(rows[0]["steps"], rows[1]["steps"])
         self.assertTrue(any(n.startswith("AV-SEG-001") for n in rows[1]["notices"]))
+
+
+class CalibrationTest(unittest.TestCase):
+    def test_offsets_are_the_plain_mean_of_the_labs(self):
+        def video(hip):
+            return {"joints": [{"offset_torso": hip if j == 11 else [0.0, 0.0]} for j in range(16)] + [{}]}
+        off = eb.calibration_offsets({"videos": {"a": video([0.2, -0.2]), "b": video([0.0, 0.4])}})
+        self.assertEqual(off.shape, (17, 2))
+        np.testing.assert_allclose(off[11], [0.1, 0.1])
+        np.testing.assert_allclose(off[16], [0.0, 0.0])                  # not measured -> no offset
+
+    def test_offset_is_applied_in_the_body_frame(self):
+        from test_engine_b_data import upright
+        xy = upright(3)
+        conf = np.full((3, 17), 0.67)
+        conf[2, 11] = 0.0                                                # no torso -> unchanged
+        rot = xy.copy()
+        rot[1] = (xy[1] - [500, 800]) @ np.array([[0, 1], [-1, 0]]) + [500, 800]   # person turned 90 degrees
+        off = np.zeros((17, 2))
+        off[11] = [0.1, -0.2]
+        out = eb.calibrate(rot, conf, off)
+        L = 200.0
+        np.testing.assert_allclose(out[0, 11] - rot[0, 11], [0.1 * L, 0.2 * L], atol=1e-6)   # ex right, ey up (image y down)
+        hip, ex, ey, _ = eb.body_axes(rot[1:2])
+        np.testing.assert_allclose(out[1, 11] - rot[1, 11], (0.1 * ex[0] - 0.2 * ey[0]) * L, atol=1e-6)
+        np.testing.assert_allclose(out[2], rot[2])
+        np.testing.assert_allclose(np.delete(out[:2], 11, axis=1), np.delete(rot[:2], 11, axis=1))
+
+
+class AboveFloorTest(unittest.TestCase):
+    def test_metric_changes_keep_their_absolute_values(self):
+        from assemblyvision.evaluation.equivalence import change_text
+        floor = {"not_within_1px_share": 0.02, "track_changes_per_frame": 0.002, "metric_max_rel_delta": 0.03}
+        eq = NoiseRuleTest().eq(0.99, 1, 0.074)
+        eq["metrics"]["changes"] = [{"metric": "A-0010 idle_share", "reference": 0.31, "candidate": 0.333,
+                                     "abs_delta": 0.023, "rel_delta": 0.0691},
+                                    {"metric": "A-0010 path_m", "reference": 10.0, "candidate": 10.1,
+                                     "abs_delta": 0.1, "rel_delta": 0.0099}]
+        r = noise_check(eq, floor)
+        self.assertEqual([c["metric"] for c in r["metrics_above_floor"]], ["A-0010 idle_share"])
+        self.assertEqual(change_text(r["metrics_above_floor"][0]), "A-0010 idle_share 0.31 to 0.333 (+0.023, 6.9 %)")
+
+
+class FoldsTest(unittest.TestCase):
+    def test_cross_location_folds_and_calibration(self):
+        from assemblyvision.tools import train_engine_b
+        tmp = fake_root()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        fake_cache(root)
+        vids = [f"IDU{k + 1:03d}V001" for k in range(6)]
+        a, b = vids[0::2], vids[1::2]
+        (root / "experiments/datasets/ha4m_splits.json").write_text(json.dumps({"folds": [
+            {"name": "cross_location_test_lab_a", "train_videos": b, "test_videos": a},
+            {"name": "cross_location_test_lab_b", "train_videos": a, "test_videos": b}]}))
+        args = ["--cpu", "--set", "engine_b.epochs=2", "--set", "engine_b.layers=2", "--set", "engine_b.channels=8"]
+        self.assertEqual(train_engine_b.main(["--id", "t-f", "--folds", "cross_location_test_lab_a", *args],
+                                             repo_root=root), 2)                      # cross subject must come first
+        self.assertEqual(train_engine_b.main(["--id", "t-f", "--set", "engine_b.hip_calibration=true", *args],
+                                             repo_root=root), 2)                      # no domain gap experiment
+        (root / "experiments/w10-ha4m-domain-gap").mkdir(parents=True)
+        (root / "experiments/w10-ha4m-domain-gap/results.json").write_text(json.dumps(
+            {"id": "w10-ha4m-domain-gap", "title": "gap", "index": {"cells": [], "verdict": "measurement"},
+             "videos": {"x": {"joints": [{"offset_torso": [0.1, 0.0]}] * 17}}}))
+        code = train_engine_b.main(["--id", "t-f", "--folds", "cross_subject,cross_location_test_lab_b",
+                                    "--set", "engine_b.hip_calibration=true", *args], repo_root=root)
+        self.assertEqual(code, 0)
+        res = json.loads((root / "experiments/t-f/results.json").read_text())
+        self.assertEqual(list(res["folds"]), ["cross_subject", "cross_location_test_lab_b"])
+        f = res["folds"]["cross_location_test_lab_b"]
+        self.assertEqual((f["data"]["train_locations"], list(f["test"]["per_location"])), (["lab_a"], ["lab_b"]))
+        self.assertEqual(res["calibration_offsets_torso"][0], [0.1, 0.0])
+        self.assertTrue((root / "models/engine_b/t-f.cross_location_test_lab_b.pt").is_file())
+        self.assertIn("| cross_location_test_lab_b | lab_b |", (root / "experiments/t-f/table.md").read_text())
+
+
+class GridToolTest(unittest.TestCase):
+    def test_only_public_runs(self):
+        from assemblyvision.tools import engine_b_grid
+        tmp = fake_root()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        elsewhere = root / "runs" / "run_20260101_000000_abcd"
+        self.assertEqual(engine_b_grid.main(["--id", "t-g", "--model", "x.pt", "--run", str(elsewhere),
+                                             "--gt", "gt.csv"], repo_root=root), 2)
+        self.assertEqual(engine_b_grid.main(["--id", "t-g", "--model", "x.pt", "--run", str(elsewhere), "--gt", "a.csv",
+                                             "--gt", "b.csv"], repo_root=root), 2)            # one GT per run
+        self.assertFalse((root / "experiments/t-g").exists())

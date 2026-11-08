@@ -40,6 +40,11 @@ downscale = 0                # cut detection frame downscale factor; 0 = PyScene
 motion_seek = false          # true: the motion pairs are read by seeking, not by decoding the whole video
 
 [pose]
+# Default since 2026-11-08 (Khurshid): the w10-best-b8 settings (batch 8, TF32, prefetch, reference
+# frames in the pose pass, tracking overlapped, NVENC overlay in 4 workers). It is ABOVE the noise floor
+# of experiments/INDEX.md (pose and track drift, idle share 7 %); Engine A steps, NULL decisions and
+# flags are identical. The QiSens run w10-qisens-b8 decides whether it stays. Accuracy checks use
+# configs/reference.toml (batch 1, strict FP32).
 variant = "x"                # YOLO26 pose variant: n, s, m, l or x (x FP32: 67 fps on the A5000, Week 9 benchmark)
 fallback_variant = "s"       # used once when the GPU runs out of memory ("" = none)
 imgsz = 640                  # inference size (px)
@@ -51,10 +56,10 @@ half = false                 # FP32; FP16 gave no speedup on the A5000 (Week 9 b
 tf32 = true                  # true: PyTorch default (cuDNN convolutions in TF32 on Ampere, matmul in FP32);
                              # false: strict FP32 (TF32 off for convolutions and matmul). FP16 runs ignore it.
 hand_crop_margin = 0.15      # margin added to the box for RTMW
-batch = 1                    # frames per inference call; 1 = one frame at a time (reference)
-decode = "opencv"            # frame reader of the pose pass: opencv, prefetch (reader thread) or ffmpeg_cuda (NVDEC)
+batch = 8                    # frames per inference call (default since w10-best-b8); 1 = one frame at a time (configs/reference.toml)
+decode = "prefetch"          # frame reader of the pose pass: opencv, prefetch (reader thread) or ffmpeg_cuda (NVDEC)
 prefetch_frames = 64         # frames queued ahead by the prefetch and ffmpeg_cuda readers
-reference_in_pass = false    # true: reference frames are taken from the pose pass (no second decode of the video)
+reference_in_pass = true     # true: reference frames are taken from the pose pass (no second decode of the video)
 
 [track]
 algorithm = "bytetrack"
@@ -71,7 +76,7 @@ dup_contain = 0.80           # or if the smaller box lies this much inside the o
 dup_kp_agree = 0.60          # ... and this share of the shared keypoints coincide
 dup_kp_conf = 0.30           # keypoints at or above this confidence count as shared
 dup_kp_dist = 0.10           # coincide = closer than this fraction of the smaller box diagonal
-overlap_pose = false         # true: each shot is tracked in a worker process while pose goes on (needs pose.reference_in_pass)
+overlap_pose = true          # true: each shot is tracked in a worker process while pose goes on (needs pose.reference_in_pass)
 
 [clean]
 body_conf_min = 0.30         # keypoints below this become NaN (LLD 3.6)
@@ -144,7 +149,7 @@ conf_predicted = 0.4         # keypoint confidence given to a Kinect "predicted 
 conf_noise = 0.1             # Gaussian noise added to that confidence (clipped to 0..1)
 aug_seed = 42
 # Model (analysis/segmentation/boundary_tcn.py): MS TCN, per frame boundary probability at model_fps.
-model = ""                   # weights under models/ for Engine A's evidence term, e.g. "engine_b/w10-engine-b-v0.pt"
+model = "engine_b/w10-engine-b-v0.pt"   # weights under models/ for Engine A's evidence term (read only when seg_a.engine_b_weight > 0)
 model_fps = 10               # time base of the model (frames sampled at k / model_fps)
 stages = 2                   # stage 1 on the features, later stages refine the probability of the stage before
 layers = 10                  # dilated residual layers per stage (dilation 1, 2, 4, ...; 2047 steps receptive field)
@@ -160,7 +165,10 @@ train_seed = 42
 peak_threshold = 0.5         # boundary = local maximum of the probability at or above this
 peak_min_gap_s = 0.5         # peaks closer than this are merged (the higher stays)
 eval_tols_s = [0.2, 0.5]     # boundary F1 tolerances (s)
-pool_s = 0.0                 # moving average of the probability before it becomes DP evidence (s; 0 = none)
+hip_calibration = false      # true: Kinect joints moved by the mean YOLO26 x offset per joint (both labs) before the features
+calibration_from = "w10-ha4m-domain-gap"   # the domain gap experiment whose per joint offsets are used
+pool_s = 30.0                # moving average of the probability before it becomes DP evidence (s; 0 = none);
+                             # 30 chosen on public runs before any QiSens result (experiments/w10-engine-b-pool)
 
 [motion]
 # MotionAnalyzer (LLD 3.7). Add "gaze" to enabled for the rough gaze direction (FR-MOTION-08, Want).
@@ -198,8 +206,8 @@ kp_conf_min = 0.30           # keypoints below this are drawn faded (display onl
 max_width = 1920             # overlay is scaled down to this width (px)
 crf = 20                     # x264 quality of the overlay video
 enabled = true               # false skips the overlay video (like --no-overlay)
-encoder = "libx264"          # libx264 or h264_nvenc (GPU encoder of the pose GPU)
-workers = 1                  # >1: the frame range is rendered in this many parallel chunks, joined without re-encoding
+encoder = "h264_nvenc"       # libx264 or h264_nvenc (GPU encoder of the pose GPU)
+workers = 4                  # >1: the frame range is rendered in this many parallel chunks, joined without re-encoding
 
 [ui]
 # host 127.0.0.1, port 7860 and share=False are fixed in ui/app.py (FR-INFRA-06, NFR-SEC-03)

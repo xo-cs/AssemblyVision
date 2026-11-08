@@ -12,6 +12,11 @@ from assemblyvision.storage.files import REPO_ROOT, RunContext, RunPaths, new_ru
 
 TMP_BASE = REPO_ROOT / "tmp" / "tests"
 
+from assemblyvision import config as _config   # noqa: E402
+CPU_LAYER = Path(__file__).with_name("cpu_layer.toml")
+if CPU_LAYER not in _config.DEFAULT_LAYERS:     # default profile encodes on the GPU (NVENC); tests stay on the CPU
+    _config.DEFAULT_LAYERS.append(CPU_LAYER)
+
 
 def fake_root() -> tempfile.TemporaryDirectory:
     TMP_BASE.mkdir(parents=True, exist_ok=True)

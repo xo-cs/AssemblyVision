@@ -92,6 +92,13 @@ Within numerical noise: **no** (measures not_within_1px_share 0.114558, track_ch
 - not_within_1px_share 0.114558 above the floor 0.016835
 - track_changes_per_frame 0.009318 above the floor 0.003367
 - metric_max_rel_delta 0.0844 above the floor 0.0301
+- above the floor: A-0002 idle_share 0.204313 to 0.187062 (-0.017251, 8.4 %)
+- above the floor: A-0002 idle_time_s 12.6333 to 11.5667 (-1.0666, 8.4 %)
+- above the floor: A-0010 idle_share 0.219586 to 0.237226 (+0.01764, 7.4 %)
+- above the floor: A-0010 idle_time_s 12.0333 to 13 (+0.9667, 7.4 %)
+- above the floor: A-0006 idle_share 0.322567 to 0.298768 (-0.023799, 7.4 %)
+- above the floor: A-0006 idle_time_s 25.3 to 23.4333 (-1.8667, 7.4 %)
+- above the floor: A-0006 hand_travel_l_torso 6.83463 to 7.17358 (+0.33895, 4.7 %)
 
 ## 12981262_1920_1080_25fps.mp4 (3 repeats, medians)
 

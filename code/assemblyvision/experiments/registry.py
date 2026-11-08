@@ -394,6 +394,8 @@ def format_table(res: dict) -> str:
                               + ", ".join(f"{k} {v}" for k, v in nz["measures"].items()) + "; floor "
                               + ", ".join(f"{k} {v}" for k, v in nz["floor"].items()) + ")."]
                 lines += [f"- {d}" for d in nz["failed"]]
+                from ..evaluation.equivalence import change_text
+                lines += [f"- above the floor: {change_text(c)}" for c in nz.get("metrics_above_floor", [])]
         lines.append("")
     return "\n".join(lines)
 
@@ -429,6 +431,13 @@ def write_index(root: Path) -> Path:
     return path
 
 
+DEFAULT_NOTE = ("Default profile (decision of 2026-11-08): the w10-best-b8 settings (pose batch 8, TF32), recorded "
+                "as **above the noise floor; Engine A steps, NULL decisions and flags identical** (the metric changes "
+                "above the floor are listed with their absolute values in w10_summary.md). Accuracy checks use "
+                "configs/reference.toml (batch 1, strict FP32, the w10-ref-notf32 settings). The QiSens run "
+                "w10-qisens-b8 decides whether this default stays.")
+
+
 def noise_text(root: Path) -> str:
     """The rule "equivalent within numerical noise" and the measured floor, for INDEX.md and the w10 table."""
     from ..evaluation.equivalence import NOISE_RULE
@@ -442,7 +451,8 @@ def noise_text(root: Path) -> str:
     return (f"Verdicts: **equivalent** = every strict check of evaluation/equivalence.py holds; **{name}** "
             f"(within noise) = {rule}; **different** otherwise.\n\n"
             f"Noise floor ({nf['source']}, measured {nf['measured_utc'][:10]}):\n\n"
-            f"| measure | floor | {' / '.join(Path(v).name for v in nf['per_video'])} |\n| --- | --- | --- |\n{rows}\n")
+            f"| measure | floor | {' / '.join(Path(v).name for v in nf['per_video'])} |\n| --- | --- | --- |\n{rows}\n"
+            f"{DEFAULT_NOTE}\n\n")
 
 
 def compare_table(results: list[dict]) -> str:
@@ -474,6 +484,11 @@ def compare_table(results: list[dict]) -> str:
                          video_verdict(rec) or "reference"])
         out += [f"### {Path(v).name}", "", "| " + " | ".join(head) + " |", "|" + " --- |" * len(head)]
         out += ["| " + " | ".join(row) + " |" for row in rows]
+        from ..evaluation.equivalence import change_text
+        notes = [f"- {r['id']}: {change_text(c)}" for r in results if r["videos"].get(v)
+                 for c in (r["videos"][v].get("noise") or {}).get("metrics_above_floor", [])]
+        if notes:
+            out += ["", "Metrics above the noise floor (reference to candidate, absolute change, relative change):", *notes]
         out.append("")
     return "\n".join(out)
 
