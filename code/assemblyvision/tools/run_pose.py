@@ -216,10 +216,10 @@ def _versions() -> dict:
 # stages that work from the stored files of a run (used by both modes) -------------
 
 def boundary_probability(manifest: dict, root: Path, cfg: Config, ctx) -> dict | None:
-    """Engine B probability on the run clock (CPU) when seg_a.engine_b_weight > 0, else None.
-    Without weights (engine_b.model empty or missing) AV-SEG-001 is noticed and Engine A
-    runs without the term."""
-    if cfg["seg_a"]["engine_b_weight"] <= 0:
+    """Engine B probability and embedding on the run clock (CPU) when seg_a.engine_b_weight
+    or seg_a.embed_weight > 0, else None. Without weights (engine_b.model empty or missing)
+    AV-SEG-001 is noticed and Engine A runs without the terms."""
+    if not engine_b_needed(cfg):
         return None
     from ..analysis.segmentation.boundary_tcn import run_probability
     name = cfg["engine_b"]["model"]
@@ -231,17 +231,22 @@ def boundary_probability(manifest: dict, root: Path, cfg: Config, ctx) -> dict |
     return run_probability(manifest, root, cfg, path)
 
 
+def engine_b_needed(cfg: Config) -> bool:
+    return cfg["seg_a"]["engine_b_weight"] > 0 or cfg["seg_a"]["embed_weight"] > 0
+
+
 def segment_stored(manifest: dict, root: Path, cfg: Config, ctx, bprob: dict | None = None) -> tuple:
     """(engine, steps) of Engine A from the stored files of a run; writes nothing.
     bprob: a boundary_probability() result to reuse (compare mode), else computed here."""
     from ..analysis.segmentation import build_timeline, create_engine
     engine = create_engine("A", cfg, ctx)
     tl = build_timeline(manifest, root, engine.cleaner, cfg["motion"] if cfg["seg_a"]["activity_change"] else None)
-    if cfg["seg_a"]["engine_b_weight"] > 0:
+    if engine_b_needed(cfg):
         bp = bprob if bprob is not None else boundary_probability(manifest, root, cfg, ctx)
         if bp is not None:
             tl.boundary_prob = bp["prob"]
-            tl.boundary_info = {k: v for k, v in bp.items() if k != "prob"}
+            tl.embedding, tl.embedding_valid = bp.get("embedding"), bp.get("embedding_valid")
+            tl.boundary_info = {k: v for k, v in bp.items() if k not in ("prob", "embedding", "embedding_valid")}
     return engine, engine.segment_run(tl)
 
 
@@ -341,7 +346,7 @@ class _MemoryCtx:
         self.notices.append(f"{err.code}: {err.text}")
 
 
-COMPARE_DEFAULTS = {"seg_a.engine_b_weight": [0.0, 0.2, 0.4, 0.8]}    # values when only the key is given
+COMPARE_DEFAULTS = {"seg_a.engine_b_weight": [0.0, 0.2, 0.4, 0.8], "seg_a.embed_weight": [0.0, 0.2, 0.4, 0.8]}    # values when only the key is given
 
 
 def compare_values(spec: str, cfg: Config) -> tuple[str, list]:
@@ -387,7 +392,7 @@ def compare_run(manifest: dict, root: Path, source: str, cfg: Config, spec: str,
     for value in values:
         c = Config.load(overrides=deep_merge(cfg.snapshot(), {section: {name: value}}))
         mctx = _MemoryCtx(source)
-        if bprob is None and c["seg_a"]["engine_b_weight"] > 0:
+        if bprob is None and engine_b_needed(c):
             bprob = boundary_probability(manifest, root, c, mctx) or {}
         engine, steps = segment_stored(manifest, root, c, mctx, bprob or None)
         res, bounds, mapping = score_steps(steps, gt, Path(gt_path).name, engine.vocabulary, source, c, duration)

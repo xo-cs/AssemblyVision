@@ -375,3 +375,108 @@ class GridToolTest(unittest.TestCase):
         self.assertEqual(engine_b_grid.main(["--id", "t-g", "--model", "x.pt", "--run", str(elsewhere), "--gt", "a.csv",
                                              "--gt", "b.csv"], repo_root=root), 2)            # one GT per run
         self.assertFalse((root / "experiments/t-g").exists())
+
+
+class EmbeddingTest(unittest.TestCase):
+    def test_change_score_peaks_at_the_phase_change(self):
+        T, n = 600, 100
+        emb = np.zeros((T, 4))
+        emb[:300, 0], emb[300:, 1] = 1.0, 1.0
+        valid = np.ones(T, bool)
+        sc = bt.change_score(emb, valid, n)
+        self.assertEqual(int(sc.argmax()), 300)
+        self.assertAlmostEqual(float(sc.max()), np.sqrt(2), places=6)
+        self.assertEqual(float(sc[100]), 0.0)                             # far from the change
+        valid[:300] = False                                               # no subject before 300: no score there
+        self.assertEqual(float(bt.change_score(emb, valid, n)[300]), 0.0)
+
+    def test_multitask_model_heads_and_file(self):
+        import torch
+        tmp = fake_root()
+        self.addCleanup(tmp.cleanup)
+        cfg = Config.load(overrides={"engine_b": {"layers": 2, "channels": 8, "action_weight": 1.0}})
+        m = bt.build_model(eb.N_FEATURES, 2, 2, 8, 0.0, 12)
+        x, mask = torch.zeros(3, eb.N_FEATURES, 50), torch.ones(3, 1, 50)
+        b, a, h = m(x, mask, all_heads=True)
+        self.assertEqual((tuple(b.shape), tuple(a.shape), tuple(h.shape)), ((2, 3, 50), (2, 3, 12, 50), (3, 8, 50)))
+        self.assertEqual(tuple(m(x, mask).shape), (2, 3, 50))
+        path = Path(tmp.name) / "v1.pt"
+        bt.save_model(path, m, bt.model_settings(cfg), {})
+        m2, s = bt.load_model(path)
+        self.assertEqual(s["n_actions"], 12)
+        out = bt.predict_all(m2, np.zeros((40, eb.N_FEATURES), np.float32))
+        self.assertEqual((out["actions"].shape, out["embedding"].shape), ((40, 12), (40, 8)))
+        np.testing.assert_allclose(np.linalg.norm(out["embedding"], axis=1), 1.0, atol=1e-5)
+        self.assertNotIn("n_actions", bt.model_settings(Config.load()))  # v0 settings unchanged
+
+    def test_embed_term_moves_the_boundary_and_weight_zero_changes_nothing(self):
+        def tl_with_embedding():
+            tl = timeline()
+            emb = np.zeros((tl.n_frames, 4), np.float32)
+            emb[:int(80 * FPS), 0], emb[int(80 * FPS):, 1] = 1.0, 1.0       # the phase changes at 80 s
+            tl.embedding, tl.embedding_valid = emb, np.ones(tl.n_frames, bool)
+            return tl
+        base = RuleBasedEngine(two_phase_cfg())
+        s0 = base.segment_run(timeline())
+        off = RuleBasedEngine(two_phase_cfg(embed_weight=0.0))
+        self.assertEqual(off.segment_run(tl_with_embedding()), s0)
+        self.assertEqual(off.report, base.report)
+        on = RuleBasedEngine(two_phase_cfg(embed_weight=0.4, embed_window_s=20.0))
+        self.assertEqual(bounds(on.segment_run(tl_with_embedding())), [("A", 0.0), ("B", 80.0)])
+        self.assertTrue(on.report["embed_change"]["on"])
+        ev = {e["start_s"]: e for e in on.report["evidence"]}
+        self.assertEqual(ev[80.0]["embed_change"], 1.0)
+
+
+class StartOfWorkTest(unittest.TestCase):
+    def tl(self, idle_s):
+        tl = timeline()
+        tl.energy = np.full(tl.n_frames, 0.5, np.float32)
+        tl.energy[:int(idle_s * FPS)] = 0.02                              # present but still: an intro
+        return tl
+
+    def test_intro_becomes_other(self):
+        eng = RuleBasedEngine(two_phase_cfg(start_detect=True))
+        steps = eng.segment_run(self.tl(20))
+        self.assertEqual(steps[0].label, "other")
+        self.assertEqual(steps[1].start_s, 20.0)                         # the first moving frame
+        self.assertTrue(eng.report["start_of_work"]["found"])
+        self.assertEqual(eng.report["start_of_work"]["intro_s"], 20.0)
+
+    def test_off_and_no_intro_change_nothing(self):
+        base = RuleBasedEngine(two_phase_cfg()).segment_run(self.tl(20))
+        self.assertEqual(base[0].start_s, 0.0)
+        self.assertNotEqual(base[0].label, "other")
+        on = RuleBasedEngine(two_phase_cfg(start_detect=True))
+        no_intro = self.tl(0)
+        self.assertEqual(on.segment_run(no_intro), RuleBasedEngine(two_phase_cfg()).segment_run(self.tl(0)))
+        self.assertEqual(on.report["start_of_work"]["intro_s"], 0.0)
+
+    def test_short_still_start_is_not_an_intro(self):
+        eng = RuleBasedEngine(two_phase_cfg(start_detect=True))
+        steps = eng.segment_run(self.tl(6))                               # 6 s < start_min_intro_s 10
+        self.assertFalse(eng.report["start_of_work"]["found"])
+        self.assertEqual(eng.report["start_of_work"]["candidate_s"], 6.0)
+        self.assertEqual(steps[0].start_s, 0.0)
+
+    def test_intro_longer_than_the_cap_is_not_cut(self):
+        eng = RuleBasedEngine(two_phase_cfg(start_detect=True, start_max_share=0.1))
+        steps = eng.segment_run(self.tl(30))                              # 30 s idle > 0.1 x 120 s
+        self.assertFalse(eng.report["start_of_work"]["found"])
+        self.assertEqual(steps[0].start_s, 0.0)
+
+
+class MultitaskTrainTest(unittest.TestCase):
+    def test_cpu_training_with_the_action_head(self):
+        from assemblyvision.tools import train_engine_b
+        tmp = fake_root()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        fake_cache(root)
+        code = train_engine_b.main(["--id", "t-v1", "--cpu", "--set", "engine_b.epochs=3", "--set", "engine_b.layers=2",
+                                    "--set", "engine_b.channels=8", "--set", "engine_b.action_weight=1.0"], repo_root=root)
+        self.assertEqual(code, 0)
+        res = json.loads((root / "experiments/t-v1/results.json").read_text())
+        self.assertIn("action_frame_accuracy", res["test"])
+        self.assertIn("Action head", (root / "experiments/t-v1/table.md").read_text())
+        self.assertEqual(bt.load_model(root / "models/engine_b/t-v1.pt")[1]["n_actions"], 12)

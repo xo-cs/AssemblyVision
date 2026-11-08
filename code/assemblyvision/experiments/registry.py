@@ -86,7 +86,8 @@ def config_text(meta: dict, settings: dict) -> str:
 # by exp new --from: key -> test on (default value, full settings) that the default changes
 # nothing in a run of the stored experiment. Any other missing key is refused.
 def _engine_b_off(v, st) -> bool:
-    return st.get("seg_a", {}).get("engine_b_weight", 0) == 0
+    sa = st.get("seg_a", {})
+    return sa.get("engine_b_weight", 0) == 0 and sa.get("embed_weight", 0) == 0
 
 
 NO_OP_DEFAULTS = {
@@ -98,6 +99,15 @@ NO_OP_DEFAULTS = {
     "engine_b.pool_s": _engine_b_off,
     "engine_b.hip_calibration": lambda v, st: v is False,
     "engine_b.calibration_from": lambda v, st: st.get("engine_b", {}).get("hip_calibration") is False,
+    "engine_b.action_weight": lambda v, st: True,       # training only; never read by a pipeline run
+    "engine_b.n_actions": lambda v, st: True,
+    "seg_a.embed_weight": lambda v, st: v == 0,
+    "seg_a.embed_window_s": lambda v, st: st.get("seg_a", {}).get("embed_weight", 0) == 0,
+    "seg_a.start_detect": lambda v, st: v is False,
+    "seg_a.start_sustain_s": lambda v, st: st.get("seg_a", {}).get("start_detect") is False,
+    "seg_a.start_active_share": lambda v, st: st.get("seg_a", {}).get("start_detect") is False,
+    "seg_a.start_max_share": lambda v, st: st.get("seg_a", {}).get("start_detect") is False,
+    "seg_a.start_min_intro_s": lambda v, st: st.get("seg_a", {}).get("start_detect") is False,
 }
 
 
@@ -466,6 +476,15 @@ def _index_line(res: dict) -> str:
          and verdicts else "different" if verdicts else "n/a")
     return (f"| [{res['id']}]({res['id']}/table.md) | {res.get('finished_utc', '')[:10]} | {res.get('title', '')} | "
             f"{'<br>'.join(cells)} | {verdict} |")
+
+
+def summary_table(exp_id: str, paths_cfg: dict, repo_root: Path = REPO_ROOT) -> str:
+    """The table.md of an approved summary (summary.json, public area), headings one level down."""
+    _check_id(exp_id)
+    d = area_dir("public", paths_cfg, repo_root) / exp_id
+    if not (d / "summary.json").is_file() or not (d / "table.md").is_file():
+        raise ExperimentError(f"{exp_id} is not an approved summary in experiments/")
+    return "\n".join("##" + ln if ln.startswith("#") else ln for ln in (d / "table.md").read_text().splitlines()) + "\n"
 
 
 def write_index(root: Path) -> Path:

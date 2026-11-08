@@ -160,6 +160,20 @@ python -m assemblyvision.tools.train_engine_b --id w10-engine-b-v0 --gpu 0 \
 python -m assemblyvision.tools.engine_b_firing --id w10-engine-b-firing --model w10-engine-b-v0   # CPU
 python -m assemblyvision.tools.engine_b_grid --id w10-engine-b-pool --model engine_b/w10-engine-b-v0.pt \
     --run ../data/public/runs/RUN --gt ../data/public/videos/CLIP_gt.csv     # CPU, public runs only
+```
+
+Engine B v1 (`engine_b.action_weight > 0`) adds the 12 HA4M action head (multitask). In Engine A
+its embedding (the last stage's unit length hidden features) gives a phase level change score:
+the distance between the mean embedding of the `seg_a.embed_window_s` before and after a time,
+weighted by `seg_a.embed_weight` (default 0). `seg_a.start_detect` (default off) starts phase 1
+at the first sustained subject activity, so an intro becomes "other".
+
+```bash
+python -m assemblyvision.tools.train_engine_b --id w10-engine-b-v1 --gpu 0 --set engine_b.action_weight=1.0 \
+    --folds cross_subject,cross_location_test_lab_a,cross_location_test_lab_b              # GPU job
+python -m assemblyvision.tools.engine_b_grid --id w10-engine-b-embed --model engine_b/w10-engine-b-v1.pt \
+    --weight-key seg_a.embed_weight --window-key seg_a.embed_window_s --run ... --gt ...      # CPU
+python -m assemblyvision.tools.run_pose --run RUN_DIR --gt GT_CSV --compare seg_a.start_detect
 python -m assemblyvision.tools.run_pose --run RUN_DIR --gt GT_CSV --compare seg_a.engine_b_weight \
     --set engine_b.model='"engine_b/w10-engine-b-v0.pt"'                       # CPU, writes nothing
 python -m assemblyvision.tools.run_pose --run RUN_DIR --gt GT_CSV --compare engine_b.pool_s=0,10,30,60 \

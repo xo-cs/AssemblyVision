@@ -1,0 +1,84 @@
+{
+  "id": "w10-qisens-engine-b-v0",
+  "kind": "qisens_summary",
+  "source": "qisens",
+  "reference": "",
+  "title": "QiSens blind test of Engine B v0 in Engine A (approved summary)",
+  "finished_utc": "2026-11-08",
+  "approved_by": "Khurshid Ortikov",
+  "approved_utc": "2026-11-08",
+  "note": "Numbers only, as approved; Khurshid ran run_pose --compare on the QiSens run (CPU, in memory). Model engine_b/w10-engine-b-v0.pt. The headline is the pre chosen setting; the other weight 0.4 rows are post hoc sensitivity and were never used for choosing.",
+  "f1_tolerances": "F1@10, F1@25, F1@50 (percent overlap)",
+  "rows": [
+    {
+      "setting": "weight 0 (Engine A alone)",
+      "role": "baseline",
+      "frame_acc": 75.02,
+      "edit": 100,
+      "f1": [
+        100,
+        100,
+        80
+      ],
+      "mae_s": 29.35
+    },
+    {
+      "setting": "pool_s 30, weight 0.4",
+      "role": "pre chosen (w10-engine-b-pool, public runs only)",
+      "frame_acc": 55.51,
+      "edit": 100,
+      "f1": [
+        60,
+        60,
+        20
+      ],
+      "mae_s": 27.13,
+      "b_peaks_per_min_raw": 4.95,
+      "b_peaks_per_min_pooled": 0.51
+    },
+    {
+      "setting": "pool_s 0, weight 0.4",
+      "role": "post hoc sensitivity, never used for choosing",
+      "frame_acc": 79.96,
+      "edit": 100,
+      "f1": [
+        100,
+        100,
+        60
+      ],
+      "mae_s": 23.45
+    },
+    {
+      "setting": "pool_s 10, weight 0.4",
+      "role": "post hoc sensitivity, never used for choosing",
+      "frame_acc": 65.52,
+      "edit": 100,
+      "f1": [
+        80,
+        80,
+        60
+      ],
+      "mae_s": 27.13
+    },
+    {
+      "setting": "pool_s 60, weight 0.4",
+      "role": "post hoc sensitivity, never used for choosing",
+      "frame_acc": 49.72,
+      "edit": 100,
+      "f1": [
+        60,
+        40,
+        20
+      ],
+      "mae_s": 37.24
+    }
+  ],
+  "conclusion": "A fine action boundary scorer does not transfer to minute long phases.",
+  "index": {
+    "cells": [
+      "headline (pre chosen pool 30, weight 0.4): frame acc 55.51 vs 75.02 Engine A alone, F1@50 20 vs 80, MAE 27.13 vs 29.35 s",
+      "A fine action boundary scorer does not transfer to minute long phases."
+    ],
+    "verdict": "measurement"
+  }
+}

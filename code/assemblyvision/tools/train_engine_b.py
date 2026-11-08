@@ -74,8 +74,10 @@ def prepare(d: dict, cfg: Config, train: bool, rng: np.random.Generator, image_h
     labelled = np.asarray(d["labelled"], bool)
     changes = bt.change_times(d["labels"], fps, bd["ignore_dont_care"], bd["dont_care_label"], labelled)
     t = idx / fps
+    act = np.asarray(d["labels"])[idx, 0].astype(np.int64) - 1          # action 1..K -> 0..K-1
+    act[(act < 0) | (act >= e["n_actions"]) | ~labelled[idx]] = -1       # don't care and unlabelled: no action loss
     return {"x": feats.astype(np.float32), "y": bt.soft_targets(t, changes, bd["tol_s"]),
-            "m": labelled[idx].astype(np.float32), "t": t, "changes": changes}
+            "m": labelled[idx].astype(np.float32), "c": act, "t": t, "changes": changes}
 
 
 def batches(items: list[dict], size: int, crop: int, rng: np.random.Generator):
@@ -86,15 +88,18 @@ def batches(items: list[dict], size: int, crop: int, rng: np.random.Generator):
             it = items[i]
             T = len(it["x"])
             s = int(rng.integers(0, T - crop + 1)) if T > crop else 0
-            part.append({n: it[n][s:s + crop] for n in ("x", "y", "m")})
+            part.append({n: it[n][s:s + crop] for n in ("x", "y", "m", "c") if n in it})
         L = max(len(p["x"]) for p in part)
         X = np.zeros((len(part), eb.N_FEATURES, L), np.float32)
         Y = np.zeros((len(part), L), np.float32)
         M = np.zeros((len(part), L), np.float32)
+        C = np.full((len(part), L), -1, np.int64)
         for j, p in enumerate(part):
             n = len(p["x"])
             X[j, :, :n], Y[j, :n], M[j, :n] = p["x"].T, p["y"], p["m"]
-        yield X, Y, M
+            if "c" in p:
+                C[j, :n] = p["c"]
+        yield X, Y, M, C
 
 
 def auto_pos_weight(items: list[dict]) -> float:
@@ -107,7 +112,8 @@ def evaluate(model, items: list[dict], cfg: Config, device: str) -> dict:
     """Boundary F1 per tolerance over the videos (peaks at engine_b.peak_threshold), plus a
     threshold table for information (not used to choose anything)."""
     e = cfg["engine_b"]
-    probs = [bt.predict(model, it["x"], device) for it in items]
+    outs = [bt.predict_all(model, it["x"], device) for it in items]
+    probs = [o["prob"] for o in outs]
     gap = int(round(e["peak_min_gap_s"] * e["model_fps"]))
 
     def at(th: float) -> dict:
@@ -115,7 +121,12 @@ def evaluate(model, items: list[dict], cfg: Config, device: str) -> dict:
         return bt.boundary_f1(vids, list(e["eval_tols_s"]))
     main = at(e["peak_threshold"])
     sweep = {f"{th:g}": {tol: r["f1"] for tol, r in at(th).items()} for th in (0.3, 0.4, 0.5, 0.6, 0.7)}
-    return {"f1": main, "threshold_sweep_f1": sweep, "probs": probs}
+    res = {"f1": main, "threshold_sweep_f1": sweep, "probs": probs}
+    if outs and outs[0]["actions"] is not None:          # v1: frame accuracy of the action head (labelled frames)
+        hit = sum(int((o["actions"].argmax(1) == it["c"])[it["c"] >= 0].sum()) for o, it in zip(outs, items))
+        tot = sum(int((it["c"] >= 0).sum()) for it in items)
+        res["action_frame_accuracy"] = round(hit / tot, 4) if tot else None
+    return res
 
 
 def train(cfg: Config, train_items: list[dict], train_raw: list[dict], device: str, image_h: float,
@@ -124,7 +135,8 @@ def train(cfg: Config, train_items: list[dict], train_raw: list[dict], device: s
     e = cfg["engine_b"]
     torch.manual_seed(e["train_seed"])
     rng = np.random.default_rng(e["train_seed"])
-    model = bt.build_model(eb.N_FEATURES, e["stages"], e["layers"], e["channels"], e["dropout"]).to(device)
+    n_act = e["n_actions"] if e["action_weight"] > 0 else 0
+    model = bt.build_model(eb.N_FEATURES, e["stages"], e["layers"], e["channels"], e["dropout"], n_act).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=e["lr"], weight_decay=e["weight_decay"])
     pw = e["pos_weight"] or auto_pos_weight(train_items)
     pos_weight = torch.tensor(pw, device=device)
@@ -135,14 +147,16 @@ def train(cfg: Config, train_items: list[dict], train_raw: list[dict], device: s
         items = [prepare(d, cfg, True, rng, image_h, offsets) for d in train_raw] if e["augment"] else train_items
         model.train()
         tot, n = 0.0, 0.0
-        for X, Y, M in batches(items, e["batch_videos"], crop, rng):
-            X, Y, M = (torch.from_numpy(a).to(device) for a in (X, Y, M))
-            out = model(X, M.unsqueeze(1))
+        for X, Y, M, C in batches(items, e["batch_videos"], crop, rng):
+            X, Y, M, C = (torch.from_numpy(a).to(device) for a in (X, Y, M, C))
+            out, act, _ = model(X, M.unsqueeze(1), all_heads=True)
             loss = 0.0
             for s in range(out.shape[0]):
                 bce = torch.nn.functional.binary_cross_entropy_with_logits(out[s], Y, pos_weight=pos_weight,
                                                                            reduction="none")
                 loss = loss + (bce * M).sum() / M.sum().clamp(min=1.0)
+                if act is not None and bool((C >= 0).any()):
+                    loss = loss + e["action_weight"] * torch.nn.functional.cross_entropy(act[s], C, ignore_index=-1)
             opt.zero_grad()
             loss.backward()
             opt.step()
@@ -193,6 +207,10 @@ def table_md(res: dict) -> str:
                      f"{fold['data']['train_videos']} train / {fold['data']['test_videos']} test videos, pos_weight "
                      f"{fold['training']['pos_weight']}, {len(fold['training']['history'])} epochs, final train loss "
                      f"{fold['training']['history'][-1]['train_loss']}, {fold['training']['seconds']} s.")
+    acc = {n: f["test"]["action_frame_accuracy"] for n, f in res.get("folds", {}).items() if "action_frame_accuracy" in f["test"]}
+    if acc:
+        lines += ["", "Action head (12 HA4M actions, labelled frames, don't care left out), frame accuracy on the test "
+                  "videos: " + ", ".join(f"{n} {v}" for n, v in acc.items()) + "."]
     lines += ["", f"{res['model']['parameters']} parameters per model, trained on {res['training']['device']}.", ""]
     return "\n".join(lines)
 
@@ -217,7 +235,8 @@ def run_fold(cfg: Config, cache: Path, tr_ids: list[str], te_ids: list[str], dev
                     "train_locations": sorted({d["meta"]["location"] for d in train_raw}),
                     "true_boundaries_test": int(sum(len(it["changes"]) for it in test_items))},
            "training": info,
-           "test": {"f1": ev["f1"], "threshold_sweep_f1": ev["threshold_sweep_f1"], "per_location": per_loc}}
+           "test": {"f1": ev["f1"], "threshold_sweep_f1": ev["threshold_sweep_f1"], "per_location": per_loc,
+                    **({"action_frame_accuracy": ev["action_frame_accuracy"]} if "action_frame_accuracy" in ev else {})}}
     return model, rec
 
 

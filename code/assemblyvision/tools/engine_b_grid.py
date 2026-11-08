@@ -34,7 +34,9 @@ def main(argv: list[str] | None = None, repo_root: Path = REPO_ROOT) -> int:
     p.add_argument("--run", action="append", type=Path, required=True)
     p.add_argument("--gt", action="append", type=Path, required=True)
     p.add_argument("--weights", default="0,0.2,0.4,0.8")
-    p.add_argument("--pools", default="0,10,30,60")
+    p.add_argument("--pools", default="0,10,30,60", help="values of --window-key")
+    p.add_argument("--weight-key", default="seg_a.engine_b_weight", choices=["seg_a.engine_b_weight", "seg_a.embed_weight"])
+    p.add_argument("--window-key", default="engine_b.pool_s", choices=["engine_b.pool_s", "seg_a.embed_window_s"])
     p.add_argument("--note", default="")
     p.add_argument("--summary", default="", help="the INDEX.md cell (the chosen values)")
     args = p.parse_args(argv)
@@ -54,23 +56,24 @@ def main(argv: list[str] | None = None, repo_root: Path = REPO_ROOT) -> int:
             print("refused: public runs only", file=sys.stderr)
             return 2
         manifest = json.loads((root / "manifest.json").read_text())
+        ws, _, wk = args.window_key.partition(".")
         for pool_s in [float(x) for x in args.pools.split(",")]:
-            cfg = Config.load(overrides=deep_merge(manifest.get("config", {}), {"engine_b": {
-                "model": args.model, "pool_s": pool_s}}))
+            cfg = Config.load(overrides=deep_merge(manifest.get("config", {}), {"engine_b": {"model": args.model}},
+                                                   {ws: {wk: pool_s}}))
             _check_gt(gt, source, cfg)
-            for r in compare_run(manifest, root, source, cfg, f"seg_a.engine_b_weight={args.weights}", gt):
+            for r in compare_run(manifest, root, source, cfg, f"{args.weight_key}={args.weights}", gt):
                 out.append({"run": manifest["run_id"], "video": Path(manifest["ingest"]["source_path"]).name
                             if "source_path" in manifest.get("ingest", {}) else manifest["run_id"],
                             "gt": gt.name, "pool_s": pool_s, "weight": float(r["setting"].split("=")[1]),
                             "metrics": r["metrics"], "phases": r["phases"], "engine_b_rate": r["engine_b_rate"]})
     f1 = [k for k in out[0]["metrics"] if k.startswith("f1_")]
-    lines = [f"# {args.id}: Engine B weight and pool window on public runs", "", args.note, "",
+    lines = [f"# {args.id}: Engine B {args.weight_key} and {args.window_key} on public runs", "", args.note, "",
              f"Model {args.model}; Engine A compare mode (CPU, in memory). B rate = Engine B peaks per minute, "
              "raw / pooled (as in Engine A's report).", ""]
     for gt in dict.fromkeys(r["gt"] for r in out):
         rows = [r for r in out if r["gt"] == gt]
         lines += [f"## {rows[0]['run']} against {gt}", "",
-                  "| pool_s | weight | frame acc | edit | " + " | ".join(f"F1@{k[3:]}" for k in f1)
+                  f"| {wk} | {args.weight_key.split('.')[1]} | frame acc | edit | " + " | ".join(f"F1@{k[3:]}" for k in f1)
                   + " | MAE s | phases | B rate |", "|" + " --- |" * (7 + len(f1))]
         for r in rows:
             m = r["metrics"]
@@ -79,8 +82,8 @@ def main(argv: list[str] | None = None, repo_root: Path = REPO_ROOT) -> int:
                          + f" | {'n/a' if m['boundary_mae_s'] is None else format(m['boundary_mae_s'], '.2f')} | "
                            f"{r['phases']} | {r['engine_b_rate']} |")
         lines.append("")
-    res = {"id": args.id, "kind": "engine_b_grid", "source": "public", "title": "Engine B weight and pool window",
-           "reference": "", "note": args.note, "model": args.model, "rows": out,
+    res = {"id": args.id, "kind": "engine_b_grid", "source": "public", "title": f"Engine B {args.weight_key} and {args.window_key}",
+           "reference": "", "note": args.note, "model": args.model, "weight_key": args.weight_key, "window_key": args.window_key, "rows": out,
            "provenance": {"date_utc": utc_now(), "command": " ".join(sys.argv), "data_area": "public"},
            "finished_utc": utc_now(),
            "index": {"cells": [args.summary or f"{len(out)} rows over {len(args.run)} public runs; see table"],

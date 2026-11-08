@@ -119,7 +119,10 @@ def pool(prob: np.ndarray, n: int) -> np.ndarray:
 
 # the model -------------------------------------------------------------------------------
 
-def build_model(n_in: int, stages: int, layers: int, channels: int, dropout: float):
+def build_model(n_in: int, stages: int, layers: int, channels: int, dropout: float, n_actions: int = 0):
+    """n_actions = 0: the boundary scorer of v0 (one output channel). n_actions > 0 (v1,
+    multitask): every stage also gives n_actions action logits; later stages refine the
+    sigmoid of the boundary and the softmax of the actions of the stage before."""
     import torch
     from torch import nn
 
@@ -133,38 +136,55 @@ def build_model(n_in: int, stages: int, layers: int, channels: int, dropout: flo
         def forward(self, x, m):
             return (x + self.drop(self.out(torch.relu(self.conv(x))))) * m
 
+    n_out = 1 + n_actions
+
     class Stage(nn.Module):
         def __init__(self, n: int):
             super().__init__()
             self.inp = nn.Conv1d(n, channels, 1)
             self.layers = nn.ModuleList([Residual(2 ** i) for i in range(layers)])
-            self.head = nn.Conv1d(channels, 1, 1)
+            self.head = nn.Conv1d(channels, n_out, 1)
 
-        def forward(self, x, m):
+        def forward(self, x, m, hidden: bool = False):
             h = self.inp(x) * m
             for layer in self.layers:
                 h = layer(h, m)
-            return self.head(h) * m
+            y = self.head(h) * m
+            return (y, h) if hidden else y
+
+    def probs(y, m):
+        if n_actions == 0:
+            return torch.sigmoid(y) * m
+        return torch.cat([torch.sigmoid(y[:, :1]), torch.softmax(y[:, 1:], dim=1)], dim=1) * m
 
     class BoundaryTCN(nn.Module):
         def __init__(self):
             super().__init__()
-            self.stages = nn.ModuleList([Stage(n_in)] + [Stage(1) for _ in range(stages - 1)])
+            self.n_actions = n_actions
+            self.stages = nn.ModuleList([Stage(n_in)] + [Stage(n_out) for _ in range(stages - 1)])
 
-        def forward(self, x, m):
-            """x [B, F, T], m [B, 1, T] (1 = real frame) -> logits [S, B, T] of every stage."""
-            outs, h = [], x
+        def forward(self, x, m, all_heads: bool = False):
+            """x [B, F, T], m [B, 1, T] (1 = real frame) -> boundary logits [S, B, T] of every
+            stage; all_heads: (boundary [S,B,T], action logits [S,B,K,T] or None, the last
+            stage's hidden features [B,C,T], the embedding of Engine A)."""
+            outs, h, hid = [], x, None
             for k, st in enumerate(self.stages):
-                y = st(h if k == 0 else torch.sigmoid(outs[-1]).unsqueeze(1) * m, m)
-                outs.append(y.squeeze(1))
-            return torch.stack(outs)
+                y, hid = st(h if k == 0 else probs(outs[-1], m), m, hidden=True)
+                outs.append(y)
+            y = torch.stack(outs)                       # [S, B, n_out, T]
+            if not all_heads:
+                return y[:, :, 0]
+            return y[:, :, 0], (y[:, :, 1:] if n_actions else None), hid
 
     return BoundaryTCN()
 
 
 def model_settings(cfg) -> dict:
     e = cfg["engine_b"]
-    return {k: e[k] for k in ("model_fps", "stages", "layers", "channels", "dropout")}
+    out = {k: e[k] for k in ("model_fps", "stages", "layers", "channels", "dropout")}
+    if e["action_weight"] > 0:
+        out["n_actions"] = e["n_actions"]
+    return out
 
 
 def save_model(path: Path, model, settings: dict, extra: dict) -> str:
@@ -188,7 +208,7 @@ def load_model(path: Path, device: str = "cpu"):
     if ck.get("format") != FORMAT or ck.get("feature_version") != FEATURE_VERSION:
         raise ValueError(f"{path} is not an Engine B model of feature version {FEATURE_VERSION}")
     s = ck["settings"]
-    m = build_model(ck["n_features"], s["stages"], s["layers"], s["channels"], s["dropout"])
+    m = build_model(ck["n_features"], s["stages"], s["layers"], s["channels"], s["dropout"], s.get("n_actions", 0))
     m.load_state_dict(ck["state_dict"])
     return m.to(device).eval(), s
 
@@ -204,12 +224,53 @@ def predict(model, feats: np.ndarray, device: str = "cpu") -> np.ndarray:
         return torch.sigmoid(model(x, m)[-1, 0]).cpu().numpy().astype(np.float32)
 
 
+def predict_all(model, feats: np.ndarray, device: str = "cpu") -> dict:
+    """{"prob" [T], "actions" [T,K] softmax or None, "embedding" [T,C] unit length} of the
+    last stage for features [T, F] at the model fps."""
+    import torch
+    if len(feats) == 0:
+        return {"prob": np.zeros(0, np.float32), "actions": None, "embedding": np.zeros((0, 0), np.float32)}
+    with torch.no_grad():
+        x = torch.from_numpy(np.ascontiguousarray(feats.T[None], np.float32)).to(device)
+        m = torch.ones(1, 1, x.shape[2], device=device)
+        b, a, h = model(x, m, all_heads=True)
+        e = h[0].T
+        e = e / e.norm(dim=1, keepdim=True).clamp(min=1e-8)
+        return {"prob": torch.sigmoid(b[-1, 0]).cpu().numpy().astype(np.float32),
+                "actions": None if a is None else torch.softmax(a[-1, 0], dim=0).T.cpu().numpy().astype(np.float32),
+                "embedding": e.cpu().numpy().astype(np.float32)}
+
+
+def change_score(emb: np.ndarray, valid: np.ndarray, n: int) -> np.ndarray:
+    """Phase level change score per frame: the distance between the mean embedding of the
+    n frames before t and of the n frames from t on (frames with valid only; 0 where a
+    side has no valid frame). Unit embeddings, so the score lies in [0, 2]."""
+    emb = np.asarray(emb, np.float64)
+    T = len(emb)
+    out = np.zeros(T)
+    if T == 0 or n < 1:
+        return out
+    w = np.asarray(valid, np.float64)
+    cs = np.vstack([np.zeros((1, emb.shape[1])), np.cumsum(emb * w[:, None], axis=0)])
+    cw = np.r_[0.0, np.cumsum(w)]
+    t = np.arange(T)
+    lo, hi = np.maximum(t - n, 0), np.minimum(t + n, T)
+    nb, na = cw[t] - cw[lo], cw[hi] - cw[t]
+    ok = (nb > 0) & (na > 0)
+    mb = (cs[t] - cs[lo])[ok] / nb[ok, None]
+    ma = (cs[hi] - cs[t])[ok] / na[ok, None]
+    out[ok] = np.linalg.norm(ma - mb, axis=1)
+    return out
+
+
 # Engine A evidence on a run ---------------------------------------------------------
 
 def run_probability(manifest: dict, run_root: Path, cfg, model_path: Path) -> dict:
     """Boundary probability per run frame from the subject KTS of every shot (CPU).
-    Frames without the subject get 0. Returns {"prob": [N] float32, "model": file name,
-    "model_sha256", "frames_scored"}; nothing is written."""
+    Frames without the subject get 0. Returns {"prob": [N] float32, "embedding": [N,C]
+    float32 (the last stage's unit length hidden features at the nearest model step) or
+    None, "embedding_valid": [N] bool, "n_actions", "model": file name, "model_sha256",
+    "frames_scored"}; nothing is written."""
     from ...datasets.engine_b import features
     from ...kts import read_kts
     model, s = load_model(model_path)
@@ -217,6 +278,7 @@ def run_probability(manifest: dict, run_root: Path, cfg, model_path: Path) -> di
     fps, n = float(cfr["fps"]), int(cfr["frame_count"])
     image_h = float(cfr["height"])
     prob = np.zeros(n, np.float32)
+    emb, emb_ok = None, np.zeros(n, bool)
     scored = 0
     for tr in manifest.get("tracking", {}).get("tracks", []):
         if not tr.get("is_subject"):
@@ -229,12 +291,20 @@ def run_probability(manifest: dict, run_root: Path, cfg, model_path: Path) -> di
         xy = np.where(series.present[:T, None, None], series.body_xy[:T], np.nan)
         conf = np.where(series.present[:T, None], np.nan_to_num(series.body_conf[:T]), 0.0)
         idx = sample_index(T, fps, s["model_fps"])
-        p = predict(model, features(xy[idx], conf[idx], image_h))
+        out = predict_all(model, features(xy[idx], conf[idx], image_h))
+        p = out["prob"]
         t_model = idx / fps
         frame_t = np.arange(T) / fps
         prob[f0:f0 + T] = np.interp(frame_t, t_model, p).astype(np.float32) * series.present[:T]
+        if emb is None:
+            emb = np.zeros((n, out["embedding"].shape[1]), np.float32)
+        near = np.clip(np.round(frame_t * s["model_fps"]).astype(np.int64), 0, len(idx) - 1)   # nearest model step
+        pres = np.asarray(series.present[:T], bool)
+        emb[f0:f0 + T][pres] = out["embedding"][near][pres]
+        emb_ok[f0:f0 + T] |= pres
         scored += int(series.present[:T].sum())
-    return {"prob": prob, "model": model_path.name, "model_sha256": hashlib.sha256(model_path.read_bytes()).hexdigest(),
+    return {"prob": prob, "embedding": emb, "embedding_valid": emb_ok, "n_actions": s.get("n_actions", 0),
+            "model": model_path.name, "model_sha256": hashlib.sha256(model_path.read_bytes()).hexdigest(),
             "frames_scored": scored}
 
 

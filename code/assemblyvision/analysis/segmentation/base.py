@@ -41,6 +41,8 @@ class RunTimeline:
     activity: dict = field(default_factory=dict)    # per frame subject activity channels (activity.py), or empty
     boundary_prob: np.ndarray | None = None         # float32 [N] Engine B boundary probability, or None
     boundary_info: dict = field(default_factory=dict)   # model file, sha256, frames scored
+    embedding: np.ndarray | None = None             # float32 [N,C] Engine B unit embedding (seg_a.embed_weight), or None
+    embedding_valid: np.ndarray | None = None       # bool [N]: the embedding was measured (subject present)
 
     @property
     def duration_s(self) -> float:

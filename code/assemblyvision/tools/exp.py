@@ -63,6 +63,8 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("ids", nargs="+")
     t.add_argument("--source", choices=("public", "qisens"), default="public")
     t.add_argument("--out", type=Path, default=None, help="also write the table to this file (in the area)")
+    t.add_argument("--summary", action="append", default=[], metavar="ID",
+                   help="append the table.md of an approved summary (public area, e.g. w10-qisens)")
     nf = sub.add_parser("noise-floor", help="store the noise floor from the strict FP32 experiment")
     nf.add_argument("--from", dest="base", default="w10-ref-notf32")
     g = sub.add_parser("gpu-check", help="list processes on a GPU; exit 3 if there are any")
@@ -106,7 +108,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.cmd == "table":
             text = reg.noise_text(reg.area_dir("public", paths_cfg)) + \
-                reg.compare_table([reg.load_results(i, args.source, paths_cfg) for i in args.ids])
+                reg.compare_table([reg.load_results(i, args.source, paths_cfg) for i in args.ids]) + \
+                "".join("\n" + reg.summary_table(i, paths_cfg) for i in args.summary)
             print(text)
             if args.out is not None:
                 area = reg.area_dir(args.source, paths_cfg)

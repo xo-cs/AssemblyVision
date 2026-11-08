@@ -28,6 +28,23 @@ kind engine_b with strength engine_b_weight * value. The report gives the firing
 peaks per minute of the raw probability and of the pooled, normalized evidence
 (engine_b.peak_threshold; gap peak_min_gap_s, and max(peak_min_gap_s, pool_s) pooled).
 
+With seg_a.embed_weight > 0 (default 0 = off) the Engine B embedding (the last
+stage's unit length hidden features, boundary_tcn.change_score) gives a phase
+level change score: at frame t the distance between the mean embedding of the
+seg_a.embed_window_s before t and of the window after t, divided by its maximum
+over the active span. Every point candidate gets strength += embed_weight * the
+highest score within seg_a.engine_b_window_s of it.
+
+With seg_a.start_detect (default off) phase 1 starts at the start of work, not at
+the first person frame: the first frame t from which at least
+seg_a.start_active_share of the frames in the next seg_a.start_sustain_s move
+(motion energy >= pause_energy, the pause rule), moved on to the first moving frame
+of that window. The time before it (an intro:
+the worker is present but not working yet) is "other". If no such t lies within
+seg_a.start_max_share of the active span, or the intro is shorter than
+seg_a.start_min_intro_s (a short still start is not an intro), phase 1 starts at
+the first person frame.
+
 Phase mode (steps.step not empty): K phases in the order of steps.toml, each
 at most once and never backwards. Leading and trailing stretches without a
 person are other. Limits per phase: T = first to last frame with a person,
@@ -77,6 +94,7 @@ class Evidence:
     used: bool = False
     activity_change: float | None = None    # set only with seg_a.activity_change on
     engine_b: float | None = None           # set only with seg_a.engine_b_weight > 0
+    embed_change: float | None = None       # set only with seg_a.embed_weight > 0
 
 
 class RuleBasedEngine(SegmentationEngine):
@@ -132,7 +150,41 @@ class RuleBasedEngine(SegmentationEngine):
         if s["engine_b_weight"] > 0 and tl.boundary_prob is not None:
             self.add_engine_b(tl, ev, a, b, empty)
             ev.sort(key=lambda e: (e.start, e.end))
+        if s["embed_weight"] > 0 and tl.embedding is not None:
+            self.add_embed_change(tl, ev, a, b)
         return ev
+
+    def add_embed_change(self, tl: RunTimeline, ev: list[Evidence], a: int, b: int) -> None:
+        from .boundary_tcn import change_score
+        valid = tl.embedding_valid if tl.embedding_valid is not None else np.ones(tl.n_frames, bool)
+        score = change_score(tl.embedding[:tl.n_frames], valid[:tl.n_frames], int(round(self.s["embed_window_s"] * tl.fps)))
+        top = float(score[a:b].max()) if b > a else 0.0
+        val = score / top if top > 0 else score
+        w = int(round(self.s["engine_b_window_s"] * tl.fps))
+        for e in ev:
+            if e.kind == "no_person":
+                continue
+            lo, hi = max(a, e.start - w), min(b, e.end + w + 1)
+            e.embed_change = round(float(val[lo:hi].max()) if hi > lo else 0.0, 4)
+            e.strength = e.strength + self.s["embed_weight"] * e.embed_change
+
+    def start_of_work(self, tl: RunTimeline, a: int, b: int) -> tuple[int, dict]:
+        """(first frame of phase 1, report) under seg_a.start_detect (see the module doc)."""
+        s = self.s
+        moving = np.nan_to_num(tl.energy[:tl.n_frames], nan=-1.0) >= s["pause_energy"]
+        n = max(1, int(round(s["start_sustain_s"] * tl.fps)))
+        cs = np.r_[0, np.cumsum(moving)]
+        last = a + int(s["start_max_share"] * (b - a))
+        for t in range(a, min(last, b - n) + 1):
+            if (cs[t + n] - cs[t]) >= s["start_active_share"] * n:
+                t += int(np.argmax(moving[t:t + n]))           # the first moving frame of that window
+                intro = round((t - a) / tl.fps, 3)
+                if intro < s["start_min_intro_s"]:
+                    return a, {"on": True, "found": False, "start_s": tl.t(a), "intro_s": 0.0, "candidate_s": intro,
+                               "note": f"still start of {intro:g} s is shorter than start_min_intro_s"}
+                return t, {"on": True, "found": True, "start_s": tl.t(t), "intro_s": intro}
+        return a, {"on": True, "found": False, "start_s": tl.t(a), "intro_s": 0.0,
+                   "note": f"no sustained activity within the first {s['start_max_share']:g} of the active span"}
 
     def engine_b_evidence(self, tl: RunTimeline, a: int, b: int) -> np.ndarray:
         """Pooled (engine_b.pool_s) and normalized (seg_a.engine_b_norm) Engine B probability [N]."""
@@ -318,6 +370,8 @@ class RuleBasedEngine(SegmentationEngine):
             check_contract(steps, tl, self.vocabulary)
             return steps
         a, b = int(idx[0]), int(idx[-1]) + 1
+        if self.s["start_detect"]:
+            a, rep["start_of_work"] = self.start_of_work(tl, a, b)
         T_s = (b - a) / tl.fps
         rep["active"] = {"start_s": tl.t(a), "end_s": tl.t(b), "T_s": round(T_s, 3)}
         ev = self.evidence(tl, a, b)
@@ -347,7 +401,8 @@ class RuleBasedEngine(SegmentationEngine):
         rep["evidence"] = [{"start_s": tl.t(e.start), "end_s": tl.t(e.end), "kind": e.kind,
                             "strength": round(e.strength, 4), "used": e.used,
                             **({} if e.activity_change is None else {"activity_change": e.activity_change}),
-                            **({} if e.engine_b is None else {"engine_b": e.engine_b})}
+                            **({} if e.engine_b is None else {"engine_b": e.engine_b}),
+                            **({} if e.embed_change is None else {"embed_change": e.embed_change})}
                            for e in ev]
         if self.s["activity_change"]:
             rep["activity_change"] = {"on": bool(tl.activity), "ac_weight": self.s["ac_weight"],
@@ -357,6 +412,9 @@ class RuleBasedEngine(SegmentationEngine):
                                "pool_s": self.cfg["engine_b"]["pool_s"], "norm": self.s["engine_b_norm"],
                                "window_s": self.s["engine_b_window_s"], "candidates": self.s["engine_b_candidates"],
                                **getattr(self, "_b_rate", {}), **tl.boundary_info}
+        if self.s["embed_weight"] > 0:
+            rep["embed_change"] = {"on": tl.embedding is not None, "embed_weight": self.s["embed_weight"],
+                                   "embed_window_s": self.s["embed_window_s"], "window_s": self.s["engine_b_window_s"]}
         rep["evidence_counts"] = {k: sum(e.kind == k for e in ev)
                                   for k in ("no_person", "cut_pause", "pause", "cut",
                                             *(("engine_b",) if self.s["engine_b_weight"] > 0 else ()), "forced")}

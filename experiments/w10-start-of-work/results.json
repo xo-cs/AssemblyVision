@@ -1,0 +1,88 @@
+{
+  "id": "w10-start-of-work",
+  "kind": "start_of_work",
+  "source": "public",
+  "title": "Start of work detection on the public clips (no harm check)",
+  "reference": "",
+  "finished_utc": "2026-11-08",
+  "public_gt_has_intro": {
+    "process_480p30_gt.csv": false,
+    "shots_check_480p30_gt.csv": false
+  },
+  "rows": [
+    {
+      "clip": "process_480p30",
+      "start_detect": false,
+      "frame_acc": 92.33,
+      "mae_s": 2.5
+    },
+    {
+      "clip": "process_480p30",
+      "start_detect": true,
+      "start_min_intro_s": 0,
+      "frame_acc": 90.39,
+      "mae_s": 3.29,
+      "false_intro_s": 6.33
+    },
+    {
+      "clip": "process_480p30",
+      "start_detect": true,
+      "frame_acc": 92.33,
+      "mae_s": 2.5
+    },
+    {
+      "clip": "shots_check_480p30",
+      "start_detect": false,
+      "frame_acc": 30.04,
+      "mae_s": 1.65
+    },
+    {
+      "clip": "shots_check_480p30",
+      "start_detect": true,
+      "start_min_intro_s": 0,
+      "frame_acc": 27.4,
+      "mae_s": 1.65,
+      "false_intro_s": 1.3
+    },
+    {
+      "clip": "shots_check_480p30",
+      "start_detect": true,
+      "frame_acc": 30.04,
+      "mae_s": 1.65
+    }
+  ],
+  "provenance": {
+    "git": {
+      "commit": "98e31ad0026fe67175b8046aac6eb05076ec3930",
+      "branch": "feat/w10-data",
+      "dirty": [
+        "code/assemblyvision/analysis/segmentation/base.py",
+        "code/assemblyvision/analysis/segmentation/boundary_tcn.py",
+        "code/assemblyvision/analysis/segmentation/rules.py",
+        "code/assemblyvision/config.py",
+        "code/assemblyvision/experiments/registry.py",
+        "code/assemblyvision/tools/engine_b_grid.py",
+        "code/assemblyvision/tools/exp.py",
+        "code/assemblyvision/tools/run_pose.py",
+        "code/assemblyvision/tools/train_engine_b.py",
+        "code/configs/default.toml",
+        "code/tests/test_engine_b_model.py"
+      ],
+      "outputs_changed": [
+        "experiments/INDEX.md",
+        "experiments/w10_summary.md"
+      ]
+    },
+    "commands": [
+      "python -m assemblyvision.tools.run_pose --run ../data/public/runs/run_20261107_062727_311d --gt ../data/public/videos/process_480p30_gt.csv --compare seg_a.start_detect",
+      "python -m assemblyvision.tools.run_pose --run ../data/public/runs/run_20261024_091734_e388 --gt ../data/public/videos/shots_check_480p30_gt.csv --compare seg_a.start_detect"
+    ],
+    "data_area": "public"
+  },
+  "index": {
+    "cells": [
+      "public GT files have no intro; with start_min_intro_s 10 s both clips unchanged (first version cut false intros of 6.3 s and 1.3 s)"
+    ],
+    "verdict": "measurement"
+  }
+}
