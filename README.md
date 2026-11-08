@@ -112,7 +112,10 @@ floor of TF32 against strict FP32 at batch 1 (`exp noise-floor`, `experiments/no
 the rule is at the top of `experiments/INDEX.md`; metrics above the floor are listed with their
 absolute values). The default profile is the w10-best-b8 setting (pose batch 8, TF32), which is
 above that floor with identical Engine A steps, NULL decisions and flags; accuracy checks use
-`--config configs/reference.toml` (batch 1, strict FP32). Public experiments are
+`--config configs/reference.toml` (batch 1, strict FP32; `exp new` takes `--config` too).
+`shots.parallel` (off by default) runs shot detection in a thread while the pose pass starts.
+`tools/run_diff RUN_A RUN_B` compares two runs by their manifests only (settings, model, shots,
+subject choice, GT checksum). Public experiments are
 tracked in git. A QiSens experiment (`--source qisens`) keeps its config and results under
 `data/qisens/experiments/` only; just an approved summary row is added to `experiments/`.
 

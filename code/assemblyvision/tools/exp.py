@@ -30,11 +30,16 @@ import os
 import sys
 from pathlib import Path
 
-from ..config import Config
+from ..config import Config, _read_toml, deep_merge
 from ..errors import AvError
 from ..experiments import registry as reg
 from ..storage.files import REPO_ROOT
 from .run_pose import _fail, parse_sets
+
+
+def layered_sets(configs: list[Path], sets: list[str]) -> dict:
+    """exp new overrides: the --config layers in order, then --set (later wins)."""
+    return deep_merge(*[_read_toml(p) for p in configs], parse_sets(sets))
 
 
 def _print_filled(exp) -> None:
@@ -51,6 +56,8 @@ def main(argv: list[str] | None = None) -> int:
     n.add_argument("--video", action="append", required=True)
     n.add_argument("--source", choices=("public", "qisens"), default="public")
     n.add_argument("--from", dest="base", default="", help="copy the settings of this experiment")
+    n.add_argument("--config", action="append", default=[], type=Path, metavar="FILE",
+                   help="a config layer (e.g. configs/reference.toml) applied before --set")
     n.add_argument("--set", action="append", default=[], metavar="SECTION.KEY=VALUE")
     n.add_argument("--repeats", type=int, default=3)
     n.add_argument("--reference", default="", help="experiment whose runs this one must be equivalent to")
@@ -93,7 +100,8 @@ def main(argv: list[str] | None = None) -> int:
             gt = Path(args.gt).absolute().relative_to(REPO_ROOT).as_posix() if args.gt else ""
             exp = reg.create(args.id, source=args.source, videos=[str(Path(v).absolute()) for v in args.video],
                              paths_cfg=paths_cfg, title=args.title, repeats=args.repeats, reference=args.reference,
-                             gpu=args.gpu, variant=args.variant, gt=gt, base=base, sets=parse_sets(args.set),
+                             gpu=args.gpu, variant=args.variant, gt=gt, base=base,
+                             sets=layered_sets(args.config, args.set),
                              overwrite=args.overwrite)
             for key in exp.meta.get("filled_from_defaults", []):
                 print(f"filled from the defaults at commit {exp.meta['filled_at_commit'][:12]}: {key} "

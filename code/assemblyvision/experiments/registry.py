@@ -162,8 +162,11 @@ def create(exp_id: str, *, source: str, videos: list[str], paths_cfg: dict, titl
             "repeats": repeats, "reference": reference, "gpu": gpu, "variant": cfg["pose"]["variant"], "gt": gt,
             "from": base.id if base is not None else "", "created_utc": utc_now()}
     if base is not None and base.meta.get("filled_at_load"):
-        meta["filled_from_defaults"] = base.meta["filled_at_load"]["keys"]
-        meta["filled_at_commit"] = base.meta["filled_at_load"]["commit"]
+        given = {f"{sec}.{k}" for sec, vals in (sets or {}).items() if isinstance(vals, dict) for k in vals}
+        keys = [k for k in base.meta["filled_at_load"]["keys"] if k not in given]      # --set values are not defaults
+        if keys:
+            meta["filled_from_defaults"] = keys
+            meta["filled_at_commit"] = base.meta["filled_at_load"]["commit"]
     d.mkdir(parents=True, exist_ok=True)
     (d / "config.toml").write_text(config_text(meta, cfg.snapshot()))
     return Experiment(exp_id, d, meta, cfg.snapshot())

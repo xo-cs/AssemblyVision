@@ -59,12 +59,34 @@ QiSens video, Engine B v0 (engine_b/w10-engine-b-v0.pt) as evidence in Engine A,
 
 | setting | role | frame acc | edit | F1@10 | F1@25 | F1@50 | MAE s | B peaks/min raw / pooled |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| weight 0 (Engine A alone) | baseline | 75.02 | 100 | 100 | 100 | 80 | 29.35 | - |
+| weight 0 (Engine A alone; YOLO26 l, 25 Oct code) | baseline | 75.02 | 100 | 100 | 100 | 80 | 29.35 | - |
 | **pool_s 30, weight 0.4** | pre chosen (w10-engine-b-pool, public runs only) | 55.51 | 100 | 60 | 60 | 20 | 27.13 | 4.95 / 0.51 |
 | pool_s 0, weight 0.4 | post hoc sensitivity, never used for choosing | 79.96 | 100 | 100 | 100 | 60 | 23.45 | - |
 | pool_s 10, weight 0.4 | post hoc sensitivity, never used for choosing | 65.52 | 100 | 80 | 80 | 60 | 27.13 | - |
 | pool_s 60, weight 0.4 | post hoc sensitivity, never used for choosing | 49.72 | 100 | 60 | 40 | 20 | 37.24 | - |
 
-Headline: the pre chosen setting lowers frame accuracy from 75.02 to 55.51 and F1@50 from 80 to 20; MAE drops a little (29.35 to 27.13 s). The pooled rate (0.51 peaks/min) was close to the planned phase rate, so the problem is where the peaks fall, not how often.
+Headline: the pre chosen setting lowers frame accuracy from 75.02 (YOLO26 l, 25 Oct code) to 55.51 and F1@50 from 80 to 20; MAE drops a little (29.35 to 27.13 s). The pooled rate (0.51 peaks/min) was close to the planned phase rate, so the problem is where the peaks fall, not how often.
+
+The weight 0 row reproduces the 2026-10-25 result (YOLO26 l, 25 Oct code), so this compare ran on that run's stored keypoints; the current pipeline gives 50.00 on QiSens (w10-qisens-steps-drop).
 
 Conclusion: A fine action boundary scorer does not transfer to minute long phases.
+
+### w10-qisens-steps-drop
+
+Engine A on the QiSens video, approved summary numbers only (2026-11-08); everything else stays under the QiSens data area.
+
+| run | pose | GPU | precision | code | frame acc | edit | F1@10 | F1@25 | F1@50 | MAE s | how |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| run of 2026-10-25 05:36 UTC | YOLO26 l | GTX 1080 Ti | batch 1, FP32 | 25 Oct (uncommitted, became cb949b6) | 75.02 | 100 | 100 | 100 | 80 | 29.35 | its stored eval |
+| w10-qisens-ref, repeat 1 | YOLO26 x | RTX A5000 | batch 1, TF32 default | run 2026-11-07 (07a6977), scored with 06883b7 | 50.00 | 100 | 80 | 60 | 40 | 20.44 | run_pose --compare on the stored run (no GT was stored with it) |
+| w10-qisens-b8 | YOLO26 x | RTX A5000 | batch 8, TF32 | 06883b7 | 50.00 | 100 | 80 | 60 | 40 | 20.44 | its eval |
+| seg_a.start_detect = true (blind, defaults fixed on public clips) | YOLO26 x | RTX A5000 | as the run | 06883b7 | 50.00 | 100 | 80 | 60 | 40 | 20.44 | run_pose --compare; identical to start_detect = false (no effect) |
+
+Findings:
+
+- Batching does not change the steps on QiSens: w10-qisens-ref (batch 1) and w10-qisens-b8 (batch 8) give the same 50.00 / 100 / 80,60,40 / MAE 20.44.
+- The drop happened between 2026-10-25 and 2026-11-07.
+- Engine A code from cb949b6 (25 Oct) and from now give identical boundaries on three public runs, so Engine A itself does not explain the drop.
+- seg_a.start_detect = true has no effect on QiSens (blind result).
+
+Next: w10-qisens-l-replica: current code, configs/reference.toml, pose.variant = l, 1 repeat, with the GT.

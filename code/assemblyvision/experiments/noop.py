@@ -59,7 +59,8 @@ DECLARATIONS: dict[str, dict] = {
     "paths": _all(NO, "qisens_root public_root models_dir"),
     "ingest": _all(NO, "max_fps default_fps crf min_duration_s disk_factor vfr_tolerance_ms"),
     "split": _all(NO, "train_frac val_frac"),
-    "shots": _all(NO, "cut_threshold min_shot_s fixed_motion_max motion_pairs motion_pair_s downscale motion_seek"),
+    "shots": {**_all(NO, "cut_threshold min_shot_s fixed_motion_max motion_pairs motion_pair_s downscale motion_seek"),
+              "parallel": OFF},
     "pose": _all(NO, "variant fallback_variant imgsz det_conf_min ref_conf_min ref_search_s half tf32 "
                      "hand_crop_margin batch decode prefetch_frames reference_in_pass"),
     "track": _all(NO, "algorithm high_thresh low_thresh new_thresh match_thresh buffer_s min_track_s "

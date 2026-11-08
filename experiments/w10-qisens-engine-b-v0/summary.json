@@ -11,7 +11,7 @@
   "f1_tolerances": "F1@10, F1@25, F1@50 (percent overlap)",
   "rows": [
     {
-      "setting": "weight 0 (Engine A alone)",
+      "setting": "weight 0 (Engine A alone; YOLO26 l, 25 Oct code)",
       "role": "baseline",
       "frame_acc": 75.02,
       "edit": 100,
@@ -76,9 +76,10 @@
   "conclusion": "A fine action boundary scorer does not transfer to minute long phases.",
   "index": {
     "cells": [
-      "headline (pre chosen pool 30, weight 0.4): frame acc 55.51 vs 75.02 Engine A alone, F1@50 20 vs 80, MAE 27.13 vs 29.35 s",
+      "headline (pre chosen pool 30, weight 0.4): frame acc 55.51 vs 75.02 Engine A alone (YOLO26 l, 25 Oct code), F1@50 20 vs 80, MAE 27.13 vs 29.35 s",
       "A fine action boundary scorer does not transfer to minute long phases."
     ],
     "verdict": "measurement"
-  }
+  },
+  "baseline_note": "The weight 0 row reproduces 75.02, the result of the run of 2026-10-25 (YOLO26 l, 25 Oct code, GTX 1080 Ti, batch 1 FP32), so this compare ran on that run's stored keypoints. The current pipeline (YOLO26 x, Nov) gives 50.00 on QiSens, see w10-qisens-steps-drop."
 }

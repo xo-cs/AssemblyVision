@@ -1,0 +1,90 @@
+{
+  "id": "w10-qisens-steps-drop",
+  "kind": "qisens_summary",
+  "source": "qisens",
+  "reference": "",
+  "title": "QiSens Engine A result: 75.02 (25 Oct, YOLO26 l) to 50.00 (Nov, YOLO26 x); start_detect blind result (approved summary)",
+  "finished_utc": "2026-11-08",
+  "approved_by": "Khurshid Ortikov",
+  "approved_utc": "2026-11-08",
+  "rows": [
+    {
+      "run": "run of 2026-10-25 05:36 UTC",
+      "pose": "YOLO26 l",
+      "gpu": "GTX 1080 Ti",
+      "precision": "batch 1, FP32",
+      "code": "25 Oct (uncommitted, became cb949b6)",
+      "frame_acc": 75.02,
+      "edit": 100,
+      "f1": [
+        100,
+        100,
+        80
+      ],
+      "mae_s": 29.35,
+      "how": "its stored eval"
+    },
+    {
+      "run": "w10-qisens-ref, repeat 1",
+      "pose": "YOLO26 x",
+      "gpu": "RTX A5000",
+      "precision": "batch 1, TF32 default",
+      "code": "run 2026-11-07 (07a6977), scored with 06883b7",
+      "frame_acc": 50.0,
+      "edit": 100,
+      "f1": [
+        80,
+        60,
+        40
+      ],
+      "mae_s": 20.44,
+      "how": "run_pose --compare on the stored run (no GT was stored with it)"
+    },
+    {
+      "run": "w10-qisens-b8",
+      "pose": "YOLO26 x",
+      "gpu": "RTX A5000",
+      "precision": "batch 8, TF32",
+      "code": "06883b7",
+      "frame_acc": 50.0,
+      "edit": 100,
+      "f1": [
+        80,
+        60,
+        40
+      ],
+      "mae_s": 20.44,
+      "how": "its eval"
+    },
+    {
+      "run": "seg_a.start_detect = true (blind, defaults fixed on public clips)",
+      "pose": "YOLO26 x",
+      "gpu": "RTX A5000",
+      "precision": "as the run",
+      "code": "06883b7",
+      "frame_acc": 50.0,
+      "edit": 100,
+      "f1": [
+        80,
+        60,
+        40
+      ],
+      "mae_s": 20.44,
+      "how": "run_pose --compare; identical to start_detect = false (no effect)"
+    }
+  ],
+  "findings": [
+    "Batching does not change the steps on QiSens: w10-qisens-ref (batch 1) and w10-qisens-b8 (batch 8) give the same 50.00 / 100 / 80,60,40 / MAE 20.44.",
+    "The drop happened between 2026-10-25 and 2026-11-07.",
+    "Engine A code from cb949b6 (25 Oct) and from now give identical boundaries on three public runs, so Engine A itself does not explain the drop.",
+    "seg_a.start_detect = true has no effect on QiSens (blind result)."
+  ],
+  "next": "w10-qisens-l-replica: current code, configs/reference.toml, pose.variant = l, 1 repeat, with the GT.",
+  "index": {
+    "cells": [
+      "Engine A on QiSens: 75.02 (YOLO26 l, 25 Oct code) to 50.00 / MAE 20.44 (YOLO26 x, Nov), same at batch 1 and 8",
+      "start_detect = true: no effect (blind)"
+    ],
+    "verdict": "measurement"
+  }
+}

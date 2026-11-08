@@ -120,6 +120,7 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "seg_a.engine_b_window_s": (lambda v: v >= 0, ">= 0"),
     "seg_a.engine_b_norm": (lambda v: v in ("max", "none"), "max or none"),
     "seg_a.engine_b_candidates": (lambda v: isinstance(v, bool), "true or false"),
+    "shots.parallel": (lambda v: isinstance(v, bool), "true or false"),
     "seg_a.embed_weight": (lambda v: v >= 0, ">= 0"),
     "seg_a.embed_window_s": (lambda v: 1 <= v <= 1200, "1 to 1200 s"),
     "seg_a.start_detect": (lambda v: isinstance(v, bool), "true or false"),
@@ -271,6 +272,9 @@ class Config:
         if t["overlap_pose"] and not d["pose"]["reference_in_pass"]:
             raise AvError("AV-CFG-002", key="track.overlap_pose", value="true",
                           range="false unless pose.reference_in_pass is true (a shot is tracked with its reference)")
+        if d["shots"]["parallel"] and not d["pose"]["reference_in_pass"]:
+            raise AvError("AV-CFG-002", key="shots.parallel", value="true",
+                          range="false unless pose.reference_in_pass is true (the reference frames come from the pose pass)")
         m = d["motion"]
         if not m["rep_lag_min_s"] < m["rep_lag_max_s"]:
             raise AvError("AV-CFG-002", key="motion.rep_lag_min_s", value=repr(m["rep_lag_min_s"]),

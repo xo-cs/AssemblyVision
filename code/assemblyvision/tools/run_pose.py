@@ -161,6 +161,65 @@ def _setup_logging(paths: RunPaths) -> logging.Logger:
     return log
 
 
+class ParallelShots:
+    """shots.parallel: ShotDetector in a thread while the pose pass runs. The detector
+    works on a private context (its own manifest dict and notices), so only the main
+    thread ever touches ctx.manifest: result() merges the shot table, the notices and
+    the stage record when the pose pass asks for it."""
+
+    def __init__(self, cfg: Config, ctx: RunContext, prof, run_id: str, video: Path, info):
+        import threading
+        from types import SimpleNamespace
+
+        from ..ingest.shots import ShotDetector
+        self.ctx, self.prof, self.out, self.merged = ctx, prof, {}, None
+        self.notices: list = []
+        self.private = SimpleNamespace(manifest={}, log=ctx.log,
+                                       notice=lambda err, stage: self.notices.append((err, stage)))
+        self.detector = ShotDetector(cfg, self.private)
+        self.thread = threading.Thread(target=self._work, args=(run_id, video, info), name="shots", daemon=True)
+
+    def _work(self, run_id, video, info) -> None:
+        a = time.monotonic()
+        try:
+            self.out["shots"] = self.detector.detect(run_id, video, info)
+        except BaseException as e:        # re-raised in the main thread by result()
+            self.out["error"] = e
+        self.out["span"] = (a, time.monotonic())
+
+    def start(self) -> "ParallelShots":
+        rec = self.ctx.manifest["stages"].setdefault("shots", {})
+        rec.clear()
+        rec.update(status="running", started_utc=utc_now(), progress=0.0, parallel_with="pose_body")
+        self.thread.start()
+        return self
+
+    def result(self, block: bool = False):
+        """The shot list once it is ready (None before, unless block); the first call
+        after it is ready merges it into the run (main thread only)."""
+        if self.merged is not None:
+            return self.merged
+        if self.thread.is_alive() and not block:
+            return None
+        self.thread.join()
+        rec = self.ctx.manifest["stages"]["shots"]
+        if "error" in self.out:
+            e = self.out["error"]
+            err = e if isinstance(e, AvError) else AvError("AV-SYS-001", type=type(e).__name__, stage="shots",
+                                                           detail=str(e)[:300])
+            rec.update(status="failed", error=err.as_record())
+            raise err
+        self.ctx.manifest["shots"] = self.private.manifest["shots"]
+        for err, stage in self.notices:
+            self.ctx.notice(err, stage)
+        a, b = self.out["span"]
+        if self.prof is not None:
+            self.prof.marks.append(("shots", a, b))
+        rec.update(status="done", progress=1.0, finished_utc=utc_now(), seconds=round(b - a, 3))
+        self.merged = self.out["shots"]
+        return self.merged
+
+
 def _run_stage(ctx: RunContext, name: str, fn, prof=None):
     """Run one stage with its own log file; AV errors pass through, anything
     else becomes AV-SYS-001 with the traceback in the stage log only. prof
@@ -671,7 +730,12 @@ def main(argv: list[str] | None = None) -> int:
         info, _split = stage("ingest", lambda: VideoIngestor(cfg, ctx).ingest(
             run_id, video, SOURCE_TYPE[args.source], strict_split=False))
 
-        shots = stage("shots", lambda: ShotDetector(cfg, ctx).detect(run_id, paths.cfr, info))
+        parallel = cfg["shots"]["parallel"]
+        if parallel:        # shots.parallel: the shot table is made in a thread during the pose pass
+            shots_job = ParallelShots(cfg, ctx, prof, run_id, paths.cfr, info).start()
+            shots = None
+        else:
+            shots = stage("shots", lambda: ShotDetector(cfg, ctx).detect(run_id, paths.cfr, info))
 
         pose = PoseEstimator(cfg, ctx, device="cuda:0" if args.gpu >= 0 else "cpu")
         fused = cfg["pose"]["reference_in_pass"]
@@ -704,7 +768,10 @@ def main(argv: list[str] | None = None) -> int:
                 "meta": {**pose_meta, "pose_model": f"yolo26{pose.variant}-pose", "pose_variant": pose.variant},
                 "ingest": ctx.manifest.get("ingest", {})})
         det_paths = stage("pose_body", lambda: pose.estimate_body_shots(
-            run_id, shots, with_reference=fused, on_shot_done=submit if track_pool is not None else None))
+            run_id, shots, with_reference=fused, on_shot_done=submit if track_pool is not None else None,
+            shots_later=shots_job.result if parallel else None, n_total=info.frame_count))
+        if parallel:
+            shots = shots_job.result(True)
         if fused:
             ref_by_shot = set_ref_frames(pose.pass_refs)
         pose_meta = {"pose_model": f"yolo26{pose.variant}-pose", "pose_variant": pose.variant, "seed": seed}

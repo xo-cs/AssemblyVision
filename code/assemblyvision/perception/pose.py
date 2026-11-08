@@ -237,10 +237,11 @@ class PoseEstimator:
         """Pose on every frame of one shot; returns the DET v1 path (LLD 3.4)."""
         return self.estimate_body_shots(run_id, [shot], video)[shot.shot_id]
 
-    def estimate_body_shots(self, run_id: str, shots: list[Shot], video: Path | None = None,
+    def estimate_body_shots(self, run_id: str, shots: list[Shot] | None, video: Path | None = None,
                             with_reference: bool = False,
-                            on_shot_done: Callable[[Shot, Path, dict | None], None] | None = None
-                            ) -> dict[str, Path]:
+                            on_shot_done: Callable[[Shot, Path, dict | None], None] | None = None,
+                            shots_later: Callable[[bool], list[Shot] | None] | None = None,
+                            n_total: int | None = None) -> dict[str, Path]:
         """Pose on every frame of every shot in one pass over the video; one DET
         v1 file per shot (AV-POS-002, 003). Statistics, totals and per shot, go
         to ctx.manifest["pose_body"], with the time breakdown in breakdown_s.
@@ -252,7 +253,13 @@ class PoseEstimator:
         with_reference (pose.reference_in_pass): the reference frames are taken
         from this pass, as reference_frames would find them; the list is in
         self.pass_refs. on_shot_done(shot, det_path, ref) is called as soon as a
-        shot's DET file is written (tracking overlap)."""
+        shot's DET file is written (tracking overlap).
+        shots None (shots.parallel): the shot table is still being made; the pass
+        covers frames 0..n_total and shots_later(block) returns the table once it is
+        ready (None before, unless block). Frames done before it are kept and then
+        assigned to their shots as if it had been known; the images of reference
+        frames found among them are read again by seeking after the pass. Per frame
+        results do not depend on the shots, so the files are the same."""
         import torch
         if self.model is None:
             self.load_models(self.pcfg["variant"])
@@ -262,28 +269,39 @@ class PoseEstimator:
         cuda = self.device.startswith("cuda")
         if cuda:
             torch.cuda.reset_peak_memory_stats()
-        shots = sorted(shots, key=lambda s: s.start_frame)
-        first, last = shots[0].start_frame, shots[-1].end_frame
-        shot_of = np.full(last, -1, np.int32)
-        for k, s in enumerate(shots):
-            shot_of[s.start_frame:s.end_frame] = k
-
+        fps = self._fps(video) if with_reference else None
         ref_end: dict[str, int] = {}
         found: dict[str, dict] = {}
-        fps = self._fps(video) if with_reference else None
-        if with_reference:
-            ref_end = {s.shot_id: min(s.end_frame, s.start_frame + round(self.pcfg["ref_search_s"] * fps))
-                       for s in shots}
+        acc: dict = {}
+        shot_of = np.zeros(0, np.int32)
+
+        def bind(table: list[Shot]) -> None:
+            nonlocal shots, shot_of
+            shots = sorted(table, key=lambda s: s.start_frame)
+            shot_of = np.full(shots[-1].end_frame, -1, np.int32)
+            for k, s in enumerate(shots):
+                shot_of[s.start_frame:s.end_frame] = k
+            if with_reference:
+                ref_end.update({s.shot_id: min(s.end_frame, s.start_frame + round(self.pcfg["ref_search_s"] * fps))
+                                for s in shots})
+            acc.update({s.shot_id: {"rows": [[], [], [], [], []], "frames": 0, "failed": 0} for s in shots})
+
+        if shots is not None:
+            bind(shots)
+            first, last = shots[0].start_frame, shots[-1].end_frame
+        else:
+            first, last = 0, int(n_total)
+        early: list = []                    # (idx, extracted) before the shot table exists
+        late_refs: list[dict] = []          # reference frames found in early frames: images read after the pass
 
         failed: list[tuple[int, str, str]] = []
         state = {"fell_back": None, "batch": max(1, int(self.pcfg["batch"]))}
-        total = int((shot_of >= 0).sum())
+        total = int((shot_of >= 0).sum()) if shots is not None else last
         n_frames = 0
         bd = dict.fromkeys(("decode", "infer_call", "preprocess", "inference", "postprocess", "extract",
                             "writing"), 0.0)
         t0 = last_log = time.monotonic()
         every = self.cfg["run"]["progress_every_s"]
-        acc = {s.shot_id: {"rows": [[], [], [], [], []], "frames": 0, "failed": 0} for s in shots}
         paths: dict[str, Path] = {}
         current = None
 
@@ -350,24 +368,36 @@ class PoseEstimator:
                         bd[key] += float(sp.get(key) or 0.0) / 1000.0
             return list(out)
 
-        def consume(idx: int, frame: np.ndarray, res) -> None:
+        def extract(res):
+            """None for a failed frame, else (xyxy, conf, kp), or () without a person."""
+            if res is None:
+                return None
+            te = time.monotonic()
+            n = 0 if res.boxes is None else len(res.boxes)
+            out = ()
+            if n and res.keypoints is not None:
+                out = (res.boxes.xyxy.detach().cpu().numpy(), res.boxes.conf.detach().cpu().numpy(),
+                       res.keypoints.data.detach().cpu().numpy())          # kp [n,17,3]: x, y, conf
+            bd["extract"] += time.monotonic() - te
+            return out
+
+        def take(idx: int, frame: np.ndarray | None, ex) -> None:
             nonlocal current
-            k = int(shot_of[idx])
+            k = int(shot_of[idx]) if idx < len(shot_of) else -1
+            if k < 0:
+                return
             if current is not None and k != current:
                 flush(current)
             current = k
             s = shots[k]
             a = acc[s.shot_id]
             a["frames"] += 1
-            if res is None:
+            if ex is None:
                 a["failed"] += 1
                 return
-            te = time.monotonic()
-            n = 0 if res.boxes is None else len(res.boxes)
-            if n and res.keypoints is not None:
-                kp = res.keypoints.data.detach().cpu().numpy()          # [n,17,3]: x, y, conf
-                xyxy = res.boxes.xyxy.detach().cpu().numpy()
-                conf = res.boxes.conf.detach().cpu().numpy()
+            if ex:
+                xyxy, conf, kp = ex
+                n = len(conf)
                 fi, bx, dc, bxy, bcf = a["rows"]
                 fi.append(np.full(n, idx, np.int32))
                 bx.append(xyxy)
@@ -378,12 +408,30 @@ class PoseEstimator:
                     keep = conf >= self.pcfg["ref_conf_min"]      # the boxes a conf = ref_conf_min call returns
                     if keep.any():
                         ref = self._make_ref(s.shot_id, idx, fps, xyxy[keep], conf[keep])
-                        self._save_reference(frame, ref)
+                        if frame is None:
+                            late_refs.append(ref)
+                        else:
+                            self._save_reference(frame, ref)
                         found[s.shot_id] = ref
-            bd["extract"] += time.monotonic() - te
+
+        def replay() -> None:
+            for i, ex in early:
+                take(i, None, ex)
+            early.clear()
+
+        def consume(idx: int, frame: np.ndarray, res) -> None:
+            ex = extract(res)
+            if shots is None:
+                table = shots_later(False)
+                if table is None:
+                    early.append((idx, ex))
+                    return
+                bind(table)
+                replay()
+            take(idx, frame, ex)
 
         reader = frame_reader(self.pcfg["decode"], self.pcfg["prefetch_frames"])
-        frames_it = reader(video, first, last, want=lambda i: shot_of[i] >= 0)
+        frames_it = reader(video, first, last, want=None if shots is None else (lambda i: shot_of[i] >= 0))
         idxs: list[int] = []
         batch: list[np.ndarray] = []
         try:
@@ -415,6 +463,9 @@ class PoseEstimator:
             if close is not None:
                 close()
 
+        if shots is None:                   # the pass ended before the shot table
+            bind(shots_later(True))
+            replay()
         wall = time.monotonic() - t0
         if n_frames == 0:
             raise AvError("AV-ING-001", name=Path(video).name, detail="no frames could be decoded")
@@ -425,6 +476,11 @@ class PoseEstimator:
                 flush(k)
         if failed:
             self._write_failed(failed)
+        if late_refs:                       # images of reference frames found before the shot table
+            from ..ingest.ingestor import iter_frames_at
+            by_idx = {r["frame_idx"]: r for r in late_refs}
+            for i, frame in iter_frames_at(video, sorted(by_idx)):
+                self._save_reference(frame, by_idx[i])
         if with_reference:
             self.pass_refs = self._reference_done(shots, found)
 

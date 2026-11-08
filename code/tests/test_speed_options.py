@@ -302,3 +302,71 @@ class ChunkedOverlayTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ParallelShotsTest(unittest.TestCase):
+    """shots.parallel: the pose pass starts before the shot table and gives the same files."""
+    setUp, tearDown = SpeedOptionsTest.setUp, SpeedOptionsTest.tearDown
+    pose, assertSameDets = SpeedOptionsTest.pose, SpeedOptionsTest.assertSameDets
+
+    def later(self, after_calls: int):
+        n = {"calls": 0}
+
+        def shots_later(block: bool):
+            n["calls"] += 1
+            return self.shots if block or n["calls"] > after_calls else None
+        return shots_later
+
+    def run_pass(self, shots_later=None, **pose_cfg):
+        p, ctx = self.pose(reference_in_pass=True, **pose_cfg)
+        seen = []
+        paths = p.estimate_body_shots(ctx.run_id, None if shots_later else self.shots, video=self.video,
+                                      with_reference=True, shots_later=shots_later, n_total=50,
+                                      on_shot_done=lambda s, path, ref: seen.append((s.shot_id, ref is not None)))
+        dets = {sid: load_det(path) for sid, path in paths.items()}
+        refs = {r["shot_id"]: (json.loads(ctx.paths.ref_json(r["shot_id"]).read_text()),
+                               cv2.imread(str(ctx.paths.ref_png(r["shot_id"])))) for r in p.pass_refs}
+        return dets, refs, seen, no_seconds(ctx.manifest["pose_body"]), ctx
+
+    def test_same_files_whenever_the_shot_table_arrives(self):
+        for batch in (1, 8):
+            ref = self.run_pass(batch=batch)
+            for after in (0, 5, 30, 10 ** 6):     # at once, inside shot 1, inside shot 2, only after the pass
+                got = self.run_pass(self.later(after), batch=batch)
+                self.assertSameDets(ref[0], got[0])
+                self.assertEqual(set(ref[1]), set(got[1]))
+                for sid in ref[1]:
+                    self.assertEqual(ref[1][sid][0], got[1][sid][0])
+                    np.testing.assert_array_equal(ref[1][sid][1], got[1][sid][1])
+                self.assertEqual(ref[2], got[2])
+                a, b = dict(ref[3]), dict(got[3])
+                for m in (a, b):
+                    m.pop("breakdown_s"), m.pop("pose_fps"), m.pop("infer_ms_mean")
+                    m["per_shot"] = [{k: v for k, v in x.items() if k != "det_path"} for x in m["per_shot"]]
+                self.assertEqual(a, b, f"batch {batch}, after {after}")
+
+    def test_parallel_needs_reference_in_pass(self):
+        with self.assertRaises(AvError):
+            Config.load(overrides={"shots": {"parallel": True}, "pose": {"reference_in_pass": False},
+                                   "track": {"overlap_pose": False}})
+        Config.load(overrides={"shots": {"parallel": True}, "pose": {"reference_in_pass": True}})
+
+    def test_thread_gives_the_same_shot_table(self):
+        from assemblyvision.tools.run_pose import ParallelShots
+        cfg, ctx = make_ctx(self.root)
+        info = SimpleNamespace(fps=25.0, frame_count=50, width=320, height=240)
+        direct = ShotDetector(cfg, ctx).detect(ctx.run_id, self.video, info)
+        table = no_seconds(json.loads(json.dumps(ctx.manifest["shots"])))
+        cfg2, ctx2 = make_ctx(self.root)
+        ctx2.manifest.setdefault("stages", {})
+        job = ParallelShots(cfg2, ctx2, None, ctx.run_id, self.video, info).start()
+        got = job.result(True)
+        self.assertEqual([(s.shot_id, s.start_frame, s.end_frame, s.shot_type) for s in got],
+                         [(s.shot_id, s.start_frame, s.end_frame, s.shot_type) for s in direct])
+        g = no_seconds(json.loads(json.dumps(ctx2.manifest["shots"])))
+        for t in (table, g):
+            t.pop("breakdown_s")
+        self.assertEqual(g, table)
+        st = ctx2.manifest["stages"]["shots"]
+        self.assertEqual((st["status"], st["parallel_with"]), ("done", "pose_body"))
+        self.assertIs(job.result(), got)

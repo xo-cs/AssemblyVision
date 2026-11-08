@@ -38,6 +38,7 @@ motion_pairs = 20            # frame pairs for the background motion
 motion_pair_s = 0.5          # time between the two frames of a pair (s)
 downscale = 0                # cut detection frame downscale factor; 0 = PySceneDetect automatic (default)
 motion_seek = false          # true: the motion pairs are read by seeking, not by decoding the whole video
+parallel = false             # true: shot detection runs in a thread while the pose pass starts (needs pose.reference_in_pass)
 
 [pose]
 # Default since 2026-11-08 (Khurshid): the w10-best-b8 settings (batch 8, TF32, prefetch, reference
@@ -107,7 +108,7 @@ engine_b_window_s = 1.0      # a candidate's Engine B evidence: the highest pool
 engine_b_norm = "max"        # "max": pooled probability divided by its maximum in the active span; "none": as it is
 engine_b_candidates = false  # true: peaks of the pooled probability become extra point candidates (kind engine_b)
 embed_weight = 0.0           # Engine B v1 phase level term: strength += embed_weight * change score (0 to 1); 0 = off
-embed_window_s = 60.0        # change score at t: distance of the mean embedding over this window before t and after t (s)
+embed_window_s = 30.0        # chosen on public runs before any QiSens result (experiments/w10-engine-b-embed); change score at t: distance of the mean embedding over this window before t and after t (s)
 start_detect = false         # true: phase 1 starts at the first sustained subject activity, not at the first person frame
 start_sustain_s = 10.0       # sustained = in a window this long from t, ...
 start_active_share = 0.6     # ... at least this share of frames moves (motion energy >= pause_energy)

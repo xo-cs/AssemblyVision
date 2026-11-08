@@ -13,6 +13,8 @@ from assemblyvision.experiments import registry as reg
 from assemblyvision.experiments.provenance import git_state, model_checksum, sha256_file
 from helpers import fake_root
 
+REPO_CONFIGS = Path(__file__).resolve().parents[1] / "configs"
+
 
 class Stub:
     """Plays run_pose: makes a run folder with a manifest and prints the summary line."""
@@ -120,6 +122,8 @@ class RegistryTest(unittest.TestCase):
         self.assertEqual(stored.meta["filled_from_defaults"], ["engine_b.hip_calibration", "engine_b.calibration_from"])
         self.assertIn("filled_at_commit", stored.meta)
         self.assertIn("filled_from_defaults", (exp.dir / "config.toml").read_text())
+        given = self.new("w10-set", base=base, sets={"engine_b": {"hip_calibration": True}})
+        self.assertEqual(given.meta["filled_from_defaults"], ["engine_b.calibration_from"])    # --set is not a default
 
     def test_run_and_recheck_fill_in_memory_and_record_it(self):
         exp = self.new()
@@ -302,3 +306,21 @@ class ProvenanceTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ConfigLayerTest(unittest.TestCase):
+    def test_new_takes_a_config_layer(self):
+        from assemblyvision.tools.exp import layered_sets
+        tmp = fake_root()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        sets = layered_sets([REPO_CONFIGS / "reference.toml"], ["pose.batch=2"])
+        self.assertEqual((sets["pose"]["batch"], sets["pose"]["tf32"], sets["overlay"]["encoder"]), (2, False, "libx264"))
+        (root / "data/public/videos").mkdir(parents=True)
+        video = root / "data/public/videos/clip.mp4"
+        video.write_bytes(b"x")
+        exp = reg.create("t-layer", source="public", videos=[str(video)], paths_cfg=Config.load()["paths"],
+                         repo_root=root, variant="l", sets=sets)
+        st = tomllib.loads((exp.dir / "config.toml").read_text())
+        self.assertEqual((st["pose"]["batch"], st["pose"]["tf32"], st["pose"]["variant"], st["pose"]["decode"]),
+                         (2, False, "l", "opencv"))

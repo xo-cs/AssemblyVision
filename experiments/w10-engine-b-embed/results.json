@@ -1,0 +1,1321 @@
+{
+  "id": "w10-engine-b-embed",
+  "kind": "engine_b_grid",
+  "source": "public",
+  "title": "Engine B seg_a.embed_weight and seg_a.embed_window_s",
+  "reference": "",
+  "note": "Rule: experiments/w10-engine-b-embed/rule.md, committed in 172375a before w10-engine-b-v1 was trained. Applied: allowed and stable settings (no frame accuracy below weight 0 on either clip, neighbours allowed too); best mean frame accuracy 85.30 (weight 0: 61.19) at windows 20 and 30 s with weights 0.2 to 0.6; ties: process MAE equal (2.50 s), then the smaller weight 0.2, then the longer window 30 s. Chosen: seg_a.embed_window_s = 30, seg_a.embed_weight = 0.2 (process 92.33 unchanged, shots_check 30.04 to 78.26). The higher process scores at weight 0.8 (97.32) are not stable: weight 1.0 next to them falls below weight 0.",
+  "model": "engine_b/w10-engine-b-v1.pt",
+  "weight_key": "seg_a.embed_weight",
+  "window_key": "seg_a.embed_window_s",
+  "rows": [
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 10.0,
+      "weight": 0.0,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 10.0,
+      "weight": 0.2,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 10.0,
+      "weight": 0.4,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 10.0,
+      "weight": 0.6,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 10.0,
+      "weight": 0.8,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 95.87,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 1.688
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 10.0,
+      "weight": 1.0,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 74.54,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 17.938
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 20.0,
+      "weight": 0.0,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 20.0,
+      "weight": 0.2,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 20.0,
+      "weight": 0.4,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 20.0,
+      "weight": 0.6,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 20.0,
+      "weight": 0.8,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 97.32,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 1.096
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 20.0,
+      "weight": 1.0,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 90.27,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 6.471
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 30.0,
+      "weight": 0.0,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 30.0,
+      "weight": 0.2,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 30.0,
+      "weight": 0.4,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 30.0,
+      "weight": 0.6,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 30.0,
+      "weight": 0.8,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 97.32,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 1.096
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 30.0,
+      "weight": 1.0,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 91.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 5.596
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 60.0,
+      "weight": 0.0,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 60.0,
+      "weight": 0.2,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 60.0,
+      "weight": 0.4,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 60.0,
+      "weight": 0.6,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 60.0,
+      "weight": 0.8,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 60.0,
+      "weight": 1.0,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 97.32,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 1.096
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 90.0,
+      "weight": 0.0,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 90.0,
+      "weight": 0.2,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 90.0,
+      "weight": 0.4,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 90.0,
+      "weight": 0.6,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 90.0,
+      "weight": 0.8,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 90.0,
+      "weight": 1.0,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 120.0,
+      "weight": 0.0,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 120.0,
+      "weight": 0.2,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 120.0,
+      "weight": 0.4,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 120.0,
+      "weight": 0.6,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 120.0,
+      "weight": 0.8,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261107_062727_311d",
+      "video": "run_20261107_062727_311d",
+      "gt": "process_480p30_gt.csv",
+      "pool_s": 120.0,
+      "weight": 1.0,
+      "metrics": {
+        "frames": 4890,
+        "frame_accuracy": 92.33,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 10.0,
+      "weight": 0.0,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 30.04,
+        "edit": 100.0,
+        "f1_10": 40.0,
+        "f1_25": 40.0,
+        "f1_50": 40.0,
+        "boundary_mae_s": 1.65
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 10.0,
+      "weight": 0.2,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 70.36,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.75
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 10.0,
+      "weight": 0.4,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 70.36,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.75
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 10.0,
+      "weight": 0.6,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 70.36,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.75
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 10.0,
+      "weight": 0.8,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 70.36,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.75
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 10.0,
+      "weight": 1.0,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 70.36,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 2.75
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 20.0,
+      "weight": 0.0,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 30.04,
+        "edit": 100.0,
+        "f1_10": 40.0,
+        "f1_25": 40.0,
+        "f1_50": 40.0,
+        "boundary_mae_s": 1.65
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 20.0,
+      "weight": 0.2,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 78.26,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 1.75
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 20.0,
+      "weight": 0.4,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 78.26,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 1.75
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 20.0,
+      "weight": 0.6,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 78.26,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 1.75
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 20.0,
+      "weight": 0.8,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 78.26,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 1.75
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 20.0,
+      "weight": 1.0,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 78.26,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 1.75
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 30.0,
+      "weight": 0.0,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 30.04,
+        "edit": 100.0,
+        "f1_10": 40.0,
+        "f1_25": 40.0,
+        "f1_50": 40.0,
+        "boundary_mae_s": 1.65
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 30.0,
+      "weight": 0.2,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 78.26,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 1.75
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 30.0,
+      "weight": 0.4,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 78.26,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 1.75
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 30.0,
+      "weight": 0.6,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 78.26,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 1.75
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 30.0,
+      "weight": 0.8,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 78.26,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 1.75
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 30.0,
+      "weight": 1.0,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 78.26,
+        "edit": 100.0,
+        "f1_10": 100.0,
+        "f1_25": 100.0,
+        "f1_50": 100.0,
+        "boundary_mae_s": 1.75
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 60.0,
+      "weight": 0.0,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 30.04,
+        "edit": 100.0,
+        "f1_10": 40.0,
+        "f1_25": 40.0,
+        "f1_50": 40.0,
+        "boundary_mae_s": 1.65
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 60.0,
+      "weight": 0.2,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 56.52,
+        "edit": 100.0,
+        "f1_10": 80.0,
+        "f1_25": 80.0,
+        "f1_50": 60.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 60.0,
+      "weight": 0.4,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 56.52,
+        "edit": 100.0,
+        "f1_10": 80.0,
+        "f1_25": 80.0,
+        "f1_50": 60.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 60.0,
+      "weight": 0.6,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 56.52,
+        "edit": 100.0,
+        "f1_10": 80.0,
+        "f1_25": 80.0,
+        "f1_50": 60.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 60.0,
+      "weight": 0.8,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 56.52,
+        "edit": 100.0,
+        "f1_10": 80.0,
+        "f1_25": 80.0,
+        "f1_50": 60.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 60.0,
+      "weight": 1.0,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 56.52,
+        "edit": 100.0,
+        "f1_10": 80.0,
+        "f1_25": 80.0,
+        "f1_50": 60.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 90.0,
+      "weight": 0.0,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 30.04,
+        "edit": 100.0,
+        "f1_10": 40.0,
+        "f1_25": 40.0,
+        "f1_50": 40.0,
+        "boundary_mae_s": 1.65
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 90.0,
+      "weight": 0.2,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 56.52,
+        "edit": 100.0,
+        "f1_10": 80.0,
+        "f1_25": 80.0,
+        "f1_50": 60.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 90.0,
+      "weight": 0.4,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 56.52,
+        "edit": 100.0,
+        "f1_10": 80.0,
+        "f1_25": 80.0,
+        "f1_50": 60.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 90.0,
+      "weight": 0.6,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 56.52,
+        "edit": 100.0,
+        "f1_10": 80.0,
+        "f1_25": 80.0,
+        "f1_50": 60.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 90.0,
+      "weight": 0.8,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 56.52,
+        "edit": 100.0,
+        "f1_10": 80.0,
+        "f1_25": 80.0,
+        "f1_50": 60.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 90.0,
+      "weight": 1.0,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 56.52,
+        "edit": 100.0,
+        "f1_10": 80.0,
+        "f1_25": 80.0,
+        "f1_50": 60.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 120.0,
+      "weight": 0.0,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 30.04,
+        "edit": 100.0,
+        "f1_10": 40.0,
+        "f1_25": 40.0,
+        "f1_50": 40.0,
+        "boundary_mae_s": 1.65
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 120.0,
+      "weight": 0.2,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 56.52,
+        "edit": 100.0,
+        "f1_10": 80.0,
+        "f1_25": 80.0,
+        "f1_50": 60.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 120.0,
+      "weight": 0.4,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 56.52,
+        "edit": 100.0,
+        "f1_10": 80.0,
+        "f1_25": 80.0,
+        "f1_50": 60.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 120.0,
+      "weight": 0.6,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 56.52,
+        "edit": 100.0,
+        "f1_10": 80.0,
+        "f1_25": 80.0,
+        "f1_50": 60.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 120.0,
+      "weight": 0.8,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 56.52,
+        "edit": 100.0,
+        "f1_10": 80.0,
+        "f1_25": 80.0,
+        "f1_50": 60.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    },
+    {
+      "run": "run_20261024_091734_e388",
+      "video": "run_20261024_091734_e388",
+      "gt": "shots_check_480p30_gt.csv",
+      "pool_s": 120.0,
+      "weight": 1.0,
+      "metrics": {
+        "frames": 759,
+        "frame_accuracy": 56.52,
+        "edit": 100.0,
+        "f1_10": 80.0,
+        "f1_25": 80.0,
+        "f1_50": 60.0,
+        "boundary_mae_s": 2.5
+      },
+      "phases": "5/5",
+      "engine_b_rate": "-"
+    }
+  ],
+  "provenance": {
+    "date_utc": "2026-11-08T14:16:04Z",
+    "command": "/home/qisens/AssemblyVision/code/assemblyvision/tools/engine_b_grid.py --id w10-engine-b-embed --model engine_b/w10-engine-b-v1.pt --weight-key seg_a.embed_weight --window-key seg_a.embed_window_s --weights 0,0.2,0.4,0.6,0.8,1.0 --pools 10,20,30,60,90,120 --run ../data/public/runs/run_20261107_062727_311d --gt ../data/public/videos/process_480p30_gt.csv --run ../data/public/runs/run_20261024_091734_e388 --gt ../data/public/videos/shots_check_480p30_gt.csv --note Rule: experiments/w10-engine-b-embed/rule.md, committed in 172375a before w10-engine-b-v1 was trained. Applied: allowed and stable settings (no frame accuracy below weight 0 on either clip, neighbours allowed too); best mean frame accuracy 85.30 (weight 0: 61.19) at windows 20 and 30 s with weights 0.2 to 0.6; ties: process MAE equal (2.50 s), then the smaller weight 0.2, then the longer window 30 s. Chosen: seg_a.embed_window_s = 30, seg_a.embed_weight = 0.2 (process 92.33 unchanged, shots_check 30.04 to 78.26). The higher process scores at weight 0.8 (97.32) are not stable: weight 1.0 next to them falls below weight 0. --summary chosen seg_a.embed_window_s = 30, seg_a.embed_weight = 0.2 (process 92.33 unchanged, shots_check frame acc 30.04 to 78.26)",
+    "data_area": "public"
+  },
+  "finished_utc": "2026-11-08T14:16:04Z",
+  "index": {
+    "cells": [
+      "chosen seg_a.embed_window_s = 30, seg_a.embed_weight = 0.2 (process 92.33 unchanged, shots_check frame acc 30.04 to 78.26)"
+    ],
+    "verdict": "measurement"
+  }
+}
