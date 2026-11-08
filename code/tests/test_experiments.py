@@ -104,19 +104,37 @@ class RegistryTest(unittest.TestCase):
             self.assertEqual(n, 1, k)
         (exp.dir / "config.toml").write_text(text)
 
+    NEW_IN_172375A = ("embed_weight", "embed_window_s", "start_detect", "start_sustain_s", "start_active_share",
+                      "start_max_share", "start_min_intro_s", "action_weight")
+
     def test_from_fills_settings_added_later_when_they_are_no_ops(self):
         old = self.new()
         self.strip(old, "hip_calibration", "calibration_from")              # stored before these keys existed
         with self.assertRaises(reg.ExperimentError):
             reg.load("w10-ref", "public", self.pc, self.root)                # a plain load stays strict
         base = reg.load("w10-ref", "public", self.pc, self.root, fill_new=True)
-        self.assertEqual(base.meta["filled_from_defaults"], ["engine_b.hip_calibration", "engine_b.calibration_from"])
+        self.assertEqual(base.meta["filled_at_load"]["keys"], ["engine_b.hip_calibration", "engine_b.calibration_from"])
         exp = self.new("w10-new", base=base)
         stored = reg.load("w10-new", "public", self.pc, self.root)
         self.assertFalse(stored.settings["engine_b"]["hip_calibration"])
         self.assertEqual(stored.meta["filled_from_defaults"], ["engine_b.hip_calibration", "engine_b.calibration_from"])
         self.assertIn("filled_at_commit", stored.meta)
         self.assertIn("filled_from_defaults", (exp.dir / "config.toml").read_text())
+
+    def test_run_and_recheck_fill_in_memory_and_record_it(self):
+        exp = self.new()
+        self.strip(exp, *self.NEW_IN_172375A)                                 # stored before 172375a
+        before = (exp.dir / "config.toml").read_text()
+        loaded = reg.load("w10-ref", "public", self.pc, self.root, fill_new=True)
+        self.assertEqual(len(loaded.meta["filled_at_load"]["keys"]), 8)
+        res = self.run_exp(loaded)
+        rec = res["filled_from_defaults"]["at_run"]
+        self.assertIn("seg_a.start_detect", rec["keys"])
+        self.assertIn("commit", rec)
+        self.assertEqual(json.loads((exp.dir / "results.json").read_text())["filled_from_defaults"]["at_run"], rec)
+        self.assertEqual((exp.dir / "config.toml").read_text(), before)      # the stored config is unchanged
+        res = reg.recheck(loaded, self.pc, repo_root=self.root, equivalence=fake_equivalence)
+        self.assertEqual(res["filled_from_defaults"]["at_run"]["keys"], rec["keys"])
 
     def test_from_refuses_a_missing_setting_that_is_not_a_no_op(self):
         old = self.new()

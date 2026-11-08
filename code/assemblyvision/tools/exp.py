@@ -37,6 +37,12 @@ from ..storage.files import REPO_ROOT
 from .run_pose import _fail, parse_sets
 
 
+def _print_filled(exp) -> None:
+    f = exp.meta.get("filled_at_load") or {}
+    for key in f.get("keys", []):
+        print(f"filled from the defaults at commit {f['commit'][:12]}: {key} (not in the stored config; a no-op default)")
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="python -m assemblyvision.tools.exp")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -95,13 +101,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"wrote {exp.dir / 'config.toml'}")
             return 0
         if args.cmd == "run":
-            exp = reg.load(args.id, args.source, paths_cfg)
+            exp = reg.load(args.id, args.source, paths_cfg, fill_new=True)
+            _print_filled(exp)
             res = reg.run(exp, paths_cfg)
             print(reg.format_table(res))
             print(f"wrote {exp.dir / 'results.json'} and table.md")
             return 0
         if args.cmd == "recheck":
-            exp = reg.load(args.id, args.source, paths_cfg)
+            exp = reg.load(args.id, args.source, paths_cfg, fill_new=True)
+            _print_filled(exp)
             res = reg.recheck(exp, paths_cfg)
             for v, rec in res["videos"].items():
                 print(f"{Path(v).name}: {reg.video_verdict(rec) or 'reference'}")

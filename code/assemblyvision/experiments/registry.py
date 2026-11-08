@@ -82,44 +82,16 @@ def config_text(meta: dict, settings: dict) -> str:
     return "\n".join(head) + "\n\n" + Config(settings, []).to_toml()
 
 
-# Settings added after an experiment was stored that may be filled from the current defaults
-# by exp new --from: key -> test on (default value, full settings) that the default changes
-# nothing in a run of the stored experiment. Any other missing key is refused.
-def _engine_b_off(v, st) -> bool:
-    sa = st.get("seg_a", {})
-    return sa.get("engine_b_weight", 0) == 0 and sa.get("embed_weight", 0) == 0
-
-
-NO_OP_DEFAULTS = {
-    "seg_a.engine_b_weight": lambda v, st: v == 0,
-    "seg_a.engine_b_window_s": _engine_b_off,
-    "seg_a.engine_b_norm": _engine_b_off,
-    "seg_a.engine_b_candidates": lambda v, st: v is False or _engine_b_off(v, st),
-    "engine_b.model": _engine_b_off,
-    "engine_b.pool_s": _engine_b_off,
-    "engine_b.hip_calibration": lambda v, st: v is False,
-    "engine_b.calibration_from": lambda v, st: st.get("engine_b", {}).get("hip_calibration") is False,
-    "engine_b.action_weight": lambda v, st: True,       # training only; never read by a pipeline run
-    "engine_b.n_actions": lambda v, st: True,
-    "seg_a.embed_weight": lambda v, st: v == 0,
-    "seg_a.embed_window_s": lambda v, st: st.get("seg_a", {}).get("embed_weight", 0) == 0,
-    "seg_a.start_detect": lambda v, st: v is False,
-    "seg_a.start_sustain_s": lambda v, st: st.get("seg_a", {}).get("start_detect") is False,
-    "seg_a.start_active_share": lambda v, st: st.get("seg_a", {}).get("start_detect") is False,
-    "seg_a.start_max_share": lambda v, st: st.get("seg_a", {}).get("start_detect") is False,
-    "seg_a.start_min_intro_s": lambda v, st: st.get("seg_a", {}).get("start_detect") is False,
-}
-
-
 def fill_missing(data: dict, default: dict) -> list[str]:
     """Fill the settings missing in data from default, in place, when every one of them is
-    a no-op default (NO_OP_DEFAULTS). Returns the filled keys; ExperimentError otherwise."""
+    a no-op default (experiments/noop.py). Returns the filled keys; ExperimentError otherwise."""
     missing = [(s, k) for s, vals in default.items() for k in vals if k not in data.get(s, {})]
     if not missing:
         return []
     filled = deep_merge(default, data)          # the stored values win; only missing keys come from default
+    from .noop import is_no_op
     bad = [f"{s}.{k} = {_toml_value(default[s][k])}" for s, k in missing
-           if f"{s}.{k}" not in NO_OP_DEFAULTS or not NO_OP_DEFAULTS[f"{s}.{k}"](default[s][k], filled)]
+           if not is_no_op(f"{s}.{k}", default[s][k], filled)]
     if bad:
         raise ExperimentError("the source experiment predates settings whose current default is not a no-op, "
                               f"so it cannot be reused unchanged: {', '.join(bad[:8])}. Give them with --set "
@@ -131,9 +103,10 @@ def fill_missing(data: dict, default: dict) -> list[str]:
 
 def load(exp_id: str, source: str, paths_cfg: dict, repo_root: Path = REPO_ROOT,
          fill_new: bool = False) -> Experiment:
-    """The stored experiment. fill_new (exp new --from): settings added after it was
-    stored are filled from the current defaults if they are no-op defaults (fill_missing);
-    meta["filled_from_defaults"] lists them."""
+    """The stored experiment. fill_new (exp new --from, run, recheck): settings added after
+    it was stored are filled in memory from the current defaults if they are no-op defaults
+    (fill_missing, experiments/noop.py); meta["filled_at_load"] = {"keys", "commit"}
+    (the stored config.toml is not changed)."""
     _check_id(exp_id)
     d = area_dir(source, paths_cfg, repo_root) / exp_id
     path = d / "config.toml"
@@ -146,9 +119,12 @@ def load(exp_id: str, source: str, paths_cfg: dict, repo_root: Path = REPO_ROOT,
     default = Config.load().snapshot()
     if fill_new:
         try:
-            meta["filled_from_defaults"] = fill_missing(data, default)
+            filled = fill_missing(data, default)
         except ExperimentError as err:
             raise ExperimentError(f"{path}: {err}") from None
+        if filled:
+            from .provenance import git_state
+            meta["filled_at_load"] = {"keys": filled, "commit": git_state(repo_root).get("commit") or ""}
     missing = [f"{s}.{k}" for s, vals in default.items() for k in vals if k not in data.get(s, {})]
     if missing:
         raise ExperimentError(f"{path}: not every setting is stored, missing {', '.join(missing[:8])}")
@@ -185,11 +161,9 @@ def create(exp_id: str, *, source: str, videos: list[str], paths_cfg: dict, titl
     meta = {"id": exp_id, "title": title, "kind": kind, "source": source, "videos": rel_videos,
             "repeats": repeats, "reference": reference, "gpu": gpu, "variant": cfg["pose"]["variant"], "gt": gt,
             "from": base.id if base is not None else "", "created_utc": utc_now()}
-    filled = base.meta.get("filled_from_defaults", []) if base is not None else []
-    if filled:
-        from .provenance import git_state
-        meta["filled_from_defaults"] = filled
-        meta["filled_at_commit"] = git_state(repo_root).get("commit") or ""
+    if base is not None and base.meta.get("filled_at_load"):
+        meta["filled_from_defaults"] = base.meta["filled_at_load"]["keys"]
+        meta["filled_at_commit"] = base.meta["filled_at_load"]["commit"]
     d.mkdir(parents=True, exist_ok=True)
     (d / "config.toml").write_text(config_text(meta, cfg.snapshot()))
     return Experiment(exp_id, d, meta, cfg.snapshot())
@@ -304,6 +278,16 @@ def _settings_file(exp: Experiment, paths_cfg: dict, repo_root: Path) -> Path:
     return path
 
 
+def _filled_record(exp: Experiment) -> dict:
+    """results.json entry for settings filled from the defaults when the experiment was loaded."""
+    out = {}
+    if exp.meta.get("filled_at_load"):            # this run or recheck, in memory
+        out["at_run"] = dict(exp.meta["filled_at_load"])
+    if exp.meta.get("filled_from_defaults"):      # exp new --from, stored in config.toml
+        out["at_creation"] = {"keys": list(exp.meta["filled_from_defaults"]), "commit": exp.meta.get("filled_at_commit", "")}
+    return {"filled_from_defaults": out} if out else {}
+
+
 def run(exp: Experiment, paths_cfg: dict, *, repo_root: Path = REPO_ROOT,
         runner: Callable[[list[str], Path], tuple[int, str, str, float]] = default_runner,
         gpu_check: Callable[[int], list[dict]] = default_gpu_check,
@@ -321,7 +305,7 @@ def run(exp: Experiment, paths_cfg: dict, *, repo_root: Path = REPO_ROOT,
     results = {"id": exp.id, "title": exp.meta.get("title", ""), "kind": exp.meta["kind"], "source": source,
                "reference": exp.meta.get("reference", ""), "started_utc": utc_now(),
                "provenance": provenance(exp) if provenance else collect_provenance(exp, repo_root),
-               "videos": {}}
+               **_filled_record(exp), "videos": {}}
     try:
         for v in exp.meta["videos"]:
             reps = []
@@ -374,6 +358,7 @@ def recheck(exp: Experiment, paths_cfg: dict, *, repo_root: Path = REPO_ROOT,
         if ref is not None:
             rec["equivalence"] = equivalence(ref, repo_root / rec["repeats"][0]["run_dir"])
             add_noise(rec, repo_root)
+    results.update(_filled_record(exp))
     results["rechecked_utc"] = utc_now()
     (exp.dir / "results.json").write_text(json.dumps(results, indent=2, ensure_ascii=False))
     (exp.dir / "table.md").write_text(format_table(results))
