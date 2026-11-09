@@ -1,0 +1,195 @@
+{
+  "id": "w10-pose-sensitivity",
+  "kind": "pose_sensitivity",
+  "source": "public",
+  "reference": "w10-pose-sens-x",
+  "title": "Engine A sensitivity to the pose model (YOLO26 x vs l), public clips with steps GT",
+  "experiments": [
+    "w10-pose-sens-x",
+    "w10-pose-sens-l"
+  ],
+  "clips": {
+    "process_480p30.mp4": {
+      "x": {
+        "run": "run_20261109_115508_02bf",
+        "eval": {
+          "frame_accuracy": 92.33,
+          "edit": 100.0,
+          "f1_10": 100.0,
+          "f1_25": 100.0,
+          "f1_50": 100.0,
+          "boundary_mae_s": 2.5
+        },
+        "gt_file": "process_480p30_gt.csv",
+        "phases": "5/5",
+        "subject_coverage": [
+          0.997,
+          1.0,
+          1.0,
+          1.0,
+          0.941,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          0.897,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          0.633,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "pose_fps": 51.67,
+        "eval_same_in_repeats": true,
+        "change": {
+          "frame_accuracy": 0.0,
+          "edit": 0.0,
+          "f1_10": 0.0,
+          "f1_25": 0.0,
+          "f1_50": 0.0,
+          "boundary_mae_s": 0.0
+        }
+      },
+      "l": {
+        "run": "run_20261109_120150_fb97",
+        "eval": {
+          "frame_accuracy": 92.33,
+          "edit": 100.0,
+          "f1_10": 100.0,
+          "f1_25": 100.0,
+          "f1_50": 100.0,
+          "boundary_mae_s": 2.5
+        },
+        "gt_file": "process_480p30_gt.csv",
+        "phases": "5/5",
+        "subject_coverage": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          0.941,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          0.922,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          0.653,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "pose_fps": 71.1,
+        "eval_same_in_repeats": true,
+        "change": {
+          "frame_accuracy": 0.0,
+          "edit": 0.0,
+          "f1_10": 0.0,
+          "f1_25": 0.0,
+          "f1_50": 0.0,
+          "boundary_mae_s": 0.0
+        }
+      }
+    },
+    "shots_check_480p30.mp4": {
+      "x": {
+        "run": "run_20261109_115904_6e30",
+        "eval": {
+          "frame_accuracy": 30.04,
+          "edit": 100.0,
+          "f1_10": 40.0,
+          "f1_25": 40.0,
+          "f1_50": 40.0,
+          "boundary_mae_s": 1.65
+        },
+        "gt_file": "shots_check_480p30_gt.csv",
+        "phases": "5/5",
+        "subject_coverage": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          0.952
+        ],
+        "pose_fps": 51.38,
+        "eval_same_in_repeats": true,
+        "change": {
+          "frame_accuracy": 0.0,
+          "edit": 0.0,
+          "f1_10": 0.0,
+          "f1_25": 0.0,
+          "f1_50": 0.0,
+          "boundary_mae_s": 0.0
+        }
+      },
+      "l": {
+        "run": "run_20261109_120451_888f",
+        "eval": {
+          "frame_accuracy": 30.04,
+          "edit": 100.0,
+          "f1_10": 40.0,
+          "f1_25": 40.0,
+          "f1_50": 40.0,
+          "boundary_mae_s": 1.65
+        },
+        "gt_file": "shots_check_480p30_gt.csv",
+        "phases": "5/5",
+        "subject_coverage": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          0.887
+        ],
+        "pose_fps": 70.89,
+        "eval_same_in_repeats": true,
+        "change": {
+          "frame_accuracy": 0.0,
+          "edit": 0.0,
+          "f1_10": 0.0,
+          "f1_25": 0.0,
+          "f1_50": 0.0,
+          "boundary_mae_s": 0.0
+        }
+      }
+    }
+  },
+  "finished_utc": "2026-11-09T12:05:25Z",
+  "index": {
+    "cells": [
+      "process_480p30.mp4: frame acc x 92.33, l 92.33",
+      "shots_check_480p30.mp4: frame acc x 30.04, l 30.04"
+    ],
+    "verdict": "measurement"
+  }
+}
