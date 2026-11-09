@@ -1,0 +1,244 @@
+# Experiment w10-pose-sens-l: every setting is stored, so it reruns the same way.
+[experiment]
+id = "w10-pose-sens-l"
+title = "pose sensitivity: Engine A with YOLO26 l poses, reference profile, steps GT"
+kind = "full_run"
+source = "public"
+videos = ["data/public/videos/process_480p30.mp4", "data/public/videos/shots_check_480p30.mp4"]
+repeats = 1
+reference = ""
+gpu = 0
+variant = "l"
+gt = ["data/public/videos/process_480p30_gt.csv", "data/public/videos/shots_check_480p30_gt.csv"]
+from = ""
+created_utc = "2026-11-09T11:38:57Z"
+
+[run]
+seed = 42
+progress_every_s = 2.0
+
+[profile]
+enabled = false
+gpu_sample_s = 0.5
+
+[paths]
+qisens_root = "data/qisens"
+public_root = "data/public"
+models_dir = "models"
+
+[ingest]
+max_fps = 30
+default_fps = 25
+crf = 18
+min_duration_s = 60.0
+disk_factor = 3.0
+vfr_tolerance_ms = 1.0
+
+[split]
+train_frac = 0.6
+val_frac = 0.1
+
+[shots]
+cut_threshold = 25.0
+min_shot_s = 1.0
+fixed_motion_max = 0.002
+motion_pairs = 20
+motion_pair_s = 0.5
+downscale = 0
+motion_seek = false
+parallel = false
+
+[pose]
+variant = "l"
+fallback_variant = "s"
+imgsz = 640
+det_conf_min = 0.1
+ref_conf_min = 0.5
+ref_search_s = 5.0
+half = false
+tf32 = false
+hand_crop_margin = 0.15
+batch = 1
+decode = "opencv"
+prefetch_frames = 64
+reference_in_pass = false
+
+[track]
+algorithm = "bytetrack"
+high_thresh = 0.25
+low_thresh = 0.1
+new_thresh = 0.25
+match_thresh = 0.8
+buffer_s = 1.0
+min_track_s = 1.0
+auto_subject_min_coverage = 0.3
+dup_suppress = true
+dup_iou = 0.7
+dup_contain = 0.8
+dup_kp_agree = 0.6
+dup_kp_conf = 0.3
+dup_kp_dist = 0.1
+overlap_pose = false
+
+[clean]
+body_conf_min = 0.3
+gap_max_s = 0.5
+sg_window_s = 0.33
+sg_order = 2
+
+[seg_a]
+phase_solver = "dp"
+min_factor = 0.25
+max_factor = 2.5
+pause_energy = 0.15
+pause_min_s = 0.8
+long_pause_s = 5.0
+cut_pause_window_s = 2.0
+no_person_min_s = 1.5
+fallback_pause_min_s = 1.5
+other_min_s = 1.0
+strength_no_person = 1.0
+strength_cut_pause = 0.6
+strength_pause = 0.4
+strength_cut = 0.2
+activity_change = false
+ac_weight = 0.4
+ac_window_s = 10.0
+engine_b_weight = 0.0
+engine_b_window_s = 1.0
+engine_b_norm = "max"
+engine_b_candidates = false
+embed_weight = 0.0
+embed_window_s = 30.0
+start_detect = false
+start_sustain_s = 10.0
+start_active_share = 0.6
+start_max_share = 0.25
+start_min_intro_s = 10.0
+
+[steps]
+use = true
+mode = "ordered"
+step = [{ name = "Removal" }, { name = "Disassembly" }, { name = "Cleaning" }, { name = "Adjustment and Inspection" }, { name = "Assembly and Installation" }]
+
+[eval]
+seg_fps = 15
+kappa_fps = 5
+overlaps = [0.1, 0.25, 0.5]
+label = ""
+
+[datasets]
+root = "data/public/datasets"
+split_seed = 42
+cross_subject_test = 0.3
+max_transfer_gb = 5.0
+request_interval_s = 3.0
+backoff_start_s = 60.0
+backoff_max_s = 1800.0
+limited_retries = 8
+
+[boundaries]
+tol_s = 0.2
+ignore_dont_care = false
+dont_care_label = 0
+
+[engine_b]
+augment = true
+jitter_torso = 0.03
+joint_dropout = 0.05
+frame_dropout = 0.02
+conf_visible = 0.9
+conf_predicted = 0.4
+conf_noise = 0.1
+aug_seed = 42
+model = "engine_b/w10-engine-b-v0.pt"
+model_fps = 10
+stages = 2
+layers = 10
+channels = 64
+dropout = 0.5
+epochs = 60
+lr = 0.0005
+weight_decay = 0.0
+batch_videos = 8
+crop_s = 120.0
+pos_weight = 0.0
+train_seed = 42
+peak_threshold = 0.5
+peak_min_gap_s = 0.5
+eval_tols_s = [0.2, 0.5]
+action_weight = 0.0
+n_actions = 12
+hip_calibration = false
+calibration_from = "w10-ha4m-domain-gap"
+pool_s = 30.0
+
+[motion]
+enabled = ["duration", "path", "back_bending", "repetition", "hand_travel", "two_hand", "idle"]
+angle_bands = [20.0, 45.0, 60.0]
+cov_min = 0.5
+path_hz = 5
+jitter_torso = 0.005
+rep_lag_min_s = 0.4
+rep_lag_max_s = 2.0
+rep_window_s = 10.0
+rep_hop_s = 5.0
+rep_acf_min = 0.5
+idle_energy = 0.15
+idle_min_s = 1.0
+foreshort_ratio = 0.6
+view_limited_share = 0.3
+hand_active = 0.3
+gaze_conf_min = 0.5
+gaze_yaw = 0.3
+gaze_down_torso = 0.1
+stream_rep_every_s = 1.0
+stream_torso_s = 10.0
+
+[heatmap]
+cell_m = 0.1
+cell_px = 20
+min_samples = 30
+
+[gpu]
+pose = 0
+
+[overlay]
+kp_conf_min = 0.3
+max_width = 1920
+crf = 20
+enabled = false
+encoder = "libx264"
+workers = 1
+
+[ui]
+poll_s = 2.0
+max_upload_mb = 4096
+
+[live]
+gpu = 1
+half = true
+pose_model = "yolo26s-pose.pt"
+input_px = 640
+det_conf = 0.25
+kp_conf_min = 0.3
+stream_every_s = 0.04
+rate_steps = [25, 20, 15, 10]
+rate_p95_ms = 150.0
+rate_drop_max = 0.25
+rate_hold_s = 3.0
+rate_up_s = 10.0
+zone_hold_s = 0.2
+one_euro_min_cutoff = 1.0
+one_euro_beta = 0.007
+one_euro_d_cutoff = 1.0
+lost_s = 3.0
+idle_stop_s = 120.0
+max_session_s = 1800.0
+rec_fps = 10
+min_free_mb = 1500
+warn_fps = 5.0
+default_template = "workbench"
+model_keep_s = 600.0
+lift_knee_conf = 0.5
+lift_knee_seen = 0.6

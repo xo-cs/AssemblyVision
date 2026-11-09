@@ -4,6 +4,8 @@
     python -m assemblyvision.tools.ha4m_domain_gap fetch [--videos IDU001V001,IDU023V001] [--seconds 27] [--step 3]
     python -m assemblyvision.tools.ha4m_domain_gap run --gpu 0          # GPU job, ask first
     python -m assemblyvision.tools.ha4m_domain_gap compare              # CPU; writes the experiment
+    python -m assemblyvision.tools.ha4m_domain_gap run --variant l --gpu 0      # another variant, same frames
+    python -m assemblyvision.tools.ha4m_domain_gap compare --variant l          # w10-ha4m-domain-gap-l, against x
 
 fetch reads a short window of Color frames per video (default: 27 s at every 3rd
 frame from 30 % into the video, 270 frames, about 0.7 GB per video; at most
@@ -14,6 +16,9 @@ run applies YOLO26 x with the pipeline's settings (imgsz, det_conf_min, FP32 wit
 the PyTorch default TF32) under the GPU lock and stores every detection. compare
 matches YOLO to the Kinect operator and writes experiments/<id>/ (config.toml with
 every setting, results.json with provenance, table.md) and INDEX.md.
+--variant (default pose.variant, x) picks the YOLO26 model. Detections of x stay in
+yolo.npz (the first run); other variants go to yolo_<variant>.npz, and their
+experiment w10-ha4m-domain-gap-<variant> also lists every joint against x.
 """
 from __future__ import annotations
 
@@ -37,10 +42,23 @@ from .fetch_dataset import configure_pacer, dataset_root, setup_log, take_lock
 
 EXP_ID = "w10-ha4m-domain-gap"
 PILOT = "IDU001V001,IDU023V001"
+BASE_VARIANT = "x"                         # the variant of w10-ha4m-domain-gap; others are compared with it
 
 
 def gap_dir(root: Path, video: str) -> Path:
     return root / "domain_gap" / video
+
+
+def yolo_stem(d: Path, variant: str) -> Path:
+    """d/yolo (the first run, x) when its yolo.json is of this variant, else d/yolo_<variant>."""
+    legacy = d / "yolo.json"
+    if legacy.is_file() and json.loads(legacy.read_text()).get("variant") == variant:
+        return d / "yolo"
+    return d / f"yolo_{variant}"
+
+
+def exp_id(variant: str) -> str:
+    return EXP_ID if variant == BASE_VARIANT else f"{EXP_ID}-{variant}"
 
 
 def window(color: list, n_frames: int, seconds: float, step: int, start_frac: float, fps: float) -> list:
@@ -130,22 +148,23 @@ def run_yolo(args, cfg, root: Path, lg) -> int:
                 rows["xy"].append(k[:, :, :2])
                 rows["conf"].append(k[:, :, 2])
         cat = lambda a, s: np.concatenate(a).astype(np.float32) if a else np.zeros((0, *s), np.float32)
-        np.savez_compressed(d / "yolo.npz", frame_id=np.array(rows["frame_id"], np.int32), box=cat(rows["box"], (4,)),
+        stem = yolo_stem(d, p["variant"])
+        np.savez_compressed(stem.with_suffix(".npz"), frame_id=np.array(rows["frame_id"], np.int32), box=cat(rows["box"], (4,)),
                             det_conf=cat(rows["det_conf"], ()), xy=cat(rows["xy"], (17, 2)),
                             conf=cat(rows["conf"], (17,)), frames=np.array(fids, np.int32))
         info = {"variant": p["variant"], "imgsz": p["imgsz"], "conf": p["det_conf_min"], "half": p["half"],
                 "cudnn_tf32": bool(torch.backends.cudnn.allow_tf32), "device": torch.cuda.get_device_name(args.gpu),
                 "frames": len(fids), "detections": len(rows["frame_id"]), "seconds": round(time.monotonic() - t0, 1),
                 "utc": utc_now()}
-        (d / "yolo.json").write_text(json.dumps(info, indent=1) + "\n")
+        stem.with_suffix(".json").write_text(json.dumps(info, indent=1) + "\n")
         lg.info("%s: YOLO26 %s on %d frames, %d detections, %.1f s", v, p["variant"], len(fids), info["detections"],
                 info["seconds"])
     return 0
 
 
-def frames_for(root: Path, v: str) -> list[dict]:
+def frames_for(root: Path, v: str, variant: str = BASE_VARIANT) -> list[dict]:
     d = gap_dir(root, v)
-    y = dict(np.load(d / "yolo.npz"))
+    y = dict(np.load(yolo_stem(d, variant).with_suffix(".npz")))
     with np.load(root / "skeleton" / f"{v}.npz") as z:
         k_xy32, k_c32 = z["joints_2d_color"], z["confidence"]
     coco_xy, coco_c = ha4m.kinect_to_coco(k_xy32, k_c32)
@@ -161,7 +180,8 @@ def frames_for(root: Path, v: str) -> list[dict]:
 
 
 def table_md(res: dict) -> str:
-    lines = [f"# {res['id']}", "", res["title"], "", "Kinect 2D colour joints mapped to COCO 17 against YOLO26 x on the "
+    lines = [f"# {res['id']}", "", res["title"], "", f"Kinect 2D colour joints mapped to COCO 17 against YOLO26 "
+             f"{res.get('variant', BASE_VARIANT)} on the "
              "same frames. PCK threshold relative to the longer side of the Kinect person box. Found: a YOLO "
              f"box with IoU >= {domain_gap.FOUND_IOU} with the Kinect person box.", ""]
     for v, rec in res["videos"].items():
@@ -178,23 +198,65 @@ def table_md(res: dict) -> str:
             lines.append(f"| {j['joint']} | {j['n']} | {j['mean_px']} | {j['median_px']} | {j['pck_0.05']} | "
                          f"{j['pck_0.1']} | {j['pck_0.1_visible']} | {j.get('offset_torso')} | {j.get('sd_torso')} |")
         lines.append("")
+        a = rec.get("against")
+        if a:
+            v_, b_ = res["variant"], a["variant"]
+            lines += [f"### {v} against YOLO26 {b_} ({a['experiment']}), same frames", "",
+                      f"| measure | {v_} | {b_} | {v_} minus {b_} |", "| --- | --- | --- | --- |"]
+            lines += [f"| {k} | {x[0]} | {x[1]} | {x[2]} |" for k, x in a["summary"].items()]
+            lines += ["", f"| joint | PCK@0.05 {v_} | PCK@0.05 {b_} | diff | PCK@0.1 {v_} | PCK@0.1 {b_} | diff | "
+                          f"mean px {v_} | mean px {b_} | diff |", "| --- " * 10 + "|"]
+            for j in a["joints"]:
+                lines.append(f"| {j['joint']} | " + " | ".join(f"{j[k][0]} | {j[k][1]} | {j[k][2]}" for k in
+                                                               ("pck_0.05", "pck_0.1", "mean_px")) + " |")
+            lines.append("")
     return "\n".join(lines)
+
+
+def against(out: dict, base: dict, base_id: str, base_variant: str) -> dict:
+    """This variant's summary and per joint PCK and mean error next to the base variant's (same frames)."""
+    def trio(a, b, nd=4):
+        return [a, b, None if a is None or b is None else round(a - b, nd)]
+    keys = ("found_share", "mean_px", "median_px", "pck_0.05", "pck_0.1", "pck_0.05_visible", "pck_0.1_visible")
+    bj = {j["joint"]: j for j in base["joints"]}
+    return {"experiment": base_id, "variant": base_variant,
+            "summary": {k: trio(out["summary"].get(k), base["summary"].get(k), 2 if "px" in k else 4) for k in keys},
+            "joints": [{"joint": j["joint"], **{k: trio(j.get(k), bj.get(j["joint"], {}).get(k), 2 if "px" in k else 4)
+                                                for k in ("pck_0.05", "pck_0.1", "mean_px")}} for j in out["joints"]]}
 
 
 def compare_cmd(args, cfg, root: Path, lg, repo_root: Path = REPO_ROOT) -> int:
     from ..experiments.provenance import git_state, library_versions, model_checksum
     vids = [v.strip() for v in args.videos.split(",") if v.strip()]
     loader = ha4m.HA4MLoader(cfg)
-    res = {"id": EXP_ID, "kind": "domain_gap", "source": "public", "title":
-           "Domain gap: YOLO26 x against the HA4M Kinect 2D joints, one video per lab", "reference": "",
-           "videos": {}}
+    variant = cfg["pose"]["variant"]
+    eid = exp_id(variant)
+    base = None
+    if variant != BASE_VARIANT:
+        bpath = repo_root / "experiments" / EXP_ID / "results.json"
+        if not bpath.is_file():
+            lg.error("%s has no results; compare --variant %s first", EXP_ID, BASE_VARIANT)
+            return 2
+        base = json.loads(bpath.read_text())
+    res = {"id": eid, "kind": "domain_gap", "source": "public", "title":
+           f"Domain gap: YOLO26 {variant} against the HA4M Kinect 2D joints, one video per lab"
+           + ("" if base is None else f" (and against YOLO26 {BASE_VARIANT}, same frames)"), "reference": "",
+           "variant": variant, "videos": {}}
     for v in vids:
         rec = json.loads((gap_dir(root, v) / "frames.json").read_text())
-        yinfo = json.loads((gap_dir(root, v) / "yolo.json").read_text())
-        out = domain_gap.compare(frames_for(root, v))
+        yinfo = json.loads(yolo_stem(gap_dir(root, v), variant).with_suffix(".json").read_text())
+        if yinfo.get("variant") != variant:
+            lg.error("%s: no YOLO26 %s detections; run --variant %s first", v, variant, variant)
+            return 2
+        out = domain_gap.compare(frames_for(root, v, variant))
         out.update({"location": loader.video_location(v), "camera": rec["camera"], "window": {
             k: rec[k] for k in ("seconds", "step", "start_frac")}, "frame_ids": [int(f) for f in sorted(
                 map(int, rec["frames"]))], "yolo": yinfo})
+        if base is not None:
+            if v not in base["videos"] or base["videos"][v]["frame_ids"] != out["frame_ids"]:
+                lg.error("%s: %s did not use the same frames", v, EXP_ID)
+                return 2
+            out["against"] = against(out, base["videos"][v], EXP_ID, BASE_VARIANT)
         res["videos"][v] = out
     weights = repo_root / cfg["paths"]["models_dir"] / f"yolo26{cfg['pose']['variant']}-pose.pt"
     res["provenance"] = {"git": git_state(repo_root), "model": model_checksum(weights) if weights.is_file() else None,
@@ -202,11 +264,14 @@ def compare_cmd(args, cfg, root: Path, lg, repo_root: Path = REPO_ROOT) -> int:
                          "date_utc": utc_now(), "command": " ".join(sys.argv)}
     res["finished_utc"] = utc_now()
     res["index"] = {"cells": [f"{v} ({r['location']}): found {r['summary']['found_share']}, PCK@0.1 "
-                              f"{r['summary']['pck_0.1']}, {r['summary']['mean_px']} px" for v, r in res["videos"].items()],
+                              f"{r['summary']['pck_0.1']}, {r['summary']['mean_px']} px"
+                              + ("" if "against" not in r else f" ({BASE_VARIANT}: PCK@0.1 "
+                                 f"{r['against']['summary']['pck_0.1'][1]}, {r['against']['summary']['mean_px'][1]} px)")
+                              for v, r in res["videos"].items()],
                     "verdict": "measurement"}
-    d = repo_root / "experiments" / EXP_ID
+    d = repo_root / "experiments" / eid
     d.mkdir(parents=True, exist_ok=True)
-    meta = {"id": EXP_ID, "title": res["title"], "kind": "domain_gap", "source": "public",
+    meta = {"id": eid, "title": res["title"], "kind": "domain_gap", "source": "public",
             "videos": [f"data/public/datasets/ha4m/domain_gap/{v}" for v in vids], "repeats": 1, "reference": "",
             "gpu": args.gpu, "variant": cfg["pose"]["variant"]}
     (d / "config.toml").write_text(reg.config_text(meta, cfg.snapshot()))
@@ -228,8 +293,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--start-frac", type=float, default=0.3)
     p.add_argument("--max-gb", type=float, default=1.5)
     p.add_argument("--gpu", type=int, default=0)
+    p.add_argument("--variant", default=None, help="YOLO26 variant (default pose.variant)")
     args = p.parse_args(argv)
-    cfg = Config.load()
+    cfg = Config.load(overrides={"pose": {"variant": args.variant}} if args.variant else None)
     try:
         root = dataset_root(cfg, "ha4m")
         lg = setup_log(REPO_ROOT)

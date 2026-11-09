@@ -79,6 +79,25 @@ class RegistryTest(unittest.TestCase):
                        gpu_check=kw.pop("gpu_check", lambda g: []), provenance=fake_provenance,
                        equivalence=fake_equivalence, log=lambda s: None, **kw)
 
+    def test_one_gt_per_video(self):
+        v2 = self.root / "data/public/videos/clip2.mp4"
+        v2.write_bytes(b"x")
+        for name in ("a_gt.csv", "b_gt.csv"):
+            (self.root / "data/public/videos" / name).write_text("start_s,end_s,label\n")
+        gts = ["data/public/videos/a_gt.csv", "data/public/videos/b_gt.csv"]
+        exp = reg.create("t-gt", source="public", videos=[str(self.video), str(v2)], paths_cfg=self.pc,
+                         repo_root=self.root, gt=gts, repeats=1)
+        self.assertEqual(reg.load("t-gt", "public", self.pc, self.root).meta["gt"], gts)
+        stub = Stub(self.root)
+        self.run_exp(exp, runner=stub)
+        self.assertEqual([c[c.index("--gt") + 1] for c in stub.calls], [str(self.root / g) for g in gts])
+        with self.assertRaises(reg.ExperimentError):
+            reg.create("t-gt3", source="public", videos=[str(self.video), str(v2)], paths_cfg=self.pc,
+                       repo_root=self.root, gt=gts[:1] * 3)
+        with self.assertRaises(Exception):                                   # a GT from the other area
+            reg.create("t-gtq", source="public", videos=[str(self.video)], paths_cfg=self.pc,
+                       repo_root=self.root, gt="data/qisens/videos/q.mp4")
+
     def test_new_stores_every_setting(self):
         exp = self.new(sets={"pose": {"batch": 8}}, title="batch 8", repeats=2)
         data = tomllib.loads((exp.dir / "config.toml").read_text())

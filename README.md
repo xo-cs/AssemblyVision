@@ -115,7 +115,10 @@ above that floor with identical Engine A steps, NULL decisions and flags; accura
 `--config configs/reference.toml` (batch 1, strict FP32; `exp new` takes `--config` too).
 `shots.parallel` (off by default) runs shot detection in a thread while the pose pass starts.
 `tools/run_diff RUN_A RUN_B` compares two runs by their manifests only (settings, model, shots,
-subject choice, GT checksum). Public experiments are
+subject choice, GT checksum). `exp new` takes one `--gt` for every video or one per `--video`
+(same order); `tools/pose_sensitivity` builds w10-pose-sensitivity from two experiments that
+differ only in `pose.variant`. The pose model is chosen by public criteria only (rule at the top
+of `experiments/INDEX.md`). Public experiments are
 tracked in git. A QiSens experiment (`--source qisens`) keeps its config and results under
 `data/qisens/experiments/` only; just an approved summary row is added to `experiments/`.
 
@@ -133,6 +136,7 @@ python -m assemblyvision.tools.engine_b_data ha4m                  # Engine B ca
 python -m assemblyvision.tools.dataset_splits ha4m subjects        # fixed cross subject split of the 41 subjects (once)
 python -m assemblyvision.tools.dataset_splits ha4m splits          # cross subject and cross location video lists
 python -m assemblyvision.tools.ha4m_domain_gap fetch|run|compare   # YOLO26 x against the Kinect joints (run = GPU job)
+python -m assemblyvision.tools.ha4m_domain_gap run|compare --variant l   # another variant on the same frames, against x
 ```
 
 Engine B trains on HA4M's own skeletons: the Kinect 2D colour joints mapped to COCO 17, in the

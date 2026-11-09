@@ -63,7 +63,8 @@ def main(argv: list[str] | None = None) -> int:
     n.add_argument("--reference", default="", help="experiment whose runs this one must be equivalent to")
     n.add_argument("--gpu", type=int, default=0)
     n.add_argument("--variant", default=None)
-    n.add_argument("--gt", default="")
+    n.add_argument("--gt", action="append", default=[],
+                   help="steps GT: one for every video, or one per --video in the same order")
     n.add_argument("--title", default="")
     n.add_argument("--overwrite", action="store_true", help="replace an existing config.toml (results stay)")
     r = sub.add_parser("run", help="run an experiment")
@@ -97,7 +98,8 @@ def main(argv: list[str] | None = None) -> int:
                     if args.source != "qisens" or "no experiment" not in str(err):
                         raise
                     base = reg.load(args.base, "public", paths_cfg, fill_new=True)   # public settings for a QiSens run
-            gt = Path(args.gt).absolute().relative_to(REPO_ROOT).as_posix() if args.gt else ""
+            gts = [Path(os.path.normpath(Path(g).absolute())).relative_to(REPO_ROOT).as_posix() for g in args.gt]
+            gt = gts if len(gts) > 1 else gts[0] if gts else ""
             exp = reg.create(args.id, source=args.source, videos=[str(Path(v).absolute()) for v in args.video],
                              paths_cfg=paths_cfg, title=args.title, repeats=args.repeats, reference=args.reference,
                              gpu=args.gpu, variant=args.variant, gt=gt, base=base,

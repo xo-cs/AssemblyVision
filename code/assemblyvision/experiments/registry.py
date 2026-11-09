@@ -43,6 +43,7 @@ NOISE_FLOOR_FILE = "noise_floor.json"      # experiments/noise_floor.json (track
 INDEX_HEAD = ("# Experiments\n\nOne line per experiment (public data only; QiSens rows only as approved summaries).\n"
               "Regenerate any table with `python -m assemblyvision.tools.exp table <id> ...`.\n\n"
               "{noise}"
+              "{pose_rule}"
               "| id | date | title | per video: full run median s, pose fps, mean GPU util %, peak GPU MB | verdict |\n"
               "| --- | --- | --- | --- | --- |\n")
 
@@ -133,7 +134,7 @@ def load(exp_id: str, source: str, paths_cfg: dict, repo_root: Path = REPO_ROOT,
 
 
 def create(exp_id: str, *, source: str, videos: list[str], paths_cfg: dict, title: str = "",
-           repeats: int = 3, reference: str = "", gpu: int = 0, variant: str | None = None, gt: str = "",
+           repeats: int = 3, reference: str = "", gpu: int = 0, variant: str | None = None, gt: str | list = "",
            base: Experiment | None = None, sets: dict | None = None, kind: str = "full_run",
            repo_root: Path = REPO_ROOT, overwrite: bool = False) -> Experiment:
     """Write <area>/<id>/config.toml with the full configuration: the base
@@ -149,8 +150,10 @@ def create(exp_id: str, *, source: str, videos: list[str], paths_cfg: dict, titl
     for v in videos:
         real = check_video_source(Path(v) if Path(v).is_absolute() else repo_root / v, source, paths_cfg, repo_root)
         rel_videos.append(real.relative_to(repo_root).as_posix())
-    if gt:
-        check_video_source(repo_root / gt, source, paths_cfg, repo_root)     # same data area rule
+    if isinstance(gt, list) and len(gt) != len(videos):
+        raise ExperimentError(f"give one GT per video ({len(videos)}) or a single GT, not {len(gt)}")
+    for g in (gt if isinstance(gt, list) else [gt] if gt else []):
+        check_video_source(repo_root / g, source, paths_cfg, repo_root)      # same data area rule
     settings = deep_merge(base.settings if base is not None else Config.load().snapshot(), sets or {})
     if variant:
         settings["pose"]["variant"] = variant
@@ -320,8 +323,9 @@ def run(exp: Experiment, paths_cfg: dict, *, repo_root: Path = REPO_ROOT,
                 cmd = [sys.executable, "-m", "assemblyvision.tools.run_pose", "--source", source, "--video",
                        str(repo_root / v), "--variant", exp.meta["variant"], "--gpu", str(gpu),
                        "--config", str(layer), "--set", "profile.enabled=true"]
-                if exp.meta.get("gt"):
-                    cmd += ["--gt", str(repo_root / exp.meta["gt"])]
+                gt = video_gt(exp, v)
+                if gt:
+                    cmd += ["--gt", str(repo_root / gt)]
                 log(f"{exp.id}: {Path(v).name} repeat {k + 1}/{exp.meta['repeats']}")
                 code, out, err, wall = runner(cmd, repo_root / "code")
                 m = re.search(r"^(run_\d{8}_\d{6}_[0-9a-f]{4}) ", out, re.M)
@@ -347,6 +351,12 @@ def run(exp: Experiment, paths_cfg: dict, *, repo_root: Path = REPO_ROOT,
     if source == "public":
         write_index(area_dir("public", paths_cfg, repo_root))
     return results
+
+
+def video_gt(exp: Experiment, video: str) -> str:
+    """The GT of one video: meta gt is one file for every video or a list in video order."""
+    gt = exp.meta.get("gt") or ""
+    return gt[exp.meta["videos"].index(video)] if isinstance(gt, list) else gt
 
 
 def recheck(exp: Experiment, paths_cfg: dict, *, repo_root: Path = REPO_ROOT,
@@ -485,7 +495,7 @@ def write_index(root: Path) -> Path:
                 lines.append(_index_line(json.loads(f.read_text())))
                 break
     path = root / "INDEX.md"
-    path.write_text(INDEX_HEAD.format(noise=noise_text(root)) + "\n".join(lines) + "\n")
+    path.write_text(INDEX_HEAD.format(noise=noise_text(root), pose_rule=POSE_RULE) + "\n".join(lines) + "\n")
     return path
 
 
@@ -494,6 +504,14 @@ DEFAULT_NOTE = ("Default profile (decision of 2026-11-08): the w10-best-b8 setti
                 "above the floor are listed with their absolute values in w10_summary.md). Accuracy checks use "
                 "configs/reference.toml (batch 1, strict FP32, the w10-ref-notf32 settings). The QiSens run "
                 "w10-qisens-b8 decides whether this default stays.")
+
+
+POSE_RULE = ("Pose model choice rule (written 2026-11-09): the pose model (YOLO26 variant) is chosen only by public "
+             "criteria, namely the HA4M domain gap PCK on the 540 frames (w10-ha4m-domain-gap and its per variant "
+             "runs), the published COCO mAP of the variant, and speed (pose fps on the public clips). QiSens "
+             "segmentation results are never used to choose it. Disclosure: when this rule was written, the QiSens "
+             "Engine A results for YOLO26 l (75.02, 25 Oct code) and YOLO26 x (50.00) were already known "
+             "(w10-qisens-steps-drop).\n\n")
 
 
 def noise_text(root: Path) -> str:
