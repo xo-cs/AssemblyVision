@@ -1,0 +1,114 @@
+{
+  "id": "w10-qisens-engine-b-v1",
+  "kind": "qisens_summary",
+  "source": "qisens",
+  "reference": "",
+  "title": "QiSens, Engine B v1 embedding as evidence in Engine A (A+B v1), blind: the weight 0.2 and window 30 s were chosen on public clips (w10-engine-b-embed)",
+  "finished_utc": "2026-11-11",
+  "approved_by": "Khurshid Ortikov",
+  "approved_utc": "2026-11-11",
+  "model": "engine_b/w10-engine-b-v1.pt",
+  "settings": {
+    "seg_a.embed_weight": 0.2,
+    "seg_a.embed_window_s": 30.0
+  },
+  "rows": [
+    {
+      "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+      "pose": "YOLO26 x",
+      "setting": "weight 0 (Engine A alone)",
+      "role": "baseline",
+      "frame_acc": 50.0,
+      "edit": 100,
+      "f1": [
+        80,
+        60,
+        40
+      ],
+      "mae_s": 20.44
+    },
+    {
+      "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+      "pose": "YOLO26 x",
+      "setting": "**weight 0.2 (A+B v1)**",
+      "role": "pre chosen headline",
+      "frame_acc": 67.26,
+      "edit": 100,
+      "f1": [
+        100,
+        100,
+        40
+      ],
+      "mae_s": 39.06
+    },
+    {
+      "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+      "pose": "YOLO26 x",
+      "setting": "weight 0.4, 0.8",
+      "role": "post hoc, identical to 0.2",
+      "frame_acc": 67.26,
+      "edit": 100,
+      "f1": [
+        100,
+        100,
+        40
+      ],
+      "mae_s": 39.06
+    },
+    {
+      "run": "25 Oct run (run_20261025_053609_fd62)",
+      "pose": "YOLO26 l",
+      "setting": "weight 0 (Engine A alone)",
+      "role": "baseline",
+      "frame_acc": 75.02,
+      "edit": 100,
+      "f1": [
+        100,
+        100,
+        80
+      ],
+      "mae_s": 29.35
+    },
+    {
+      "run": "25 Oct run (run_20261025_053609_fd62)",
+      "pose": "YOLO26 l",
+      "setting": "**weight 0.2 (A+B v1)**",
+      "role": "pre chosen",
+      "frame_acc": 80.11,
+      "edit": 100,
+      "f1": [
+        100,
+        100,
+        100
+      ],
+      "mae_s": 23.27
+    },
+    {
+      "run": "25 Oct run (run_20261025_053609_fd62)",
+      "pose": "YOLO26 l",
+      "setting": "weight 0.4, 0.8",
+      "role": "post hoc, identical to 0.2",
+      "frame_acc": 80.11,
+      "edit": 100,
+      "f1": [
+        100,
+        100,
+        100
+      ],
+      "mae_s": 23.27
+    }
+  ],
+  "findings": [
+    "Headline (A+B v1 on YOLO26 x, the default pipeline): frame accuracy 50.00 to 67.26, F1@10 and F1@25 80 and 60 to 100, F1@50 stays 40, edit 100; the boundary MAE rises from 20.44 to 39.06 s.",
+    "On the YOLO26 l keypoints: 75.02 to 80.11, F1 100,100,100, MAE 29.35 to 23.27 s.",
+    "Weights 0.4 and 0.8 give the same result as 0.2 on both runs, so the result does not hang on the exact weight.",
+    "Engine B v1's phase level embedding transfers to QiSens where v0's fine boundary scorer did not (w10-qisens-engine-b-v0)."
+  ],
+  "index": {
+    "cells": [
+      "A+B v1 on YOLO26 x (headline): 50.00 to 67.26, F1 100,100,40, MAE 20.44 to 39.06 s",
+      "on YOLO26 l: 75.02 to 80.11, F1 100,100,100, MAE 29.35 to 23.27 s; 0.4 and 0.8 = 0.2"
+    ],
+    "verdict": "measurement"
+  }
+}

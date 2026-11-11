@@ -265,7 +265,7 @@ class StoredRunTest(unittest.TestCase):
                     s.run_id, s.shot_id, s.track_id = rid, sid, f"{sid}-t01"
                     path = write_kts(s, ctx.paths, {"is_subject": True, "subject_source": "auto"})
                     tracks.append({"track_id": s.track_id, "kts_path": ctx.rel(path), "is_subject": True})
-            ctx.manifest.update(run_id=rid, ingest={"cfr": {"fps": FPS, "frame_count": 3600, "duration_s": 120.0}},
+            ctx.manifest.update(run_id=rid, ingest={"cfr": {"fps": FPS, "frame_count": 3600, "duration_s": 120.0, "width": 1920, "height": 1080}},
                                 shots={"items": items}, tracking={"tracks": tracks}, notices=[])
             steps = stage_segmentation(ctx, cfg)
             self.assertEqual([(s.label, s.start_s, s.end_s) for s in steps],

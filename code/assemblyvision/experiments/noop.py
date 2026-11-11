@@ -12,6 +12,8 @@ once (tests/test_noop_declarations.py fails on an undeclared or stale key):
   OFF       the default itself switches its feature off (false, 0 or "")
   a function (default, full settings) -> bool, for keys that only act while
             another setting is on (e.g. the Engine B keys while its weights are 0)
+  Legacy(v) a feature switched on by default later: a stored experiment without the
+            key ran with v, so it is filled with v (not the current default)
 
 When you add a key to default.toml, declare it here: OFF or a dependent rule for
 a feature that is off by default, RUN_FREE for a training or tool setting, NO
@@ -22,6 +24,16 @@ from __future__ import annotations
 NO = "no"
 RUN_FREE = "run_free"
 OFF = "off"
+
+
+class Legacy:
+    """Filled with the value stored experiments ran with (the behaviour before the key)."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def __repr__(self) -> str:
+        return f"Legacy({self.value!r})"
 
 
 def _seg(st: dict, key: str, default):
@@ -60,7 +72,7 @@ DECLARATIONS: dict[str, dict] = {
     "ingest": _all(NO, "max_fps default_fps crf min_duration_s disk_factor vfr_tolerance_ms"),
     "split": _all(NO, "train_frac val_frac"),
     "shots": {**_all(NO, "cut_threshold min_shot_s fixed_motion_max motion_pairs motion_pair_s downscale motion_seek"),
-              "parallel": OFF},
+              "parallel": Legacy(False)},         # default true from 2026-11-11
     "pose": _all(NO, "variant fallback_variant imgsz det_conf_min ref_conf_min ref_search_s half tf32 "
                      "hand_crop_margin batch decode prefetch_frames reference_in_pass"),
     "track": _all(NO, "algorithm high_thresh low_thresh new_thresh match_thresh buffer_s min_track_s "
@@ -71,6 +83,7 @@ DECLARATIONS: dict[str, dict] = {
         **_all(NO, "phase_solver min_factor max_factor pause_energy pause_min_s long_pause_s cut_pause_window_s "
                    "no_person_min_s fallback_pause_min_s other_min_s strength_no_person strength_cut_pause "
                    "strength_pause strength_cut activity_change ac_weight ac_window_s"),
+        "engine": Legacy("custom"),          # added 2026-11-11 (default "A+B v1"); custom = the stored keys
         "engine_b_weight": OFF,
         "engine_b_window_s": engine_b_off,
         "engine_b_norm": engine_b_off,
@@ -118,12 +131,21 @@ def declaration(key: str):
     return DECLARATIONS.get(section, {}).get(name)
 
 
+def fill_value(key: str, default):
+    """The value a missing key is filled with: the Legacy value, else the default."""
+    rule = declaration(key)
+    return rule.value if isinstance(rule, Legacy) else default
+
+
 def is_no_op(key: str, default, settings: dict) -> bool:
     """True if filling key with default changes nothing in a run of settings (the
-    stored values, completed with the defaults)."""
+    stored values, completed with the defaults). For a Legacy key: default is the
+    old value."""
     rule = declaration(key)
     if rule is None or rule == NO:
         return False
+    if isinstance(rule, Legacy):
+        return default == rule.value
     if rule == RUN_FREE:
         return True
     if rule == OFF:

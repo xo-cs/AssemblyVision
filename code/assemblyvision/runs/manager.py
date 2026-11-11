@@ -17,7 +17,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from ..config import VARIANTS, _toml_value
+from ..config import ENGINE_PRESETS, VARIANTS, _toml_value
 from ..errors import AvError
 from ..storage.files import (SOURCE_TYPE, RunPaths, check_video_source, new_run_id, utc_now,
                              write_atomic)
@@ -34,11 +34,12 @@ class RunManager:
         self.worker_cmd = worker_cmd or [sys.executable, "-m", "assemblyvision.tools.run_pose"]
         self._procs: list[subprocess.Popen] = []
 
-    def create_run(self, video: str | Path, source: str, variant: str, engine: str = "A",
+    def create_run(self, video: str | Path, source: str, variant: str, engine: str | None = None,
                    overrides: dict | None = None) -> tuple[str, list]:
         """New queued run folder; returns (run_id, notices). AV-RUN-001 if the
         video is not in the data area of source, or source is not open.
-        overrides {section: {key: value}} are passed to the worker as --set."""
+        engine: a step engine preset ("A+B v1", "A"; None = seg_a.engine of the settings),
+        passed as --set seg_a.engine. overrides {section: {key: value}} are passed as --set."""
         notices = []
         if source not in self.store.roots:
             raise AvError("AV-RUN-001", name=Path(video).name, detail=f"source {source} is not open here")
@@ -47,9 +48,13 @@ class RunManager:
             notices.append(AvError("AV-APP-006", what="Model variant", value=variant,
                                    default=self.cfg["pose"]["variant"]))
             variant = self.cfg["pose"]["variant"]
-        if engine != "A":
-            notices.append(AvError("AV-SEG-001"))
-            engine = "A"
+        default_engine = self.cfg["seg_a"]["engine"] if self.cfg["seg_a"]["engine"] in ENGINE_PRESETS else "A"
+        if engine is None:
+            engine = default_engine
+        elif engine not in ENGINE_PRESETS:
+            notices.append(AvError("AV-APP-006", what="Step engine", value=engine, default=default_engine))
+            engine = default_engine
+        overrides = {**(overrides or {}), "seg_a": {**(overrides or {}).get("seg_a", {}), "engine": engine}}
         while True:
             run_id = new_run_id()
             paths = RunPaths(run_id, self.store.roots[source] / "runs" / run_id)

@@ -83,22 +83,31 @@ def config_text(meta: dict, settings: dict) -> str:
     return "\n".join(head) + "\n\n" + Config(settings, []).to_toml()
 
 
+def shipped_defaults() -> dict:
+    """The default settings as shipped in default.toml, without a step engine preset applied
+    (the preset keys keep their own defaults; seg_a.engine itself is filled as Legacy)."""
+    return Config.load(overrides={"seg_a": {"engine": "custom"}}).snapshot()
+
+
 def fill_missing(data: dict, default: dict) -> list[str]:
     """Fill the settings missing in data from default, in place, when every one of them is
     a no-op default (experiments/noop.py). Returns the filled keys; ExperimentError otherwise."""
     missing = [(s, k) for s, vals in default.items() for k in vals if k not in data.get(s, {})]
     if not missing:
         return []
+    from .noop import fill_value, is_no_op
+    value = {(s, k): fill_value(f"{s}.{k}", default[s][k]) for s, k in missing}
     filled = deep_merge(default, data)          # the stored values win; only missing keys come from default
-    from .noop import is_no_op
+    for (s, k), v in value.items():
+        filled[s][k] = v
     bad = [f"{s}.{k} = {_toml_value(default[s][k])}" for s, k in missing
-           if not is_no_op(f"{s}.{k}", default[s][k], filled)]
+           if not is_no_op(f"{s}.{k}", value[(s, k)], filled)]
     if bad:
         raise ExperimentError("the source experiment predates settings whose current default is not a no-op, "
                               f"so it cannot be reused unchanged: {', '.join(bad[:8])}. Give them with --set "
                               "or start from an experiment stored after they were added.")
     for s, k in missing:
-        data.setdefault(s, {})[k] = default[s][k]
+        data.setdefault(s, {})[k] = value[(s, k)]
     return [f"{s}.{k}" for s, k in missing]
 
 
@@ -117,7 +126,7 @@ def load(exp_id: str, source: str, paths_cfg: dict, repo_root: Path = REPO_ROOT,
     meta = data.pop("experiment", None)
     if not meta or meta.get("source") != source or meta.get("id") != exp_id:
         raise ExperimentError(f"{path}: the [experiment] section does not match id {exp_id}, source {source}")
-    default = Config.load().snapshot()
+    default = shipped_defaults()
     if fill_new:
         try:
             filled = fill_missing(data, default)
@@ -502,8 +511,11 @@ def write_index(root: Path) -> Path:
 DEFAULT_NOTE = ("Default profile (decision of 2026-11-08): the w10-best-b8 settings (pose batch 8, TF32), recorded "
                 "as **above the noise floor; Engine A steps, NULL decisions and flags identical** (the metric changes "
                 "above the floor are listed with their absolute values in w10_summary.md). Accuracy checks use "
-                "configs/reference.toml (batch 1, strict FP32, the w10-ref-notf32 settings). The QiSens run "
-                "w10-qisens-b8 decides whether this default stays.")
+                "configs/reference.toml (batch 1, strict FP32, the w10-ref-notf32 settings). From 2026-11-11 the "
+                "default also has shots.parallel = true (w10-shots-par, equivalent) and the step engine "
+                "seg_a.engine = \"A+B v1\" (Engine A with the Engine B v1 embedding, weight 0.2, window 30 s; "
+                "\"A\" stays selectable). Headline QiSens result: A+B v1 on YOLO26 x, 67.26 frame accuracy "
+                "(w10-qisens-engine-b-v1); Engine A alone on x gives 50.00.")
 
 
 POSE_RULE = ("Pose model choice rule (written 2026-11-09): the pose model (YOLO26 variant) is chosen only by public "
@@ -511,7 +523,8 @@ POSE_RULE = ("Pose model choice rule (written 2026-11-09): the pose model (YOLO2
              "runs), the published COCO mAP of the variant, and speed (pose fps on the public clips). QiSens "
              "segmentation results are never used to choose it. Disclosure: when this rule was written, the QiSens "
              "Engine A results for YOLO26 l (75.02, 25 Oct code) and YOLO26 x (50.00) were already known "
-             "(w10-qisens-steps-drop).\n\n")
+             "(w10-qisens-steps-drop). Decision by this rule (2026-11-11): YOLO26 x stays the default (better HA4M "
+             "PCK, w10-ha4m-domain-gap-l, and COCO mAP; the speed gate is met with x).\n\n")
 
 
 def noise_text(root: Path) -> str:

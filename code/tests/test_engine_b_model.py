@@ -74,6 +74,7 @@ class ModelTest(unittest.TestCase):
 
 
 def two_phase_cfg(**seg_a):
+    seg_a.setdefault("engine", "custom")                               # these tests set the Engine B keys
     over = {"steps": {"use": True, "step": [{"name": "A"}, {"name": "B"}]}, "seg_a": seg_a}
     over["engine_b"] = {"pool_s": seg_a.pop("pool_s", 0.0)}          # raw probability unless a test pools
     return Config.load(overrides=over)
@@ -283,7 +284,7 @@ class StoredRunTest(unittest.TestCase):
         gt = Path(tmp.name) / "data/qisens/gt.csv"
         gt.write_text("step,label,start_s,end_s,source\n1,A,0,62,gt\n2,B,62,120,gt\n")
         cfg = Config.load(overrides={"steps": {"use": True, "step": [{"name": "A"}, {"name": "B"}]},
-                                     "engine_b": {"model": "engine_b/does-not-exist.pt"}})
+                                     "seg_a": {"engine": "custom"}, "engine_b": {"model": "engine_b/does-not-exist.pt"}})
         rows = compare_run(manifest, ctx.paths.root, "qisens", cfg, "seg_a.engine_b_weight=0,0.4", gt)
         self.assertEqual(rows[0]["steps"], rows[1]["steps"])
         self.assertTrue(any(n.startswith("AV-SEG-001") for n in rows[1]["notices"]))

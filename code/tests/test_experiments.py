@@ -166,7 +166,7 @@ class RegistryTest(unittest.TestCase):
             reg.load("w10-ref", "public", self.pc, self.root, fill_new=True)
         self.assertIn("pose.batch = 8", str(cm.exception))
         self.assertIn("not a no-op", str(cm.exception))
-        old2 = self.new("w10-eb", sets={"seg_a": {"engine_b_weight": 0.4}})
+        old2 = self.new("w10-eb", sets={"seg_a": {"engine": "custom", "engine_b_weight": 0.4}})
         self.strip(old2, "pool_s")                                           # a no-op only while the weight is 0
         with self.assertRaises(reg.ExperimentError) as cm:
             reg.load("w10-eb", "public", self.pc, self.root, fill_new=True)

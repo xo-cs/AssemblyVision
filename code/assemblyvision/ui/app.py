@@ -41,7 +41,7 @@ import sys
 from pathlib import Path
 from urllib.parse import quote
 
-from ..config import DEFAULT_LAYERS, VARIANTS, Config
+from ..config import DEFAULT_LAYERS, ENGINE_PRESETS, VARIANTS, Config
 from ..errors import AvError
 from ..phases import PUBLIC_NOTE
 from ..storage.files import REPO_ROOT, SOURCES, source_root
@@ -628,7 +628,8 @@ class GradioApp:
 
     # actions --------------------------------------------------------------------
 
-    def start(self, video: str | None, variant: str, source_hint: str | None = None) -> tuple[str | None, str]:
+    def start(self, video: str | None, variant: str, source_hint: str | None = None,
+              engine: str | None = None) -> tuple[str | None, str]:
         """Create and start a run; (run_id or None, message)."""
         if not video:
             return None, _err_text(AvError("AV-APP-002"))
@@ -636,11 +637,12 @@ class GradioApp:
         if source is None:
             return None, _err_text(AvError("AV-RUN-001", name=Path(video).name))
         try:
-            run_id, notices = self.runs.create_run(video, source, variant)
+            run_id, notices = self.runs.create_run(video, source, variant, engine)
             self.runs.start(run_id)
         except AvError as e:
             return None, _err_text(e)
-        msg = f"Run {run_id} started on {self.video_name(video)} (model {variant}, Engine A)."
+        eng = self.runs.store.get_run(run_id)["overrides"]["seg_a"]["engine"]
+        msg = f"Run {run_id} started on {self.video_name(video)} (model {variant}, step engine {eng})."
         msg += "".join(f"\n\n{_err_text(n)}" for n in notices)
         return run_id, msg
 
@@ -661,6 +663,7 @@ class GradioApp:
         import gradio as gr
         poll_s = self.cfg["ui"]["poll_s"]
         variant0 = self.cfg["pose"]["variant"]
+        engine0 = self.cfg["seg_a"]["engine"] if self.cfg["seg_a"]["engine"] in ENGINE_PRESETS else "A"
         css = (UI_DIR / "style.css").read_text()
         js = (UI_DIR / "app.js").read_text().replace("/*COMPARE_SYNC*/", (UI_DIR / "compare_sync.js").read_text())
         keys = [k for k, _ in PAGES]
@@ -706,11 +709,11 @@ class GradioApp:
                                 variant = gr.Radio(list(VARIANTS), value=variant0, label="Pose model",
                                                    elem_classes=["av-seg"])
                                 gr.HTML("<div class='av-hint' style='margin-top:-6px'>n, s, m, l, x: smaller is faster, "
-                                        "larger is more accurate.</div>"
-                                        "<div class='av-field-label' style='margin-top:18px'>Step engine</div>"
-                                        "<div class='av-seg-static'><span class='on'>Engine A</span>"
-                                        "<span>Engine B</span></div><div class='av-hint'>Engine B is not trained "
-                                        "yet, so Engine A finds the steps.</div>")
+                                        "larger is more accurate.</div>")
+                                engine = gr.Radio(list(ENGINE_PRESETS)[::-1], value=engine0, label="Step engine",
+                                                  elem_classes=["av-seg"])
+                                gr.HTML("<div class='av-hint' style='margin-top:-6px'>A+B v1: the rules of Engine A "
+                                        "with the Engine B v1 phase evidence (default). A: the rules alone.</div>")
                             with gr.Row(elem_classes=["av-actions"]):
                                 start_btn = gr.Button("Start analysis", variant="primary", elem_classes=["av-fit"])
                                 msg = gr.HTML()
@@ -839,8 +842,8 @@ class GradioApp:
                 return gr.update(choices=self.run_choices(), value=run_id), \
                     gr.update(choices=self.video_choices()), self.runs_html(run_id)
 
-            def on_start(video, var):
-                run_id, text = self.start(video, var)
+            def on_start(video, var, eng):
+                run_id, text = self.start(video, var, engine=eng)
                 if run_id is None:
                     return [gr.skip(), v.note(text), *[gr.skip()] * len(job_out)]
                 return [run_id, f"<span class='av-hint'>{v.esc(text.split(chr(10))[0])}</span>", *job_values(run_id)]
@@ -883,7 +886,7 @@ class GradioApp:
                 return (gr.skip(), last) if h == last else (h, h)
             server_timer.tick(on_server, server_shown, [server, server_shown], show_progress="hidden")
             refresh.click(on_refresh, run_dd, [run_dd, video_dd, runs_html])
-            start_btn.click(on_start, [video_dd, variant], [job, msg, *job_out])
+            start_btn.click(on_start, [video_dd, variant, engine], [job, msg, *job_out])
             mode.change(on_mode, mode, [video_dd, up_col])
             upload.upload(on_upload, [upload, up_src], [video_dd, msg, upload, mode, up_col])
             open_btn.click(on_open, job, [run_dd, *nav_out])

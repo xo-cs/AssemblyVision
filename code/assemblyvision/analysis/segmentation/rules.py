@@ -77,6 +77,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from ...errors import AvError
+from ...config import engine_label
 from ...phases import phase_defs_for
 from ...storage.files import RunContext
 from ...types import Step
@@ -360,7 +361,10 @@ class RuleBasedEngine(SegmentationEngine):
 
     def segment_run(self, tl: RunTimeline) -> list[Step]:
         idx = np.flatnonzero(tl.person)
-        rep = {"engine": "A", "vocabulary": self.vocabulary, "fps": tl.fps, "duration_s": round(tl.duration_s, 3)}
+        engine = engine_label(self.cfg)
+        if engine != "A" and tl.boundary_prob is None and tl.embedding is None:
+            engine = "A"                    # Engine B requested but unavailable (AV-SEG-001)
+        rep = {"engine": engine, "vocabulary": self.vocabulary, "fps": tl.fps, "duration_s": round(tl.duration_s, 3)}
         self.report = rep
         self._b_rate = {}
         if len(idx) == 0:

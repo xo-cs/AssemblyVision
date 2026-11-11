@@ -8,7 +8,7 @@ Noise floor (w10-ref-notf32 against w10-ref, measured 2026-11-07):
 | track_changes_per_frame | 0.003367 | 0.002193 / 0.003367 |
 | metric_max_rel_delta | 0.0301 | 0.0301 / 0.0012 |
 
-Default profile (decision of 2026-11-08): the w10-best-b8 settings (pose batch 8, TF32), recorded as **above the noise floor; Engine A steps, NULL decisions and flags identical** (the metric changes above the floor are listed with their absolute values in w10_summary.md). Accuracy checks use configs/reference.toml (batch 1, strict FP32, the w10-ref-notf32 settings). The QiSens run w10-qisens-b8 decides whether this default stays.
+Default profile (decision of 2026-11-08): the w10-best-b8 settings (pose batch 8, TF32), recorded as **above the noise floor; Engine A steps, NULL decisions and flags identical** (the metric changes above the floor are listed with their absolute values in w10_summary.md). Accuracy checks use configs/reference.toml (batch 1, strict FP32, the w10-ref-notf32 settings). From 2026-11-11 the default also has shots.parallel = true (w10-shots-par, equivalent) and the step engine seg_a.engine = "A+B v1" (Engine A with the Engine B v1 embedding, weight 0.2, window 30 s; "A" stays selectable). Headline QiSens result: A+B v1 on YOLO26 x, 67.26 frame accuracy (w10-qisens-engine-b-v1); Engine A alone on x gives 50.00.
 
 ### process_480p30.mp4
 
@@ -73,26 +73,46 @@ The weight 0 row reproduces the 2026-10-25 result (YOLO26 l, 25 Oct code), so th
 
 Conclusion: A fine action boundary scorer does not transfer to minute long phases.
 
+### w10-qisens-engine-b-v1
+
+QiSens video, Engine B v1 (engine_b/w10-engine-b-v1.pt) embedding change score as evidence in Engine A, blind test: seg_a.embed_weight 0.2 and seg_a.embed_window_s 30 were chosen on public clips by the rule in w10-engine-b-embed before any QiSens result. This is the step engine "A+B v1", the default from 2026-11-11. Approved summary numbers only (2026-11-11); everything else stays under the QiSens data area.
+
+| run | pose | setting | role | frame acc | edit | F1@10 | F1@25 | F1@50 | MAE s |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| w10-qisens-b8 (run_20261108_133251_1550) | YOLO26 x | weight 0 (Engine A alone) | baseline | 50.00 | 100 | 80 | 60 | 40 | 20.44 |
+| w10-qisens-b8 (run_20261108_133251_1550) | YOLO26 x | **weight 0.2 (A+B v1)** | pre chosen headline | 67.26 | 100 | 100 | 100 | 40 | 39.06 |
+| w10-qisens-b8 (run_20261108_133251_1550) | YOLO26 x | weight 0.4, 0.8 | post hoc, identical to 0.2 | 67.26 | 100 | 100 | 100 | 40 | 39.06 |
+| 25 Oct run (run_20261025_053609_fd62) | YOLO26 l | weight 0 (Engine A alone) | baseline | 75.02 | 100 | 100 | 100 | 80 | 29.35 |
+| 25 Oct run (run_20261025_053609_fd62) | YOLO26 l | **weight 0.2 (A+B v1)** | pre chosen | 80.11 | 100 | 100 | 100 | 100 | 23.27 |
+| 25 Oct run (run_20261025_053609_fd62) | YOLO26 l | weight 0.4, 0.8 | post hoc, identical to 0.2 | 80.11 | 100 | 100 | 100 | 100 | 23.27 |
+
+Findings:
+
+- Headline (A+B v1 on YOLO26 x, the default pipeline): frame accuracy 50.00 to 67.26, F1@10 and F1@25 80 and 60 to 100, F1@50 stays 40, edit 100; the boundary MAE rises from 20.44 to 39.06 s.
+- On the YOLO26 l keypoints: 75.02 to 80.11, F1 100,100,100, MAE 29.35 to 23.27 s.
+- Weights 0.4 and 0.8 give the same result as 0.2 on both runs, so the result does not hang on the exact weight.
+- Engine B v1's phase level embedding transfers to QiSens where v0's fine boundary scorer did not (w10-qisens-engine-b-v0).
+
 ### w10-qisens-steps-drop
 
-Engine A on the QiSens video, approved summary numbers only (2026-11-08, updated 2026-11-09); everything else stays under the QiSens data area.
+Engine A on the QiSens video, approved summary numbers only (2026-11-08, updated 2026-11-11); everything else stays under the QiSens data area.
 
 | run | pose | GPU | precision | code | frame acc | edit | F1@10 | F1@25 | F1@50 | MAE s | how |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | run of 2026-10-25 05:36 UTC | YOLO26 l | GTX 1080 Ti | batch 1, FP32 | 25 Oct (uncommitted, became cb949b6) | 75.02 | 100 | 100 | 100 | 80 | 29.35 | its stored eval |
 | run_20261025_053609_fd62 (the 25 Oct run) rescored: weight 0 row of the Engine B v0 compare | YOLO26 l (its stored keypoints) | GTX 1080 Ti (keypoints) | batch 1, FP32 (keypoints) | Engine A, eval and GT current on 2026-11-08 | 75.02 | 100 | 100 | 100 | 80 | 29.35 | run_pose --compare on the stored run (confirmed by Khurshid 2026-11-09) |
+| w10-qisens-l-replica | YOLO26 l | RTX A5000 | batch 1, strict FP32 (configs/reference.toml) | 140110d (current code) | 75.02 | 100 | 100 | 100 | 80 | 29.35 | its eval; identical to the 25 Oct run |
 | w10-qisens-ref, repeat 1 | YOLO26 x | RTX A5000 | batch 1, TF32 default | run 2026-11-07 (07a6977), scored with 06883b7 | 50.00 | 100 | 80 | 60 | 40 | 20.44 | run_pose --compare on the stored run (no GT was stored with it) |
 | w10-qisens-b8 | YOLO26 x | RTX A5000 | batch 8, TF32 | 06883b7 | 50.00 | 100 | 80 | 60 | 40 | 20.44 | its eval |
 | seg_a.start_detect = true (blind, defaults fixed on public clips) | YOLO26 x | RTX A5000 | as the run | 06883b7 | 50.00 | 100 | 80 | 60 | 40 | 20.44 | run_pose --compare; identical to start_detect = false (no effect) |
 
 Findings:
 
-- Confirmed (2026-11-09): the Engine B v0 compare ran on run_20261025_053609_fd62, and its weight 0 row was 75.02. Today's Engine A and today's GT reproduce 75.02 on the 25 Oct keypoints, so the GT and Engine A are ruled out.
-- The drop therefore lies in the keypoints: the pose model (YOLO26 l to x) or the GPU numerics (GTX 1080 Ti to RTX A5000). w10-qisens-l-replica (YOLO26 l on the A5000, current code, batch 1 strict FP32) separates the two.
-- Batching does not change the steps on QiSens: w10-qisens-ref (batch 1) and w10-qisens-b8 (batch 8) give the same 50.00 / 100 / 80,60,40 / MAE 20.44.
-- The drop happened between 2026-10-25 and 2026-11-07.
-- Engine A code from cb949b6 (25 Oct) and from now give identical boundaries on three public runs.
+- w10-qisens-l-replica (YOLO26 l, current code, RTX A5000, batch 1 strict FP32) gives 75.02 / 100 / 100,100,80 / MAE 29.35, identical to the 25 Oct run. The pose model (l against x) explains the whole drop; the GPU numerics (GTX 1080 Ti against RTX A5000) do not.
+- Engine A on QiSens is sensitive to the pose model (l 75.02, x 50.00), while on the public clips with a GT l and x give identical steps (w10-pose-sensitivity). The HA4M domain gap differs by 0.02 to 0.03 PCK@0.1, mostly in the lower body (w10-ha4m-domain-gap-l).
+- Today's Engine A and GT reproduce 75.02 on the 25 Oct keypoints (run_20261025_053609_fd62), so the GT and Engine A were ruled out first.
+- Batching does not change the steps on QiSens: batch 1 and batch 8 give the same 50.00 / 100 / 80,60,40 / MAE 20.44.
 - seg_a.start_detect = true has no effect on QiSens (blind result).
-- The pose model is not chosen from these results: see the pose model choice rule in experiments/INDEX.md.
+- Pose model decision by the rule in experiments/INDEX.md (public criteria only): YOLO26 x stays the default (better HA4M PCK and COCO mAP; the speed gate is met with x). The QiSens l result is not used to choose.
 
-Next: w10-qisens-l-replica (running 2026-11-09): about 75 means the model explains the drop, about 50 the GPU numerics. Public side: w10-ha4m-domain-gap-l and w10-pose-sensitivity.
+Next: Headline from 2026-11-11: step engine A+B v1 on YOLO26 x (w10-qisens-engine-b-v1). Timing run with the new defaults: w10-qisens-defaults.

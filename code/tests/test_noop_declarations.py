@@ -15,7 +15,8 @@ class DeclarationTest(unittest.TestCase):
         self.assertEqual(noop.stale(Config.load().snapshot()), [])
 
     def test_off_and_dependent_rules_hold_for_the_defaults(self):
-        d = Config.load().snapshot()
+        from assemblyvision.experiments.registry import shipped_defaults
+        d = shipped_defaults()
         for s, vals in noop.DECLARATIONS.items():
             for k, rule in vals.items():
                 if rule == noop.OFF:                    # OFF must really be off by default
@@ -26,6 +27,13 @@ class DeclarationTest(unittest.TestCase):
         self.assertTrue(noop.is_no_op("engine_b.action_weight", 1.0, on))     # training only
         self.assertFalse(noop.is_no_op("seg_a.engine_b_weight", 0.4, d))
         self.assertFalse(noop.is_no_op("pose.batch", 8, d))
+
+    def test_legacy_keys_fill_the_old_behaviour(self):
+        self.assertEqual(noop.fill_value("shots.parallel", True), False)
+        self.assertEqual(noop.fill_value("seg_a.engine", "A+B v1"), "custom")
+        self.assertEqual(noop.fill_value("pose.batch", 8), 8)
+        self.assertTrue(noop.is_no_op("shots.parallel", False, {}))
+        self.assertFalse(noop.is_no_op("shots.parallel", True, {}))
 
 
 if __name__ == "__main__":

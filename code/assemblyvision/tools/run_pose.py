@@ -58,7 +58,7 @@ import tomllib
 import traceback
 from pathlib import Path
 
-from ..config import DEFAULT_LAYERS, VARIANTS, Config, _read_toml, deep_merge
+from ..config import DEFAULT_LAYERS, ENGINE_PRESETS, VARIANTS, Config, _read_toml, deep_merge
 from ..errors import AvError
 from ..storage.files import (REPO_ROOT, SOURCE_TYPE, SOURCES, RunContext, RunPaths, check_video_source,
                              RUN_ID_RE, data_area, new_run_id, run_source, utc_now, write_atomic)
@@ -448,8 +448,14 @@ def compare_run(manifest: dict, root: Path, source: str, cfg: Config, spec: str,
     gt = read_steps_csv(gt_path)
     duration = float(manifest["ingest"]["cfr"]["duration_s"])
     rows, bprob = [], None
+    if key in ENGINE_PRESETS.get(cfg["seg_a"]["engine"], {}):
+        print(f"{key} is set by seg_a.engine = {cfg['seg_a']['engine']!r}; compared with seg_a.engine = \"custom\" "
+              "(the preset's other values kept)", file=sys.stderr)
     for value in values:
-        c = Config.load(overrides=deep_merge(cfg.snapshot(), {section: {name: value}}))
+        over = {section: {name: value}}
+        if key in ENGINE_PRESETS.get(cfg["seg_a"]["engine"], {}):
+            over = deep_merge(over, {"seg_a": {"engine": "custom"}})
+        c = Config.load(overrides=deep_merge(cfg.snapshot(), over))
         mctx = _MemoryCtx(source)
         if bprob is None and engine_b_needed(c):
             bprob = boundary_probability(manifest, root, c, mctx) or {}
@@ -488,6 +494,15 @@ def format_compare(rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def stored_config(manifest: dict) -> dict:
+    """The settings a stored run ran with. A run from before seg_a.engine ran its Engine B
+    keys as stored, so it gets seg_a.engine = "custom" (not the current preset)."""
+    c = json.loads(json.dumps(manifest.get("config", {})))
+    if "seg_a" in c and "engine" not in c["seg_a"]:
+        c["seg_a"]["engine"] = "custom"
+    return c
+
+
 def compare(args: argparse.Namespace) -> int:
     os.environ["CUDA_VISIBLE_DEVICES"] = ""          # CPU only, like a rerun
     os.environ["XDG_CONFIG_HOME"] = str(REPO_ROOT / ".config")
@@ -496,7 +511,7 @@ def compare(args: argparse.Namespace) -> int:
         source, root = run_source(args.run, base["paths"])
         manifest = json.loads((root / "manifest.json").read_text())
         layers = [_read_toml(p) for p in args.config]
-        cfg = Config.load(overrides=deep_merge(manifest.get("config", {}), *layers, parse_sets(args.set)))
+        cfg = Config.load(overrides=deep_merge(stored_config(manifest), *layers, parse_sets(args.set)))
         _check_gt(args.gt, source, cfg)
         for need in ("ingest", "shots", "tracking"):
             if need not in manifest:
@@ -524,7 +539,7 @@ def rerun(args: argparse.Namespace) -> int:
         source, root = run_source(args.run, base["paths"])
         manifest = json.loads((root / "manifest.json").read_text())
         layers = [_read_toml(p) for p in args.config]
-        cfg = Config.load(overrides=deep_merge(manifest.get("config", {}), *layers, parse_sets(args.set)))
+        cfg = Config.load(overrides=deep_merge(stored_config(manifest), *layers, parse_sets(args.set)))
         _check_gt(args.gt, source, cfg)
         for need in ("ingest", "shots", "tracking"):
             if need not in manifest:

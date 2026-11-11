@@ -19,6 +19,13 @@ STEPS_TOML = CODE_DIR / "configs" / "steps.toml"
 DEFAULT_LAYERS = [DEFAULT_TOML, STEPS_TOML]          # LLD 3.0.5 order (gpu.toml comes later)
 
 VARIANTS = ("n", "s", "m", "l", "x")
+# step engine presets (seg_a.engine): the keys each preset sets; "custom" leaves them as configured
+ENGINE_PRESETS: dict[str, dict[str, Any]] = {
+    "A": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 0.0},
+    "A+B v1": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 0.2, "seg_a.embed_window_s": 30.0,
+               "engine_b.model": "engine_b/w10-engine-b-v1.pt"},
+}
+ENGINES = (*ENGINE_PRESETS, "custom")
 MOTION_METRICS = ("duration", "path", "back_bending", "repetition", "hand_travel", "two_hand", "idle", "gaze")
 
 # dotted key: (check, allowed range shown in AV-CFG-002)
@@ -121,6 +128,7 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "seg_a.engine_b_norm": (lambda v: v in ("max", "none"), "max or none"),
     "seg_a.engine_b_candidates": (lambda v: isinstance(v, bool), "true or false"),
     "shots.parallel": (lambda v: isinstance(v, bool), "true or false"),
+    "seg_a.engine": (lambda v: v in ENGINES, ", ".join(ENGINES)),
     "seg_a.embed_weight": (lambda v: v >= 0, ">= 0"),
     "seg_a.embed_window_s": (lambda v: 1 <= v <= 1200, "1 to 1200 s"),
     "seg_a.start_detect": (lambda v: isinstance(v, bool), "true or false"),
@@ -208,6 +216,15 @@ def _same_type(default: Any, value: Any) -> bool:
     return type(default) is type(value)
 
 
+def engine_label(d) -> str:
+    """The step engine of resolved settings: the preset name, or for "custom" "A" (no Engine
+    B weight) or "A+B custom"."""
+    e = d["seg_a"].get("engine", "custom")
+    if e != "custom":
+        return e
+    return "A" if d["seg_a"]["engine_b_weight"] == 0 and d["seg_a"]["embed_weight"] == 0 else "A+B custom"
+
+
 class Config:
     """Merged configuration. Read with cfg["pose"]["imgsz"] or cfg.get("pose.imgsz")."""
 
@@ -220,6 +237,7 @@ class Config:
              overrides: dict | None = None) -> "Config":
         layers = list(layers) if layers else list(DEFAULT_LAYERS)
         base = _read_toml(layers[0])
+        shipped = copy.deepcopy(base)
         sources = [str(layers[0])]
         for path in layers[1:] + ([run_config] if run_config else []):
             cls._merge(base, _read_toml(path), str(path))
@@ -232,6 +250,7 @@ class Config:
             value = base.get(section, {}).get(name)
             if value is not None and not check(value):
                 raise AvError("AV-CFG-002", key=key, value=repr(value), range=allowed)
+        cls._apply_engine(base, shipped)
         cls._check_cross(base)
         cls._check_steps(base.get("steps", {}).get("step", []))
         return cls(base, sources)
@@ -259,6 +278,23 @@ class Config:
                     raise AvError("AV-CFG-002", key=f"{key}.{lim}", value=repr(v), range="> 0")
             if "min_s" in st and "max_s" in st and not st["min_s"] < st["max_s"]:
                 raise AvError("AV-CFG-002", key=f"{key}.min_s", value=repr(st["min_s"]), range="< max_s")
+
+    @staticmethod
+    def _apply_engine(d: dict, shipped: dict) -> None:
+        """seg_a.engine "A" or "A+B v1" sets its preset keys (ENGINE_PRESETS). A preset key
+        given with another value than the preset's and the shipped default's is a conflict
+        (AV-CFG-002): change it with seg_a.engine = "custom"."""
+        preset = ENGINE_PRESETS.get(d["seg_a"]["engine"])
+        if preset is None:
+            return
+        for key, value in preset.items():
+            section, name = key.split(".")
+            have = d[section][name]
+            if have != value and have != shipped[section][name]:
+                raise AvError("AV-CFG-002", key=key, value=repr(have),
+                              range=f"{value!r} (set by seg_a.engine = {d['seg_a']['engine']!r}); "
+                                    f"set seg_a.engine = \"custom\" to change it")
+            d[section][name] = value
 
     @staticmethod
     def _check_cross(d: dict) -> None:

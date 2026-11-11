@@ -38,7 +38,7 @@ motion_pairs = 20            # frame pairs for the background motion
 motion_pair_s = 0.5          # time between the two frames of a pair (s)
 downscale = 0                # cut detection frame downscale factor; 0 = PySceneDetect automatic (default)
 motion_seek = false          # true: the motion pairs are read by seeking, not by decoding the whole video
-parallel = false             # true: shot detection runs in a thread while the pose pass starts (needs pose.reference_in_pass)
+parallel = true              # shot detection runs in a thread while the pose pass starts (needs pose.reference_in_pass); equivalent, w10-shots-par
 
 [pose]
 # Default since 2026-11-08 (Khurshid): the w10-best-b8 settings (batch 8, TF32, prefetch, reference
@@ -86,6 +86,7 @@ sg_window_s = 0.33           # Savitzky Golay window, made odd in frames (s)
 sg_order = 2                 # Savitzky Golay polynomial order
 
 [seg_a]
+engine = "A+B v1"            # step engine: "A" (rules alone), "A+B v1" (embed_weight 0.2, embed_window_s 30, engine_b.model v1; w10-engine-b-embed), "custom" (the keys below as set)
 phase_solver = "dp"          # "dp" = best global boundary choice, "forward" = LLD forward walk
 min_factor = 0.25            # phase min_s = min_factor * T / K (T = first to last frame with a person)
 max_factor = 2.5             # phase max_s = max_factor * T / K

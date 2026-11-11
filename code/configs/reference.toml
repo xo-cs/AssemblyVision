@@ -9,6 +9,9 @@ tf32 = false                 # strict FP32 (TF32 off for convolutions and matmul
 decode = "opencv"
 reference_in_pass = false
 
+[shots]
+parallel = false             # needs reference_in_pass
+
 [track]
 overlap_pose = false
 
