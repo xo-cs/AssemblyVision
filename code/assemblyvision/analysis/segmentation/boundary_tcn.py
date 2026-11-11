@@ -265,6 +265,17 @@ def change_score(emb: np.ndarray, valid: np.ndarray, n: int) -> np.ndarray:
 
 # Engine A evidence on a run ---------------------------------------------------------
 
+def to_frames(out: dict, idx: np.ndarray, T: int, fps: float, model_fps: float,
+              present: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Model step outputs (predict_all at frames idx) -> per frame probability [T]
+    (linear interpolation, 0 without the subject) and embedding [T,C] (nearest model
+    step; rows without the subject are left as computed, callers mask them)."""
+    frame_t = np.arange(T) / fps
+    prob = np.interp(frame_t, idx / fps, out["prob"]).astype(np.float32) * present
+    near = np.clip(np.round(frame_t * model_fps).astype(np.int64), 0, len(idx) - 1)   # nearest model step
+    return prob, out["embedding"][near].astype(np.float32)
+
+
 def run_probability(manifest: dict, run_root: Path, cfg, model_path: Path) -> dict:
     """Boundary probability per run frame from the subject KTS of every shot (CPU).
     Frames without the subject get 0. Returns {"prob": [N] float32, "embedding": [N,C]
@@ -291,16 +302,12 @@ def run_probability(manifest: dict, run_root: Path, cfg, model_path: Path) -> di
         xy = np.where(series.present[:T, None, None], series.body_xy[:T], np.nan)
         conf = np.where(series.present[:T, None], np.nan_to_num(series.body_conf[:T]), 0.0)
         idx = sample_index(T, fps, s["model_fps"])
-        out = predict_all(model, features(xy[idx], conf[idx], image_h))
-        p = out["prob"]
-        t_model = idx / fps
-        frame_t = np.arange(T) / fps
-        prob[f0:f0 + T] = np.interp(frame_t, t_model, p).astype(np.float32) * series.present[:T]
-        if emb is None:
-            emb = np.zeros((n, out["embedding"].shape[1]), np.float32)
-        near = np.clip(np.round(frame_t * s["model_fps"]).astype(np.int64), 0, len(idx) - 1)   # nearest model step
         pres = np.asarray(series.present[:T], bool)
-        emb[f0:f0 + T][pres] = out["embedding"][near][pres]
+        fp, fe = to_frames(predict_all(model, features(xy[idx], conf[idx], image_h)), idx, T, fps, s["model_fps"], pres)
+        prob[f0:f0 + T] = fp
+        if emb is None:
+            emb = np.zeros((n, fe.shape[1]), np.float32)
+        emb[f0:f0 + T][pres] = fe[pres]
         emb_ok[f0:f0 + T] |= pres
         scored += int(series.present[:T].sum())
     return {"prob": prob, "embedding": emb, "embedding_valid": emb_ok, "n_actions": s.get("n_actions", 0),

@@ -1,6 +1,6 @@
 # w10-qisens-engine-b-v1
 
-QiSens video, Engine B v1 (engine_b/w10-engine-b-v1.pt) embedding change score as evidence in Engine A, blind test: seg_a.embed_weight 0.2 and seg_a.embed_window_s 30 were chosen on public clips by the rule in w10-engine-b-embed before any QiSens result. This is the step engine "B v1" (named "Engine B v1" on 2026-11-11), the default from 2026-11-11. Approved summary numbers only (2026-11-11); everything else stays under the QiSens data area.
+QiSens video, Engine B v1 (engine_b/w10-engine-b-v1.pt) embedding change score as evidence in Engine A, blind test: seg_a.embed_weight 0.2 and seg_a.embed_window_s 30 were chosen on public clips by the rule in w10-engine-b-embed before any QiSens result. This is the step engine "B v1" (named "A+B v1" on 2026-11-11), the default from 2026-11-11. Approved summary numbers only (2026-11-11); everything else stays under the QiSens data area.
 
 | run | pose | setting | role | frame acc | edit | F1@10 | F1@25 | F1@50 | MAE s |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
