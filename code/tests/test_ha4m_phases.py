@@ -16,10 +16,10 @@ class MacroPhaseTest(unittest.TestCase):
         # intro 0, Block 1 (1, 0, 2), gap to Block 2 (0 0), Block 2 (5), outro 0
         a = np.array([0, 0, 1, 0, 2, 0, 0, 0, 5, 5, 0])
         idx = hp.macro_index(a)
-        self.assertEqual(idx.tolist(), [-1, -1, 0, 0, 0, 0, 0, 1, 1, 1, -1])    # gap split at the midpoint
+        self.assertEqual(idx.tolist(), [-1, -1, 0, 0, 0, 0, 1, 1, 1, 1, -1])    # split at the midpoint (odd: later)
         steps = hp.steps_from_index(idx, 1.0)
         self.assertEqual([(s.label, s.start_s, s.end_s) for s in steps],
-                         [("other", 0.0, 2.0), ("Block 1", 2.0, 7.0), ("Block 2", 7.0, 10.0), ("other", 10.0, 11.0)])
+                         [("other", 0.0, 2.0), ("Block 1", 2.0, 6.0), ("Block 2", 6.0, 10.0), ("other", 10.0, 11.0)])
         self.assertFalse(hp.in_task_order(steps))                  # three phases are missing
 
     def test_out_of_order_video_keeps_its_order(self):

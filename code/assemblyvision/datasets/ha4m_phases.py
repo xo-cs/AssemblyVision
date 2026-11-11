@@ -7,7 +7,7 @@ lasts about as long as the other two together, so it is split along its own sub 
 
 GT per video: every frame gets the macro phase of its action. Don't care frames
 (action 0) between two frames of the same phase belong to it; between two different
-phases they are split at the midpoint; before the first and after the last action
+phases they are split at the midpoint (an odd middle frame goes to the later phase); before the first and after the last action
 they are "other" (intro and outro). A video whose actions leave the task order gives
 more than 5 segments (a phase can appear twice); it is kept and counted.
 """
