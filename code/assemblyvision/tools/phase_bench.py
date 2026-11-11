@@ -100,6 +100,26 @@ def model_outputs(d: dict, model, settings: dict, present: np.ndarray) -> dict:
     return {"prob": prob, "embedding": emb, "embedding_valid": present.copy()}
 
 
+def with_intro(d: dict, seconds: float, rng, cfg: Config) -> dict:
+    """A synthetic intro (item 8): the first measured pose of the video held still for
+    seconds (Gaussian jitter of 1 px), prepended to the skeleton; its frames are labelled
+    don't care, so the GT macro phases make them other. Engine B features are computed
+    again for the whole video, as the cache computes them."""
+    fps = float(d["meta"]["fps"])
+    n = int(round(seconds * fps))
+    xy, kc = np.asarray(d["xy"], np.float64), np.asarray(d["kinect_conf"], np.float64)
+    first = int(np.argmax((np.isfinite(xy).all(axis=2) & (kc > 0)).sum(axis=1) >= 12))
+    still = xy[first][None].repeat(n, axis=0) + rng.normal(0, 1.0, (n, 17, 2))
+    xy2 = np.concatenate([still, xy]).astype(np.float32)
+    kc2 = np.concatenate([kc[first][None].repeat(n, axis=0), kc]).astype(np.float32)
+    labels = np.concatenate([np.zeros((n, 2), np.int64), np.asarray(d["labels"], np.int64)])
+    a = eb.AugmentConfig.from_cfg(cfg)
+    feats = eb.features(xy2, eb.yolo_like_conf(kc2, a), float(RGB_SIZE[1]), float(d["median_torso_px"]))
+    meta = {**d["meta"], "frames": len(xy2), "intro_s": round(n / fps, 3)}
+    return {**d, "xy": xy2, "kinect_conf": kc2, "labels": labels, "features": feats.astype(np.float32),
+            "labelled": np.concatenate([np.ones(n, bool), np.asarray(d["labelled"], bool)]), "meta": meta}
+
+
 class Bench:
     """Decodes and scores HA4M videos for any number of settings (models are cached)."""
 
@@ -114,8 +134,11 @@ class Bench:
             self._models[name] = bt.load_model(self.root / "models" / name)
         return self._models[name]
 
-    def video(self, vid: str, cfg: Config) -> dict:
+    def video(self, vid: str, cfg: Config, intro_s: float = 0.0, seed: int = 0) -> dict:
         d = video_arrays(self.cache, vid)
+        if intro_s > 0:
+            d = with_intro(d, intro_s, np.random.default_rng(seed), cfg)
+            vid = f"{vid}+intro{intro_s:g}"
         engine = RuleBasedEngine(cfg)
         tl = video_timeline(d, cfg, engine)
         if cfg["seg_a"]["engine_b_weight"] > 0 or cfg["seg_a"]["embed_weight"] > 0:

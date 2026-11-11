@@ -1,7 +1,7 @@
 # Compute modes (design, for review before the dual GPU code)
 
-Status: design only, 2026-11-11. Nothing of this is coded yet; gpu_single is today's
-behaviour. Khurshid reviews this page before any gpu_dual code is written.
+Status: approved 2026-11-12 with the additions below (sections 3, 4, 6 and 8). It is implemented only
+after the segmentation items of that day, as the lowest priority. gpu_single is today's behaviour.
 
 ## 1. Modes
 
@@ -85,6 +85,11 @@ layout.
   - per frame results do not depend on neighbouring frames, so the merge is exact;
   - tracking then runs per shot as now. `track.overlap_pose` starts a shot's tracking when all its
     parts exist.
+- **Batch grouping at chunk edges:** each process starts its batches of `pose.batch` frames at its
+  first chunk, so the frames that share a batch differ from a single GPU run, wherever a chunk does
+  not start at a multiple of the batch. Batching was equivalent within the noise floor (w10-b8),
+  but it is named in the section 6 report as a known source of difference, next to the GPU
+  numerics.
 - **Failure:**
   - if one process fails, the run fails with that process's error, and the other is stopped;
   - an out of memory error halves the batch inside the process, as now;
@@ -110,9 +115,11 @@ gpu_dual may start only if **all** of these hold at planning time:
   writes that chunk's part, records `preempted` (utc, the last chunk done), releases the lock and
   exits;
 - the parent hands GPU1's remaining chunks to GPU0, in chunk order, after GPU0's own chunks;
+- an active VLM request (llama-server on GPU1, which may stay resident) preempts the same way, at
+  the next chunk boundary;
 - live waits at most one chunk (at most `chunk_max_s` of video, roughly 10 to 15 s of pose work on the
-  A4000). The page shows "GPU1 is finishing a batch chunk" with the wait, then the session starts
-  as today.
+  A4000). The page shows "GPU1 is finishing a batch chunk" with a countdown, then the session
+  starts as today. `chunk_max_s` stays 30.
 
 **Consequence:** a preempted run has chunks from both GPUs in a layout chosen by when live started,
 so it is no longer bit reproducible. The plan records exactly which GPU did each chunk. It stays
@@ -136,7 +143,9 @@ All are run with `exp`, with stored configs and tables under experiments/:
    against w10-best-b8 on GPU0. This gives the per GPU numeric difference against the noise floor.
 2. **w10-gpu-a5000:** today's reference. It is rerun the same day so the timing is comparable.
 3. **w10-dual:** gpu_dual on both clips (3 repeats), against w10-gpu-a5000, for equivalence (noise
-   floor rule), speed and the chunk layout.
+   floor rule), speed and the chunk layout. It is timed against the single GPU default with
+   `shots.parallel` on, because dual mode turns parallel shots off. The report names the batch
+   grouping at chunk edges (section 3) and the per GPU numerics as the known sources of difference.
 4. **w10-dual-preempt:** a dual run with a scripted preempt after chunk 2. It checks the handover
    and the recorded plan.
 
@@ -162,10 +171,10 @@ the CPU silently. The compute plan, devices and locks of every run are stored in
 The HLD constraint in 2.3 ("the two are never combined for one job") and section 3.3.6 need the
 same change. They also still name the GTX 1080 Ti, which has been replaced by the RTX A5000.
 
-## 8. Open points for review
+## 8. Decisions (Khurshid, 2026-11-12)
 
-- Should `"auto"` become the default once section 6 passes, or stay opt in for QiSens runs?
-- Is a wait of up to one chunk for live (roughly 10 to 15 s, to be measured) acceptable, or should `chunk_max_s` be smaller
-  (more chunks, a little more merge work)?
-- Should VLM requests (llama-server on GPU1) also block gpu_dual, or only live? This draft only
-  requires the VLM to be idle at planning time.
+- **`"auto"`** stays opt in until section 6 passes and one QiSens run has been timed.
+- **The live wait** of up to one chunk is fine, with the "GPU1 is finishing a batch chunk" message
+  and a countdown; `chunk_max_s` stays 30.
+- **The VLM** may stay resident on GPU1. An active VLM request preempts at the next chunk boundary,
+  the same way live does.
