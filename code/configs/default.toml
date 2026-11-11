@@ -87,7 +87,7 @@ sg_window_s = 0.33           # Savitzky Golay window, made odd in frames (s)
 sg_order = 2                 # Savitzky Golay polynomial order
 
 [seg_a]
-engine = "A+B v1"            # step engine: "A" (rules alone), "A+B v1" (embed_weight 0.2, embed_window_s 30, engine_b.model v1; w10-engine-b-embed), "custom" (the keys below as set)
+engine = "B v1"              # step engine: "A" (the frozen Engine A rules, baseline), "B v1" (Engine B v1 with the DP decoder: embed_weight 0.2, embed_window_s 30, engine_b.model v1; w10-engine-b-embed), "custom" (the keys below as set)
 phase_solver = "dp"          # "dp" = best global boundary choice, "forward" = LLD forward walk
 min_factor = 0.25            # phase min_s = min_factor * T / K (T = first to last frame with a person)
 max_factor = 2.5             # phase max_s = max_factor * T / K

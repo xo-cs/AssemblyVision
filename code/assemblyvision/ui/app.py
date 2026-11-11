@@ -712,7 +712,7 @@ class GradioApp:
                                         "larger is more accurate.</div>")
                                 engine = gr.Radio(list(ENGINE_PRESETS)[::-1], value=engine0, label="Step engine",
                                                   elem_classes=["av-seg"])
-                                gr.HTML("<div class='av-hint' style='margin-top:-6px'>A+B v1: the rules of Engine A "
+                                gr.HTML("<div class='av-hint' style='margin-top:-6px'>B v1: the Engine B v1 model with the DP decoder "
                                         "with the Engine B v1 phase evidence (default). A: the rules alone.</div>")
                             with gr.Row(elem_classes=["av-actions"]):
                                 start_btn = gr.Button("Start analysis", variant="primary", elem_classes=["av-fit"])

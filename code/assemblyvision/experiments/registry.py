@@ -514,8 +514,9 @@ DEFAULT_NOTE = ("Default profile (decision of 2026-11-08): the w10-best-b8 setti
                 "configs/reference.toml (batch 1, strict FP32, the w10-ref-notf32 settings). From 2026-11-11 the "
                 "default also has shots.parallel = true (w10-shots-par, equivalent), pose.overlap_stages = true "
                 "(w10-overlap-stages, equivalent) and the step engine "
-                "seg_a.engine = \"A+B v1\" (Engine A with the Engine B v1 embedding, weight 0.2, window 30 s; "
-                "\"A\" stays selectable). Headline QiSens result: A+B v1 on YOLO26 x, 67.26 frame accuracy "
+                "seg_a.engine = \"B v1\" (Engine B = the learned model with the DP decoder: the Engine B v1 "
+                "embedding, weight 0.2, window 30 s; \"A\", the frozen Engine A rules, stays selectable as the "
+                "baseline). Headline QiSens result: Engine B v1 on YOLO26 x, 67.26 frame accuracy "
                 "(w10-qisens-engine-b-v1); Engine A alone on x gives 50.00.")
 
 

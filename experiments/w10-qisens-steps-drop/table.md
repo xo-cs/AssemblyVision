@@ -20,4 +20,4 @@ Findings:
 - seg_a.start_detect = true has no effect on QiSens (blind result).
 - Pose model decision by the rule in experiments/INDEX.md (public criteria only): YOLO26 x stays the default (better HA4M PCK and COCO mAP; the speed gate is met with x). The QiSens l result is not used to choose.
 
-Next: Headline from 2026-11-11: step engine A+B v1 on YOLO26 x (w10-qisens-engine-b-v1). Timing run with the new defaults: w10-qisens-defaults.
+Next: Headline from 2026-11-11: step engine Engine B v1 on YOLO26 x (w10-qisens-engine-b-v1). Timing run with the new defaults: w10-qisens-defaults.

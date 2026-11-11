@@ -22,10 +22,12 @@ VARIANTS = ("n", "s", "m", "l", "x")
 # step engine presets (seg_a.engine): the keys each preset sets; "custom" leaves them as configured
 ENGINE_PRESETS: dict[str, dict[str, Any]] = {
     "A": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 0.0},
-    "A+B v1": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 0.2, "seg_a.embed_window_s": 30.0,
+    "B v1": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 0.2, "seg_a.embed_window_s": 30.0,
                "engine_b.model": "engine_b/w10-engine-b-v1.pt"},
 }
 ENGINES = (*ENGINE_PRESETS, "custom")
+# Engine B = the learned model with the DP decoder; "A+B v1" was the name of "B v1" from 2026-11-11 to 11-12
+ENGINE_ALIASES = {"A+B v1": "B v1"}
 MOTION_METRICS = ("duration", "path", "back_bending", "repetition", "hand_travel", "two_hand", "idle", "gaze")
 
 # dotted key: (check, allowed range shown in AV-CFG-002)
@@ -129,7 +131,7 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "seg_a.engine_b_candidates": (lambda v: isinstance(v, bool), "true or false"),
     "shots.parallel": (lambda v: isinstance(v, bool), "true or false"),
     "pose.overlap_stages": (lambda v: isinstance(v, bool), "true or false"),
-    "seg_a.engine": (lambda v: v in ENGINES, ", ".join(ENGINES)),
+    "seg_a.engine": (lambda v: v in ENGINES or v in ENGINE_ALIASES, ", ".join(ENGINES)),
     "seg_a.embed_weight": (lambda v: v >= 0, ">= 0"),
     "seg_a.embed_window_s": (lambda v: 1 <= v <= 1200, "1 to 1200 s"),
     "seg_a.start_detect": (lambda v: isinstance(v, bool), "true or false"),
@@ -219,11 +221,11 @@ def _same_type(default: Any, value: Any) -> bool:
 
 def engine_label(d) -> str:
     """The step engine of resolved settings: the preset name, or for "custom" "A" (no Engine
-    B weight) or "A+B custom"."""
+    B weight) or "B custom"."""
     e = d["seg_a"].get("engine", "custom")
     if e != "custom":
         return e
-    return "A" if d["seg_a"]["engine_b_weight"] == 0 and d["seg_a"]["embed_weight"] == 0 else "A+B custom"
+    return "A" if d["seg_a"]["engine_b_weight"] == 0 and d["seg_a"]["embed_weight"] == 0 else "B custom"
 
 
 class Config:
@@ -282,9 +284,10 @@ class Config:
 
     @staticmethod
     def _apply_engine(d: dict, shipped: dict) -> None:
-        """seg_a.engine "A" or "A+B v1" sets its preset keys (ENGINE_PRESETS). A preset key
+        """seg_a.engine "A" or "B v1" sets its preset keys (ENGINE_PRESETS). A preset key
         given with another value than the preset's and the shipped default's is a conflict
         (AV-CFG-002): change it with seg_a.engine = "custom"."""
+        d["seg_a"]["engine"] = ENGINE_ALIASES.get(d["seg_a"]["engine"], d["seg_a"]["engine"])
         preset = ENGINE_PRESETS.get(d["seg_a"]["engine"])
         if preset is None:
             return

@@ -38,7 +38,7 @@ class RunManager:
                    overrides: dict | None = None) -> tuple[str, list]:
         """New queued run folder; returns (run_id, notices). AV-RUN-001 if the
         video is not in the data area of source, or source is not open.
-        engine: a step engine preset ("A+B v1", "A"; None = seg_a.engine of the settings),
+        engine: a step engine preset ("B v1", "A"; None = seg_a.engine of the settings),
         passed as --set seg_a.engine. overrides {section: {key: value}} are passed as --set."""
         notices = []
         if source not in self.store.roots:

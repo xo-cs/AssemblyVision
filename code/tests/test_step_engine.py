@@ -1,4 +1,4 @@
-"""TC-ENG: the step engine choice seg_a.engine ("A+B v1" default, "A", "custom") (Week 10)."""
+"""TC-ENG: the step engine choice seg_a.engine ("B v1" default, "A", "custom"; "A+B v1" is an alias) (Week 10)."""
 import unittest
 
 from assemblyvision.config import ENGINE_PRESETS, Config, engine_label
@@ -7,14 +7,17 @@ from assemblyvision.tools.run_pose import stored_config
 
 
 class StepEngineTest(unittest.TestCase):
-    def test_default_is_a_plus_b_v1(self):
+    def test_default_is_b_v1(self):
         c = Config.load()
-        self.assertEqual(c["seg_a"]["engine"], "A+B v1")
+        self.assertEqual(c["seg_a"]["engine"], "B v1")
         self.assertEqual((c["seg_a"]["embed_weight"], c["seg_a"]["embed_window_s"], c["engine_b"]["model"]),
                          (0.2, 30.0, "engine_b/w10-engine-b-v1.pt"))
         self.assertEqual(c["seg_a"]["engine_b_weight"], 0.0)
-        self.assertEqual(engine_label(c), "A+B v1")
+        self.assertEqual(engine_label(c), "B v1")
         self.assertTrue(c["shots"]["parallel"])
+
+    def test_old_name_is_an_alias(self):
+        self.assertEqual(Config.load(overrides={"seg_a": {"engine": "A+B v1"}})["seg_a"]["engine"], "B v1")
 
     def test_a_turns_engine_b_off(self):
         c = Config.load(overrides={"seg_a": {"engine": "A"}})
@@ -35,7 +38,7 @@ class StepEngineTest(unittest.TestCase):
     def test_custom_keeps_the_keys(self):
         c = Config.load(overrides={"seg_a": {"engine": "custom", "embed_weight": 0.4}})
         self.assertEqual(c["seg_a"]["embed_weight"], 0.4)
-        self.assertEqual(engine_label(c), "A+B custom")
+        self.assertEqual(engine_label(c), "B custom")
         c = Config.load(overrides={"seg_a": {"engine": "custom"}})
         self.assertEqual(engine_label(c), "A")                    # shipped weights are 0
 

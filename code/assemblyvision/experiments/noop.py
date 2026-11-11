@@ -84,7 +84,7 @@ DECLARATIONS: dict[str, dict] = {
         **_all(NO, "phase_solver min_factor max_factor pause_energy pause_min_s long_pause_s cut_pause_window_s "
                    "no_person_min_s fallback_pause_min_s other_min_s strength_no_person strength_cut_pause "
                    "strength_pause strength_cut activity_change ac_weight ac_window_s"),
-        "engine": Legacy("custom"),          # added 2026-11-11 (default "A+B v1"); custom = the stored keys
+        "engine": Legacy("custom"),          # added 2026-11-11 (default "B v1"); custom = the stored keys
         "engine_b_weight": OFF,
         "engine_b_window_s": engine_b_off,
         "engine_b_norm": engine_b_off,
