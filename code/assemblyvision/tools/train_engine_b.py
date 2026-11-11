@@ -36,6 +36,7 @@ import numpy as np
 from ..analysis.segmentation import boundary_tcn as bt
 from ..config import Config
 from ..datasets import engine_b as eb
+from ..datasets import ha4m_phases as hp
 from ..datasets.ha4m import RGB_SIZE, HA4MLoader
 from ..errors import AvError
 from ..experiments import registry as reg
@@ -76,8 +77,10 @@ def prepare(d: dict, cfg: Config, train: bool, rng: np.random.Generator, image_h
     t = idx / fps
     act = np.asarray(d["labels"])[idx, 0].astype(np.int64) - 1          # action 1..K -> 0..K-1
     act[(act < 0) | (act >= e["n_actions"]) | ~labelled[idx]] = -1       # don't care and unlabelled: no action loss
+    phase = hp.macro_index(np.asarray(d["labels"])[:, 0])[idx]           # macro phase per step, -1 = other
+    phase[~labelled[idx]] = -1
     return {"x": feats.astype(np.float32), "y": bt.soft_targets(t, changes, bd["tol_s"]),
-            "m": labelled[idx].astype(np.float32), "c": act, "t": t, "changes": changes}
+            "m": labelled[idx].astype(np.float32), "c": act, "p": phase.astype(np.int64), "t": t, "changes": changes}
 
 
 def batches(items: list[dict], size: int, crop: int, rng: np.random.Generator):
@@ -88,18 +91,56 @@ def batches(items: list[dict], size: int, crop: int, rng: np.random.Generator):
             it = items[i]
             T = len(it["x"])
             s = int(rng.integers(0, T - crop + 1)) if T > crop else 0
-            part.append({n: it[n][s:s + crop] for n in ("x", "y", "m", "c") if n in it})
+            part.append({n: it[n][s:s + crop] for n in ("x", "y", "m", "c", "p") if n in it})
         L = max(len(p["x"]) for p in part)
         X = np.zeros((len(part), eb.N_FEATURES, L), np.float32)
         Y = np.zeros((len(part), L), np.float32)
         M = np.zeros((len(part), L), np.float32)
         C = np.full((len(part), L), -1, np.int64)
+        P = np.full((len(part), L), -1, np.int64)
         for j, p in enumerate(part):
             n = len(p["x"])
             X[j, :, :n], Y[j, :n], M[j, :n] = p["x"].T, p["y"], p["m"]
             if "c" in p:
                 C[j, :n] = p["c"]
-        yield X, Y, M, C
+            if "p" in p:
+                P[j, :n] = p["p"]
+        yield X, Y, M, C, P
+
+
+def window_embeddings(h, P, M, w: int):
+    """Mean last stage features over non overlapping windows of w steps -> (unit length
+    window embeddings [N,C], macro phase per window [N]); only windows wholly inside one
+    macro phase (and real frames) count."""
+    import torch
+    B, C, L = h.shape
+    n = L // w
+    if n == 0:
+        return h.new_zeros((0, C)), P.new_zeros((0,))
+    hw = h[:, :, :n * w].reshape(B, C, n, w).mean(dim=3).permute(0, 2, 1).reshape(B * n, C)
+    pw = P[:, :n * w].reshape(B, n, w)
+    mw = M[:, :n * w].reshape(B, n, w)
+    pure = (pw == pw[:, :, :1]).all(dim=2) & (pw[:, :, 0] >= 0) & (mw > 0).all(dim=2)
+    keep = pure.reshape(-1)
+    z = torch.nn.functional.normalize(hw[keep], dim=1)
+    return z, pw[:, :, 0].reshape(-1)[keep]
+
+
+def supcon_loss(z, labels, temp: float):
+    """Supervised contrastive loss (Khosla et al. 2020): windows of the same macro phase
+    close, of different phases far. 0 without an anchor that has a positive."""
+    import torch
+    if len(z) < 2:
+        return z.sum() * 0.0
+    sim = z @ z.T / temp
+    eye = torch.eye(len(z), dtype=torch.bool, device=z.device)
+    sim = sim.masked_fill(eye, float("-inf"))
+    logp = sim - torch.logsumexp(sim, dim=1, keepdim=True)
+    pos = (labels[:, None] == labels[None, :]) & ~eye
+    has = pos.any(dim=1)
+    if not bool(has.any()):
+        return z.sum() * 0.0
+    return -(logp.masked_fill(~pos, 0.0).sum(dim=1)[has] / pos.sum(dim=1)[has]).mean()
 
 
 def auto_pos_weight(items: list[dict]) -> float:
@@ -147,9 +188,9 @@ def train(cfg: Config, train_items: list[dict], train_raw: list[dict], device: s
         items = [prepare(d, cfg, True, rng, image_h, offsets) for d in train_raw] if e["augment"] else train_items
         model.train()
         tot, n = 0.0, 0.0
-        for X, Y, M, C in batches(items, e["batch_videos"], crop, rng):
-            X, Y, M, C = (torch.from_numpy(a).to(device) for a in (X, Y, M, C))
-            out, act, _ = model(X, M.unsqueeze(1), all_heads=True)
+        for X, Y, M, C, P in batches(items, e["batch_videos"], crop, rng):
+            X, Y, M, C, P = (torch.from_numpy(a).to(device) for a in (X, Y, M, C, P))
+            out, act, hid = model(X, M.unsqueeze(1), all_heads=True)
             loss = 0.0
             for s in range(out.shape[0]):
                 bce = torch.nn.functional.binary_cross_entropy_with_logits(out[s], Y, pos_weight=pos_weight,
@@ -157,6 +198,9 @@ def train(cfg: Config, train_items: list[dict], train_raw: list[dict], device: s
                 loss = loss + (bce * M).sum() / M.sum().clamp(min=1.0)
                 if act is not None and bool((C >= 0).any()):
                     loss = loss + e["action_weight"] * torch.nn.functional.cross_entropy(act[s], C, ignore_index=-1)
+            if e["contrast_weight"] > 0:                  # v2: phase level contrastive objective
+                z, lab = window_embeddings(hid, P, M, max(1, int(round(e["contrast_window_s"] * e["model_fps"]))))
+                loss = loss + e["contrast_weight"] * supcon_loss(z, lab, e["contrast_temp"])
             opt.zero_grad()
             loss.backward()
             opt.step()
@@ -170,8 +214,9 @@ def train(cfg: Config, train_items: list[dict], train_raw: list[dict], device: s
     return model, {"pos_weight": round(pw, 3), "history": history}
 
 
-FOLDS = ("cross_subject", "cross_location_test_lab_a", "cross_location_test_lab_b")
+FOLDS = ("cross_subject", "cross_location_test_lab_a", "cross_location_test_lab_b", "cv1", "cv2", "cv3")
 SPLITS_FILE = "ha4m_splits.json"
+CV_FILE = "ha4m_train_cv.json"          # 3 folds by subject inside the cross subject train split (v2 rule)
 
 
 def fold_rows(name: str, fold: dict) -> list[str]:
@@ -257,9 +302,12 @@ def main(argv: list[str] | None = None, repo_root: Path = REPO_ROOT) -> int:
     lock = None
     try:
         reg._check_id(args.id)
-        folds = [f.strip() for f in args.folds.split(",") if f.strip()]
-        if not folds or folds[0] != "cross_subject" or any(f not in FOLDS for f in folds):
-            print(f"refused: --folds must start with cross_subject and use only {', '.join(FOLDS)}", file=sys.stderr)
+        folds = [x for f in args.folds.split(",") if f.strip() for x in (("cv1", "cv2", "cv3") if f.strip() == "cv"
+                                                                         else (f.strip(),))]
+        if not folds or (folds[0] != "cross_subject" and not all(f.startswith("cv") for f in folds)) \
+                or any(f not in FOLDS for f in folds):
+            print(f"refused: --folds must start with cross_subject, or be only cv folds (cv = cv1,cv2,cv3); "
+                  f"use only {', '.join(FOLDS)}", file=sys.stderr)
             return 2
         cfg = Config.load(overrides=parse_sets(args.set))
         e = cfg["engine_b"]
@@ -276,12 +324,20 @@ def main(argv: list[str] | None = None, repo_root: Path = REPO_ROOT) -> int:
         vids = sorted(index["videos"])
         lists = {"cross_subject": ([v for v in vids if index["videos"][v]["subject"] not in test_s],
                                    [v for v in vids if index["videos"][v]["subject"] in test_s])}
-        if len(folds) > 1:
+        for f in folds:
+            if f.startswith("cv"):
+                cvs = {c["name"]: c for c in json.loads((ds / CV_FILE).read_text())["folds"]}
+                lists[f] = ([v for v in cvs[f]["train_videos"] if v in index["videos"]],
+                            [v for v in cvs[f]["test_videos"] if v in index["videos"]])
+                if set(lists[f][1]) & set(lists["cross_subject"][1]):
+                    print("refused: a cv fold holds a benchmark test video", file=sys.stderr)
+                    return 2
+        if len([f for f in folds if not f.startswith("cv")]) > 1:
             if not (ds / SPLITS_FILE).is_file():
                 print(f"refused: cross location folds need experiments/datasets/{SPLITS_FILE}", file=sys.stderr)
                 return 2
             stored = {f["name"]: f for f in json.loads((ds / SPLITS_FILE).read_text())["folds"]}
-            for f in folds[1:]:
+            for f in [f for f in folds[1:] if not f.startswith("cv")]:
                 lists[f] = ([v for v in stored[f]["train_videos"] if v in index["videos"]],
                             [v for v in stored[f]["test_videos"] if v in index["videos"]])
         if any(not tr or not te for tr, te in (lists[f] for f in folds)):
@@ -318,14 +374,17 @@ def main(argv: list[str] | None = None, repo_root: Path = REPO_ROOT) -> int:
             model_path = repo_root / cfg["paths"]["models_dir"] / model_rel
             n_params = int(sum(q.numel() for q in model.parameters()))
             sha = bt.save_model(model_path, model, bt.model_settings(cfg),
-                                {"experiment": args.id, "fold": f, "trained_utc": utc_now()})
+                                {"experiment": args.id, "fold": f, "trained_utc": utc_now(),
+                                 **({"contrast": {k: e[k] for k in ("contrast_weight", "contrast_window_s",
+                                                                   "contrast_temp")}} if e["contrast_weight"] > 0 else {})})
             rec["model"] = {"file": f"models/{model_rel}", "sha256": sha, "parameters": n_params}
             recs[f] = rec
             for tol, r in rec["test"]["f1"].items():
                 log.info("%s: boundary F1@%s s %s (P %s, R %s)", f, tol, r["f1"], r["precision"], r["recall"])
         seconds = round(time.monotonic() - t0, 1)
-        main_rec = recs["cross_subject"]
-        tr_ids, te_ids = lists["cross_subject"]
+        main = "cross_subject" if "cross_subject" in recs else folds[0]      # cv only: the first cv fold
+        main_rec = recs[main]
+        tr_ids, te_ids = lists[main]
         from ..experiments.provenance import git_state, library_versions
         res = {"id": args.id, "kind": "engine_b_train", "source": "public", "title": args.title, "note": args.note,
                "reference": "",
@@ -345,7 +404,8 @@ def main(argv: list[str] | None = None, repo_root: Path = REPO_ROOT) -> int:
                "provenance": {"git": git_state(repo_root), "versions": library_versions(), "data_area": "public",
                               "date_utc": utc_now(), "command": " ".join(sys.argv)},
                "finished_utc": utc_now()}
-        cells = [f"cross subject: boundary F1@{tol} s {r['f1']} (P {r['precision']}, R {r['recall']})"
+        cells = [f"{main.replace('cross_subject', 'cross subject')}: boundary F1@{tol} s {r['f1']} "
+                 f"(P {r['precision']}, R {r['recall']})"
                  for tol, r in main_rec["test"]["f1"].items()]
         cells += [f"{f.replace('cross_location_test_', 'cross location, test ')}: F1@"
                   + ", F1@".join(f"{tol} s {r['f1']}" for tol, r in recs[f]["test"]["f1"].items()) for f in folds[1:]]
