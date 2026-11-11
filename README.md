@@ -114,7 +114,8 @@ absolute values). The default profile is the w10-best-b8 setting (pose batch 8, 
 above that floor with identical Engine A steps, NULL decisions and flags; accuracy checks use
 `--config configs/reference.toml` (batch 1, strict FP32; `exp new` takes `--config` too).
 `shots.parallel` (on by default from 2026-11-11, equivalent in w10-shots-par) runs shot detection in a
-thread while the pose pass starts. The step engine is `seg_a.engine`: "A+B v1" (default: Engine A with
+thread while the pose pass starts; `pose.overlap_stages` (on by default, equivalent in
+w10-overlap-stages) runs preprocessing and postprocessing in threads around inference. The step engine is `seg_a.engine`: "A+B v1" (default: Engine A with
 the Engine B v1 embedding, weight 0.2, window 30 s), "A" (the rules alone) or "custom" (the
 individual Engine B keys as set); the interface offers "A+B v1" and "A".
 `tools/run_diff RUN_A RUN_B` compares two runs by their manifests only (settings, model, shots,

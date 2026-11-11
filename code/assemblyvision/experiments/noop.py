@@ -75,7 +75,7 @@ DECLARATIONS: dict[str, dict] = {
               "parallel": Legacy(False)},         # default true from 2026-11-11
     "pose": {**_all(NO, "variant fallback_variant imgsz det_conf_min ref_conf_min ref_search_s half tf32 "
                      "hand_crop_margin batch decode prefetch_frames reference_in_pass"),
-             "overlap_stages": OFF},
+             "overlap_stages": Legacy(False)},   # default true from 2026-11-11
     "track": _all(NO, "algorithm high_thresh low_thresh new_thresh match_thresh buffer_s min_track_s "
                       "auto_subject_min_coverage dup_suppress dup_iou dup_contain dup_kp_agree dup_kp_conf "
                       "dup_kp_dist overlap_pose"),
