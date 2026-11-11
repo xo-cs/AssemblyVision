@@ -420,7 +420,9 @@ class PoseEstimator:
             early.clear()
 
         def consume(idx: int, frame: np.ndarray, res) -> None:
-            ex = extract(res)
+            consume_ex(idx, frame, extract(res))
+
+        def consume_ex(idx: int, frame: np.ndarray, ex) -> None:
             if shots is None:
                 table = shots_later(False)
                 if table is None:
@@ -430,34 +432,180 @@ class PoseEstimator:
                 replay()
             take(idx, frame, ex)
 
+        def log_progress(n: int) -> None:
+            nonlocal last_log
+            now = time.monotonic()
+            if now - last_log >= every:
+                last_log = now
+                rate = n / (now - t0)
+                eta = (total - n) / rate if rate > 0 else 0
+                log.info("pose %d/%d frames, %.1f fps, eta %.0f s", n, total, rate, eta)
+                self.ctx.progress("pose_body", n / max(total, 1))
+
+        def run_overlapped(frames_it) -> int:
+            """pose.overlap_stages: a thread decodes, batches and preprocesses (letterbox,
+            upload), this thread runs inference, a thread postprocesses (NMS, Results,
+            copies to the CPU); bounded queues keep the frame order, and consume runs here.
+            The predictor's own preprocess, inference and postprocess run on the same
+            batches as model.predict, so the results are the same. The first batch, any
+            batch that fails and every batch after a model change go through run_frames
+            (the sequential path with its batch halving, fallback and failure accounting)."""
+            import queue
+            import threading
+            depth = 2
+            q_in, q_post, q_out = queue.Queue(depth), queue.Queue(depth), queue.Queue()   # q_out: at most depth + 2
+            stop, ready, errors = threading.Event(), threading.Event(), []
+
+            def put(q, item) -> None:
+                while not stop.is_set():
+                    try:
+                        q.put(item, timeout=0.1)
+                        return
+                    except queue.Full:
+                        continue
+
+            def get(q):
+                while True:
+                    try:
+                        return q.get(timeout=0.1)
+                    except queue.Empty:
+                        if errors:
+                            raise errors[0]
+
+            def pre() -> None:
+                try:
+                    ids, fr = [], []
+                    while not stop.is_set():
+                        td = time.monotonic()
+                        item = next(frames_it, None)
+                        bd["decode"] += time.monotonic() - td
+                        if item is not None:
+                            ids.append(item[0])
+                            fr.append(item[1])
+                            if len(fr) < state["batch"]:
+                                continue
+                        if fr:
+                            model, im = self.model, None
+                            pr = getattr(model, "predictor", None)
+                            if ready.is_set() and pr is not None:
+                                tp = time.monotonic()
+                                try:
+                                    with torch.inference_mode():
+                                        im = pr.preprocess(fr)
+                                except Exception:
+                                    im = None                 # this batch goes the sequential way
+                                bd["preprocess"] += time.monotonic() - tp
+                            put(q_in, (ids, fr, model, im))
+                            ids, fr = [], []
+                        if item is None:
+                            break
+                    put(q_in, None)
+                except BaseException as e:
+                    errors.append(e)
+
+            def post() -> None:
+                try:
+                    while True:
+                        item = get(q_post)
+                        if item is None:
+                            q_out.put(None)
+                            return
+                        kind, ids, fr, payload = item
+                        if kind == "preds":
+                            pr, im, preds = payload
+                            tp = time.monotonic()
+                            with pr._lock, torch.inference_mode():     # a run_frames predict resets pr.batch
+                                pr.batch = ([f"image{i}.jpg" for i in range(len(fr))], fr, [""] * len(fr))
+                                res = pr.postprocess(preds, im, fr)
+                            bd["postprocess"] += time.monotonic() - tp
+                        else:
+                            res = payload
+                        q_out.put((ids, fr, [extract(r) for r in res]))
+                except BaseException as e:
+                    errors.append(e)
+
+            def drain(block: bool) -> bool:
+                """Consume finished batches in order; False once the post thread is done."""
+                while True:
+                    try:
+                        item = get(q_out) if block else q_out.get_nowait()
+                    except queue.Empty:
+                        return True
+                    if item is None:
+                        return False
+                    for i, f, ex in zip(*item):
+                        consume_ex(i, f, ex)
+
+            threads = [threading.Thread(target=pre, name="pose-pre", daemon=True),
+                       threading.Thread(target=post, name="pose-post", daemon=True)]
+            for t in threads:
+                t.start()
+            n = 0
+            try:
+                while True:
+                    item = get(q_in)
+                    if item is None:
+                        break
+                    ids, fr, model, im = item
+                    preds = None
+                    if im is not None and model is self.model:
+                        pr = self.model.predictor
+                        ti = time.monotonic()
+                        try:
+                            with torch.inference_mode():
+                                preds = pr.inference(im)
+                            if cuda:
+                                torch.cuda.synchronize()
+                        except Exception:
+                            preds = None
+                        dt = time.monotonic() - ti
+                        bd["inference"] += dt
+                        bd["infer_call"] += dt
+                    if preds is not None:
+                        put(q_post, ("preds", ids, fr, (pr, im, preds)))
+                    else:
+                        res = run_frames(ids, fr)
+                        ready.set()
+                        put(q_post, ("res", ids, fr, res))
+                    n += len(fr)
+                    drain(False)
+                    log_progress(n)
+                put(q_post, None)
+                while drain(True):
+                    pass
+            finally:
+                stop.set()
+                for t in threads:
+                    t.join(timeout=10)
+            if errors:
+                raise errors[0]
+            return n
+
         reader = frame_reader(self.pcfg["decode"], self.pcfg["prefetch_frames"])
         frames_it = reader(video, first, last, want=None if shots is None else (lambda i: shot_of[i] >= 0))
         idxs: list[int] = []
         batch: list[np.ndarray] = []
         try:
-            while True:
-                td = time.monotonic()
-                item = next(frames_it, None)
-                bd["decode"] += time.monotonic() - td
-                if item is not None:
-                    idxs.append(item[0])
-                    batch.append(item[1])
-                    if len(batch) < state["batch"]:
-                        continue
-                if batch:
-                    for i, f, r in zip(idxs, batch, run_frames(idxs, batch)):
-                        consume(i, f, r)
-                    n_frames += len(batch)
-                    idxs, batch = [], []
-                if item is None:
-                    break
-                now = time.monotonic()
-                if now - last_log >= every:
-                    last_log = now
-                    rate = n_frames / (now - t0)
-                    eta = (total - n_frames) / rate if rate > 0 else 0
-                    log.info("pose %d/%d frames, %.1f fps, eta %.0f s", n_frames, total, rate, eta)
-                    self.ctx.progress("pose_body", n_frames / max(total, 1))
+            if self.pcfg["overlap_stages"]:
+                n_frames = run_overlapped(frames_it)
+            else:
+                while True:
+                    td = time.monotonic()
+                    item = next(frames_it, None)
+                    bd["decode"] += time.monotonic() - td
+                    if item is not None:
+                        idxs.append(item[0])
+                        batch.append(item[1])
+                        if len(batch) < state["batch"]:
+                            continue
+                    if batch:
+                        for i, f, r in zip(idxs, batch, run_frames(idxs, batch)):
+                            consume(i, f, r)
+                        n_frames += len(batch)
+                        idxs, batch = [], []
+                    if item is None:
+                        break
+                    log_progress(n_frames)
         finally:
             close = getattr(frames_it, "close", None)
             if close is not None:

@@ -61,6 +61,7 @@ batch = 8                    # frames per inference call (default since w10-best
 decode = "prefetch"          # frame reader of the pose pass: opencv, prefetch (reader thread) or ffmpeg_cuda (NVDEC)
 prefetch_frames = 64         # frames queued ahead by the prefetch and ffmpeg_cuda readers
 reference_in_pass = true     # true: reference frames are taken from the pose pass (no second decode of the video)
+overlap_stages = false       # true: preprocessing and postprocessing run in threads around inference (bounded queues), so the GPU does not wait
 
 [track]
 algorithm = "bytetrack"

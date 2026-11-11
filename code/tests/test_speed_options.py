@@ -370,3 +370,108 @@ class ParallelShotsTest(unittest.TestCase):
         st = ctx2.manifest["stages"]["shots"]
         self.assertEqual((st["status"], st["parallel_with"]), ("done", "pose_body"))
         self.assertIs(job.result(), got)
+
+class FakePredictor:
+    """The three predictor stages pose.overlap_stages calls (Ultralytics' preprocess,
+    inference, postprocess), giving the same results as FakeModel.predict."""
+
+    def __init__(self, conf: float, delay_s: float = 0.0):
+        import threading
+        self.conf, self.delay_s, self._lock, self.batch = conf, delay_s, threading.Lock(), None
+        self.stages = {"preprocess": 0, "inference": 0, "postprocess": 0}
+        self.frames = 0
+
+    def _stage(self, name):
+        self.stages[name] += 1
+        if self.delay_s:
+            import time
+            time.sleep(self.delay_s)
+
+    def preprocess(self, frames):
+        self._stage("preprocess")
+        return [f.copy() for f in frames]
+
+    def inference(self, im):
+        self._stage("inference")
+        self.frames += len(im)
+        return ("preds", len(im))
+
+    def postprocess(self, preds, im, orig):
+        self._stage("postprocess")
+        assert preds == ("preds", len(orig)) and len(self.batch[0]) == len(orig)
+        return [frame_result(f, self.conf) for f in orig]
+
+
+class StagedModel(FakeModel):
+    """FakeModel with a predictor once predict has run (as Ultralytics sets one up)."""
+
+    def __init__(self, delay_s: float = 0.0, **kw):
+        super().__init__(**kw)
+        self.delay_s, self.predictor = delay_s, None
+
+    def predict(self, source, conf=0.1, **kw):
+        out = super().predict(source, conf=conf, **kw)
+        if self.predictor is None:
+            self.predictor = FakePredictor(conf, self.delay_s)
+        return out
+
+
+class OverlapStagesTest(unittest.TestCase):
+    """pose.overlap_stages: preprocessing and postprocessing in threads give the same files."""
+    setUp, tearDown = SpeedOptionsTest.setUp, SpeedOptionsTest.tearDown
+    pose, dets, assertSameDets = SpeedOptionsTest.pose, SpeedOptionsTest.dets, SpeedOptionsTest.assertSameDets
+
+    def test_same_det_files_at_batch_1_and_8(self):
+        for batch in (1, 8):
+            p1, c1 = self.pose(batch=batch)
+            ref = self.dets(p1, c1)
+            p2, c2 = self.pose(StagedModel(), batch=batch, overlap_stages=True)
+            self.assertSameDets(ref, self.dets(p2, c2))
+            st = p2.model.predictor.stages
+            self.assertEqual(st["inference"], st["postprocess"])
+            self.assertGreater(st["inference"], 0)                        # most batches go the staged way
+            self.assertEqual(sum(p2.model.calls) + p2.model.predictor.frames, 50)     # every frame once
+            m1, m2 = no_seconds(c1.manifest["pose_body"]), no_seconds(c2.manifest["pose_body"])
+            for m in (m1, m2):
+                m.pop("breakdown_s"), m.pop("pose_fps"), m.pop("infer_ms_mean")
+                m["per_shot"] = [{k: v for k, v in x.items() if k != "det_path"} for x in m["per_shot"]]
+            self.assertEqual(m1, m2)
+
+    def test_failed_frames_and_parallel_shots(self):
+        bad = {"seen": None}
+
+        def fail_when(frame):
+            h = hashlib.md5(frame.tobytes()).hexdigest()
+            bad["seen"] = bad["seen"] or h
+            return h == bad["seen"]
+        p, ctx = self.pose(StagedModel(fail_when=fail_when), batch=8, overlap_stages=True)
+        self.dets(p, ctx)
+        self.assertEqual(ctx.manifest["pose_body"]["failed_frames"], 1)    # the first batch, sequential path
+        ref = ParallelShotsTest.run_pass(self, batch=8)
+        n = {"calls": 0}
+
+        def later(block):
+            n["calls"] += 1
+            return self.shots if block or n["calls"] > 20 else None
+        p2, c2 = self.pose(StagedModel(), batch=8, overlap_stages=True, reference_in_pass=True)
+        paths = p2.estimate_body_shots(c2.run_id, None, video=self.video, with_reference=True,
+                                       shots_later=later, n_total=50)
+        self.assertSameDets(ref[0], {sid: load_det(x) for sid, x in paths.items()})
+
+    def test_stages_overlap(self):
+        import time
+        t = {}
+        for on in (False, True):
+            p, ctx = self.pose(StagedModel(delay_s=0.01), batch=1, overlap_stages=on)
+            if not on:                                   # the sequential path: the same delays in predict
+                slow = p.model.predict
+
+                def predict(source, conf=0.1, _slow=slow, **kw):
+                    time.sleep(0.03)
+                    return _slow(source, conf=conf, **kw)
+                p.model.predict = predict
+            t0 = time.monotonic()
+            self.dets(p, ctx)
+            t[on] = time.monotonic() - t0
+        self.assertLess(t[True], 0.8 * t[False], t)
+

@@ -128,6 +128,7 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "seg_a.engine_b_norm": (lambda v: v in ("max", "none"), "max or none"),
     "seg_a.engine_b_candidates": (lambda v: isinstance(v, bool), "true or false"),
     "shots.parallel": (lambda v: isinstance(v, bool), "true or false"),
+    "pose.overlap_stages": (lambda v: isinstance(v, bool), "true or false"),
     "seg_a.engine": (lambda v: v in ENGINES, ", ".join(ENGINES)),
     "seg_a.embed_weight": (lambda v: v >= 0, ">= 0"),
     "seg_a.embed_window_s": (lambda v: 1 <= v <= 1200, "1 to 1200 s"),
