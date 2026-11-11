@@ -116,6 +116,14 @@ start_sustain_s = 10.0       # sustained = in a window this long from t, ...
 start_active_share = 0.6     # ... at least this share of frames moves (motion energy >= pause_energy)
 start_max_share = 0.25       # the intro found may be at most this share of the active span (else no intro)
 start_min_intro_s = 10.0     # a still start shorter than this is not an intro (both public clips, which have none, stay unchanged)
+# Engine B decoder (Week 10, experiments/w10-engine-b-v2/rule.md); all off by default
+embed_candidates = false     # true: peaks of the embedding change score become DP candidates (needs embed_weight > 0)
+embed_peak_min = 0.2         # a change score peak (divided by its maximum in the active span) at least this high
+embed_peak_gap_s = 5.0       # change score peaks at least this far apart (s)
+refine_window_s = 0.0        # > 0: each phase boundary moves to the strongest boundary head peak within this many s (0 = off)
+other_ends = false           # true: an optional other segment before the first and after the last phase (intro, outro)
+other_max_s = 30.0           # the longest intro or outro (s)
+other_min_strength = 0.15    # an intro or outro boundary needs a candidate at least this strong
 
 [steps]
 # The vocabulary lives in configs/steps.toml (LLD 3.0.5); this is the empty default.
@@ -179,6 +187,10 @@ action_weight = 0.0          # v1 multitask: loss = boundary BCE + action_weight
 n_actions = 12               # HA4M actions 1..12 (label 0, don't care, is left out of the action loss)
 hip_calibration = false      # true: Kinect joints moved by the mean YOLO26 x offset per joint (both labs) before the features
 calibration_from = "w10-ha4m-domain-gap"   # the domain gap experiment whose per joint offsets are used
+video_norm = false           # true: the embedding is z scored per dimension within each video (no labels), then unit length
+contrast_weight = 0.0        # v2: weight of the supervised contrastive loss on window embeddings (0 = v1 recipe)
+contrast_window_s = 4.0      # v2: window length of the window embeddings (s)
+contrast_temp = 0.1          # v2: temperature of the contrastive loss
 pool_s = 30.0                # moving average of the probability before it becomes DP evidence (s; 0 = none);
                              # 30 chosen on public runs before any QiSens result (experiments/w10-engine-b-pool)
 

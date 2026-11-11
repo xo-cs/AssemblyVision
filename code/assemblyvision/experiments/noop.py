@@ -57,6 +57,14 @@ def start_detect_off(v, st) -> bool:
     return _seg(st, "start_detect", False) is False
 
 
+def candidates_e_off(v, st) -> bool:
+    return _seg(st, "embed_candidates", False) is False
+
+
+def other_off(v, st) -> bool:
+    return _seg(st, "other_ends", False) is False
+
+
 def candidates_off(v, st) -> bool:
     return v is False or boundary_term_off(v, st)
 
@@ -96,6 +104,13 @@ DECLARATIONS: dict[str, dict] = {
         "start_active_share": start_detect_off,
         "start_max_share": start_detect_off,
         "start_min_intro_s": start_detect_off,
+        "embed_candidates": OFF,
+        "embed_peak_min": candidates_e_off,
+        "embed_peak_gap_s": candidates_e_off,
+        "refine_window_s": OFF,
+        "other_ends": OFF,
+        "other_max_s": other_off,
+        "other_min_strength": other_off,
     },
     "steps": _all(NO, "use mode step"),
     "eval": _all(NO, "seg_fps kappa_fps overlaps label"),
@@ -106,7 +121,8 @@ DECLARATIONS: dict[str, dict] = {
         **_all(RUN_FREE, "augment jitter_torso joint_dropout frame_dropout conf_visible conf_predicted conf_noise "
                          "aug_seed model_fps stages layers channels dropout epochs lr weight_decay batch_videos "
                          "crop_s pos_weight train_seed eval_tols_s action_weight n_actions hip_calibration "
-                         "calibration_from"),
+                         "calibration_from contrast_weight contrast_window_s contrast_temp"),
+        "video_norm": OFF,
         "model": engine_b_off,                  # a run reads the model file only with a weight > 0
         "pool_s": boundary_term_off,
         "peak_threshold": boundary_term_off,    # the firing rate and engine_b candidates

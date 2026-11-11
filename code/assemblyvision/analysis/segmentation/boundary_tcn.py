@@ -241,6 +241,19 @@ def predict_all(model, feats: np.ndarray, device: str = "cpu") -> dict:
                 "embedding": e.cpu().numpy().astype(np.float32)}
 
 
+def normalize_video(emb: np.ndarray, valid: np.ndarray) -> np.ndarray:
+    """Per video normalisation (engine_b.video_norm, no labels): every dimension z scored
+    over the valid frames of the video, then each frame unit length again."""
+    e = np.asarray(emb, np.float64)
+    v = np.asarray(valid, bool)
+    if not v.any():
+        return np.asarray(emb, np.float32)
+    mu, sd = e[v].mean(axis=0), e[v].std(axis=0)
+    z = (e - mu) / np.where(sd > 1e-8, sd, 1.0)
+    z /= np.maximum(np.linalg.norm(z, axis=1, keepdims=True), 1e-8)
+    return np.where(v[:, None], z, 0.0).astype(np.float32)
+
+
 def change_score(emb: np.ndarray, valid: np.ndarray, n: int) -> np.ndarray:
     """Phase level change score per frame: the distance between the mean embedding of the
     n frames before t and of the n frames from t on (frames with valid only; 0 where a

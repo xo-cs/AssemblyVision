@@ -156,12 +156,23 @@ class RuleBasedEngine(SegmentationEngine):
         return ev
 
     def add_embed_change(self, tl: RunTimeline, ev: list[Evidence], a: int, b: int) -> None:
-        from .boundary_tcn import change_score
+        from .boundary_tcn import change_score, normalize_video, peaks
         valid = tl.embedding_valid if tl.embedding_valid is not None else np.ones(tl.n_frames, bool)
-        score = change_score(tl.embedding[:tl.n_frames], valid[:tl.n_frames], int(round(self.s["embed_window_s"] * tl.fps)))
+        emb = tl.embedding[:tl.n_frames]
+        if self.cfg["engine_b"]["video_norm"]:           # Engine B decoder: z score within the video
+            emb = normalize_video(emb, valid[:tl.n_frames])
+        score = change_score(emb, valid[:tl.n_frames], int(round(self.s["embed_window_s"] * tl.fps)))
         top = float(score[a:b].max()) if b > a else 0.0
         val = score / top if top > 0 else score
         w = int(round(self.s["engine_b_window_s"] * tl.fps))
+        if self.s["embed_candidates"]:                     # Engine B decoder: change score peaks as candidates
+            gap = int(round(self.s["embed_peak_gap_s"] * tl.fps))
+            taken = [(x.start, x.end) for x in ev]
+            for f in peaks(val[a:b], self.s["embed_peak_min"], gap) + a:
+                f = int(f)
+                if a < f < b and not any(p - w <= f <= q + w for p, q in taken):
+                    ev.append(Evidence(f, f, "embed", 0.0))
+            ev.sort(key=lambda e: (e.start, e.end))
         for e in ev:
             if e.kind == "no_person":
                 continue
@@ -386,6 +397,9 @@ class RuleBasedEngine(SegmentationEngine):
             rep.update(mode="fallback", segments=sum(s.label != OTHER for s in steps))
         else:
             lim = self.limits(T_s, tl.fps)
+            names = list(self.vocabulary)
+            if self.s["other_ends"]:                       # Engine B decoder: optional intro and outro
+                lim, names = self.with_other_ends(tl, ev, a, b, lim)
             solver = self.s["phase_solver"]
             phases = self.solve_dp(ev, a, b, lim) if solver == "dp" else None
             used = solver
@@ -395,12 +409,15 @@ class RuleBasedEngine(SegmentationEngine):
                     for e in ev:
                         e.used = False
                 phases = self.solve_forward(ev, a, b, lim)
-            pieces = [(self.vocabulary[k], p, q, min(so, sc)) for k, p, q, so, sc in phases]
+            if self.s["refine_window_s"] > 0 and tl.boundary_prob is not None:
+                phases, rep["refined"] = self.refine(tl, phases)
+            pieces = [(names[k], p, q, min(so, sc)) for k, p, q, so, sc in phases]
             steps = self._assemble(tl, pieces)
-            rep.update(mode="phases", solver=solver, solver_used=used, K=len(lim),
+            found = sum(names[k] != OTHER for k, *_ in phases)
+            K = len(self.vocabulary)
+            rep.update(mode="phases", solver=solver, solver_used=used, K=K,
                        limits=[{k: v for k, v in d.items() if k not in ("min_f", "max_f")} for d in lim],
-                       phases_expected=len(lim), phases_found=len(phases),
-                       note=f"found {len(phases)} of {len(lim)} phases")
+                       phases_expected=K, phases_found=found, note=f"found {found} of {K} phases")
         ev.sort(key=lambda e: (e.start, e.end))
         rep["evidence"] = [{"start_s": tl.t(e.start), "end_s": tl.t(e.end), "kind": e.kind,
                             "strength": round(e.strength, 4), "used": e.used,
@@ -421,9 +438,44 @@ class RuleBasedEngine(SegmentationEngine):
                                    "embed_window_s": self.s["embed_window_s"], "window_s": self.s["engine_b_window_s"]}
         rep["evidence_counts"] = {k: sum(e.kind == k for e in ev)
                                   for k in ("no_person", "cut_pause", "pause", "cut",
-                                            *(("engine_b",) if self.s["engine_b_weight"] > 0 else ()), "forced")}
+                                            *(("engine_b",) if self.s["engine_b_weight"] > 0 else ()),
+                                            *(("embed",) if self.s["embed_candidates"] else ()),
+                                            *(("edge",) if self.s["other_ends"] else ()), "forced")}
         check_contract(steps, tl, self.vocabulary)
         return steps
+
+    def with_other_ends(self, tl: RunTimeline, ev: list[Evidence], a: int, b: int,
+                        lim: list[dict]) -> tuple[list[dict], list[str]]:
+        """seg_a.other_ends: an other phase before the first and after the last (at most
+        other_max_s each). Two edge candidates one frame inside the span, of strength
+        other_min_strength, stand for "no intro" and "no outro", so a real candidate
+        ends an intro only if it is stronger than that."""
+        mx = max(2, int(round(self.s["other_max_s"] * tl.fps)))
+        edge = {"phase": OTHER, "min_s": 0.0, "max_s": self.s["other_max_s"], "source": "other_ends",
+                "min_f": 1, "max_f": mx}
+        for f in (a + 1, b - 1):
+            if a < f < b:
+                ev.append(Evidence(f, f, "edge", self.s["other_min_strength"]))
+        ev.sort(key=lambda e: (e.start, e.end))
+        return [edge, *lim, dict(edge)], [OTHER, *self.vocabulary, OTHER]
+
+    def refine(self, tl: RunTimeline, phases: list[tuple]) -> tuple[list[tuple], list[dict]]:
+        """Engine B decoder (seg_a.refine_window_s): each boundary between two phases moves
+        to the frame of the highest boundary head probability within the window, kept
+        between its neighbours (the phase order and the coverage do not change)."""
+        w = int(round(self.s["refine_window_s"] * tl.fps))
+        prob = np.nan_to_num(tl.boundary_prob[:tl.n_frames])
+        out = [list(x) for x in phases]
+        moves = []
+        for i in range(len(out) - 1):
+            old = out[i][2]
+            lo, hi = max(out[i][1] + 1, old - w), min(out[i + 1][2] - 1, old + w)
+            if hi <= lo or out[i][2] != out[i + 1][1]:     # a span boundary (no_person) stays where it is
+                continue
+            new = lo + int(np.argmax(prob[lo:hi + 1]))
+            out[i][2] = out[i + 1][1] = new
+            moves.append({"from_s": tl.t(old), "to_s": tl.t(new)})
+        return [tuple(x) for x in out], moves
 
     def _fallback(self, tl: RunTimeline, a: int, b: int, ev: list[Evidence]) -> list[Step]:
         empty = [(e.start, e.end) for e in ev if e.kind == "no_person"]
