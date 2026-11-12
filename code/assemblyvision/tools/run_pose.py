@@ -509,6 +509,22 @@ def stored_config(manifest: dict) -> dict:
     return c
 
 
+def stored_with(manifest: dict, *explicit: dict) -> dict:
+    """The stored settings with explicit layers (--config files, --set) on top. When an
+    explicit layer sets seg_a.engine to a preset, the preset replaces the run's stored
+    values of its keys; only values given explicitly can conflict with it (AV-CFG-002)."""
+    from ..config import ENGINE_ALIASES
+    stored = stored_config(manifest)
+    engine = None
+    for layer in explicit:
+        engine = layer.get("seg_a", {}).get("engine", engine)
+    preset = ENGINE_PRESETS.get(ENGINE_ALIASES.get(engine, engine)) if engine is not None else None
+    for key in preset or {}:
+        section, name = key.split(".")
+        stored.get(section, {}).pop(name, None)
+    return deep_merge(stored, *explicit)
+
+
 def compare(args: argparse.Namespace) -> int:
     os.environ["CUDA_VISIBLE_DEVICES"] = ""          # CPU only, like a rerun
     os.environ["XDG_CONFIG_HOME"] = str(REPO_ROOT / ".config")
@@ -517,7 +533,7 @@ def compare(args: argparse.Namespace) -> int:
         source, root = run_source(args.run, base["paths"])
         manifest = json.loads((root / "manifest.json").read_text())
         layers = [_read_toml(p) for p in args.config]
-        cfg = Config.load(overrides=deep_merge(stored_config(manifest), *layers, parse_sets(args.set)))
+        cfg = Config.load(overrides=stored_with(manifest, *layers, parse_sets(args.set)))
         _check_gt(args.gt, source, cfg)
         for need in ("ingest", "shots", "tracking"):
             if need not in manifest:
@@ -545,7 +561,7 @@ def rerun(args: argparse.Namespace) -> int:
         source, root = run_source(args.run, base["paths"])
         manifest = json.loads((root / "manifest.json").read_text())
         layers = [_read_toml(p) for p in args.config]
-        cfg = Config.load(overrides=deep_merge(stored_config(manifest), *layers, parse_sets(args.set)))
+        cfg = Config.load(overrides=stored_with(manifest, *layers, parse_sets(args.set)))
         _check_gt(args.gt, source, cfg)
         for need in ("ingest", "shots", "tracking"):
             if need not in manifest:

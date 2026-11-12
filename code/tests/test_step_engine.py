@@ -51,6 +51,21 @@ class StepEngineTest(unittest.TestCase):
         self.assertEqual(stored_config({"config": {"seg_a": {"embed_weight": 0.0}}})["seg_a"]["engine"], "custom")
         self.assertEqual(stored_config({"config": {"seg_a": {"engine": "A"}}})["seg_a"]["engine"], "A")
 
+    def test_a_preset_set_on_a_stored_run_replaces_its_stored_values(self):
+        from assemblyvision.errors import AvError
+        from assemblyvision.tools.run_pose import stored_with
+        stored = Config.load(overrides={"seg_a": {"engine": "custom", "embed_window_s": 60.0}}).snapshot()
+        manifest = {"config": stored}
+        with self.assertRaises(AvError):                     # the old merge: the stored 60 s conflicts
+            Config.load(overrides={**stored, "seg_a": {**stored["seg_a"], "engine": "B v1"}})
+        c = Config.load(overrides=stored_with(manifest, {"seg_a": {"engine": "B v1"}}))
+        self.assertEqual((c["seg_a"]["embed_window_s"], c["seg_a"]["embed_weight"]), (30.0, 0.2))
+        self.assertEqual(c["seg_a"]["pause_energy"], stored["seg_a"]["pause_energy"])   # other stored keys stay
+        with self.assertRaises(AvError):                     # a value given explicitly still conflicts
+            Config.load(overrides=stored_with(manifest, {"seg_a": {"engine": "B v1", "embed_window_s": 60.0}}))
+        c = Config.load(overrides=stored_with(manifest, {"seg_a": {"embed_weight": 0.4}}))
+        self.assertEqual(c["seg_a"]["embed_window_s"], 60.0)  # no preset given: the stored values stay
+
     def test_reference_profile_turns_parallel_shots_off(self):
         from assemblyvision.config import DEFAULT_LAYERS
         from assemblyvision.storage.files import REPO_ROOT
