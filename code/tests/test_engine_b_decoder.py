@@ -110,6 +110,26 @@ class DecoderTest(unittest.TestCase):
                          ("engine_b/w10-engine-b-v2.pt", 0.0, 1.0))
         self.assertEqual(Config.load()["seg_a"]["engine"], "B v1")            # the default stays B v1
 
+    def test_visual_alone_places_the_boundary(self):
+        tl = timeline()
+        tl.embedding = None                                                   # no pose term
+        vis = np.zeros((N, 8), np.float32)
+        vis[:CUT, 3], vis[CUT:, 4] = 1.0, 1.0
+        tl.visual, tl.visual_valid = vis, np.ones(N, bool)
+        e = RuleBasedEngine(cfg(candidates="dense", embed_weight=0.0, visual_weight=1.0, visual_window_s=10.0))
+        steps = e.segment_run(tl)
+        self.assertEqual(e.report["engine"], "B custom")
+        self.assertAlmostEqual(bounds(steps)[0], CUT / FPS, delta=1.0)
+        self.assertEqual(e.report["evidence_counts"]["dense"], 111)
+        self.assertTrue(e.report["visual"]["on"])
+
+    def test_visual_off_changes_nothing(self):
+        tl = timeline()
+        tl.visual = np.random.default_rng(0).normal(size=(N, 8)).astype(np.float32)
+        a = RuleBasedEngine(cfg(candidates="dense")).segment_run(tl)
+        tl.visual = None
+        self.assertEqual(a, RuleBasedEngine(cfg(candidates="dense")).segment_run(tl))
+
     def test_video_norm(self):
         rng = np.random.default_rng(1)
         e = rng.normal(size=(50, 4)) + np.array([5.0, 0, 0, 0])

@@ -300,6 +300,13 @@ def segment_stored(manifest: dict, root: Path, cfg: Config, ctx, bprob: dict | N
     from ..analysis.segmentation import build_timeline, create_engine
     engine = create_engine("A", cfg, ctx)
     tl = build_timeline(manifest, root, engine.cleaner, cfg["motion"] if cfg["seg_a"]["activity_change"] else None)
+    if cfg["seg_a"]["visual_weight"] > 0:
+        from ..analysis import visual
+        path = root / "visual.npz"
+        if path.is_file():
+            tl.visual, tl.visual_valid = visual.to_frames(visual.load(path), tl.n_frames, tl.fps)
+        else:
+            ctx.notice(AvError("AV-SEG-004"), "segmentation")
     if engine_b_needed(cfg):
         bp = bprob if bprob is not None else boundary_probability(manifest, root, cfg, ctx)
         if bp is not None:

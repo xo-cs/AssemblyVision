@@ -21,19 +21,19 @@ DEFAULT_LAYERS = [DEFAULT_TOML, STEPS_TOML]          # LLD 3.0.5 order (gpu.toml
 VARIANTS = ("n", "s", "m", "l", "x")
 # step engine presets (seg_a.engine): the keys each preset sets; "custom" leaves them as configured
 ENGINE_PRESETS: dict[str, dict[str, Any]] = {
-    "A": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 0.0},
+    "A": {"seg_a.engine_b_weight": 0.0, "seg_a.visual_weight": 0.0, "seg_a.embed_weight": 0.0},
     # the default: 67.26 blind on QiSens (x run), the best of every Engine B setting there so far
-    "B v1": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 0.2, "seg_a.embed_window_s": 30.0,
+    "B v1": {"seg_a.engine_b_weight": 0.0, "seg_a.visual_weight": 0.0, "seg_a.embed_weight": 0.2, "seg_a.embed_window_s": 30.0,
              "engine_b.model": "engine_b/w10-engine-b-v1.pt", "engine_b.candidates": "engine_a"},
     # public benchmark only, not better on QiSens (experiments/w10-qisens-engine-b-v2)
-    "B v1 dense": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 0.2, "seg_a.embed_window_s": 30.0,
+    "B v1 dense": {"seg_a.engine_b_weight": 0.0, "seg_a.visual_weight": 0.0, "seg_a.embed_weight": 0.2, "seg_a.embed_window_s": 30.0,
                    "engine_b.model": "engine_b/w10-engine-b-v1.pt", "engine_b.candidates": "dense"},
     # v1 and v2 selected by the rule experiments/w10-engine-b-v2/rule.md (CV grid w10-engine-b-v2-cv,
     # test w10-phase-bench-v2-test); public benchmark only, not better on QiSens
-    "B v1 selected": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 0.5, "seg_a.embed_window_s": 10.0,
-                      "seg_a.engine_a_scale": 0.5, "seg_a.refine_window_s": 0.0, "engine_b.video_norm": True,
+    "B v1 selected": {"seg_a.engine_b_weight": 0.0, "seg_a.visual_weight": 0.0, "seg_a.embed_weight": 0.5,
+                      "seg_a.embed_window_s": 10.0, "seg_a.engine_a_scale": 0.5, "seg_a.refine_window_s": 0.0, "engine_b.video_norm": True,
                       "engine_b.model": "engine_b/w10-engine-b-v1.pt", "engine_b.candidates": "dense"},
-    "B v2": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 1.0, "seg_a.embed_window_s": 10.0,
+    "B v2": {"seg_a.engine_b_weight": 0.0, "seg_a.visual_weight": 0.0, "seg_a.embed_weight": 1.0, "seg_a.embed_window_s": 10.0,
              "seg_a.engine_a_scale": 0.0, "seg_a.refine_window_s": 0.0, "engine_b.video_norm": False,
              "engine_b.model": "engine_b/w10-engine-b-v2.pt", "engine_b.candidates": "dense"},
 }
@@ -150,6 +150,12 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "seg_a.embed_peak_min": (lambda v: 0 <= v <= 1, "0 to 1"),
     "seg_a.embed_peak_gap_s": (lambda v: v > 0, "> 0"),
     "seg_a.engine_a_scale": (lambda v: 0 <= v <= 10, "0 to 10"),
+    "seg_a.visual_weight": (lambda v: v >= 0, ">= 0"),
+    "seg_a.visual_window_s": (lambda v: 1 <= v <= 1200, "1 to 1200 s"),
+    "visual.fps": (lambda v: 0.1 <= v <= 30, "0.1 to 30"),
+    "visual.input_px": (lambda v: v % 14 == 0 and 112 <= v <= 518, "a multiple of 14 from 112 to 518"),
+    "visual.batch": (lambda v: 1 <= v <= 1024, "1 to 1024"),
+    "visual.half": (lambda v: isinstance(v, bool), "true or false"),
     "seg_a.refine_window_s": (lambda v: 0 <= v <= 120, "0 to 120 s"),
     "seg_a.other_ends": (lambda v: isinstance(v, bool), "true or false"),
     "seg_a.other_max_s": (lambda v: v > 0, "> 0"),
@@ -254,7 +260,8 @@ def engine_label(d) -> str:
     e = d["seg_a"].get("engine", "custom")
     if e != "custom":
         return e
-    return "A" if d["seg_a"]["engine_b_weight"] == 0 and d["seg_a"]["embed_weight"] == 0 else "B custom"
+    off = d["seg_a"]["engine_b_weight"] == 0 and d["seg_a"]["embed_weight"] == 0 and d["seg_a"].get("visual_weight", 0) == 0
+    return "A" if off else "B custom"
 
 
 class Config:

@@ -61,6 +61,10 @@ def candidates_e_off(v, st) -> bool:
     return _seg(st, "embed_candidates", False) is False
 
 
+def visual_off(v, st) -> bool:
+    return _seg(st, "visual_weight", 0) == 0
+
+
 def unit_scale(v, st) -> bool:
     return v == 1.0
 
@@ -117,6 +121,8 @@ DECLARATIONS: dict[str, dict] = {
         "embed_peak_gap_s": candidates_e_off,
         "refine_window_s": OFF,
         "engine_a_scale": unit_scale,           # 1 = the strengths as before the key
+        "visual_weight": OFF,
+        "visual_window_s": visual_off,
         "other_ends": OFF,
         "other_max_s": other_off,
         "other_min_strength": other_off,
@@ -142,6 +148,7 @@ DECLARATIONS: dict[str, dict] = {
     "motion": _all(NO, "enabled angle_bands cov_min path_hz jitter_torso rep_lag_min_s rep_lag_max_s rep_window_s "
                        "rep_hop_s rep_acf_min idle_energy idle_min_s foreshort_ratio view_limited_share hand_active "
                        "gaze_conf_min gaze_yaw gaze_down_torso stream_rep_every_s stream_torso_s"),
+    "visual": _all(RUN_FREE, "fps input_px batch half"),   # read by tools/visual_embed.py, not by a batch run
     "heatmap": _all(NO, "cell_m cell_px min_samples"),
     "gpu": _all(NO, "pose"),
     "overlay": _all(NO, "kp_conf_min max_width crf enabled encoder workers"),

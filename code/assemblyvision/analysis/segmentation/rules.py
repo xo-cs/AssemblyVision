@@ -49,6 +49,13 @@ seg_a.refine_window_s > 0, embed_weight * the boundary head probability (its
 highest raw value within half a step, divided by its maximum over the active
 span). The DP and its duration limits are the same.
 
+With seg_a.visual_weight > 0 (default 0 = off) the DINOv2 scene embedding of the run
+(visual.npz, tools/visual_embed.py) gives a scene change score the same way
+(seg_a.visual_window_s): a dense candidate gets visual_weight * its value at its frame,
+every other candidate (no_person stretches too) its highest value within
+seg_a.engine_b_window_s. With dense candidates and no pose term, the grid is made for
+the visual term alone.
+
 With seg_a.start_detect (default off) phase 1 starts at the start of work, not at
 the first person frame: the first frame t from which at least
 seg_a.start_active_share of the frames in the next seg_a.start_sustain_s move
@@ -110,6 +117,7 @@ class Evidence:
     activity_change: float | None = None    # set only with seg_a.activity_change on
     engine_b: float | None = None           # set only with seg_a.engine_b_weight > 0
     embed_change: float | None = None       # set only with seg_a.embed_weight > 0
+    visual_change: float | None = None      # set only with seg_a.visual_weight > 0
 
 
 class RuleBasedEngine(SegmentationEngine):
@@ -168,7 +176,31 @@ class RuleBasedEngine(SegmentationEngine):
             ev.sort(key=lambda e: (e.start, e.end))
         if s["embed_weight"] > 0 and tl.embedding is not None:
             self.add_embed_change(tl, ev, a, b)
+        if s["visual_weight"] > 0 and tl.visual is not None:
+            self.add_visual(tl, ev, a, b)
         return ev
+
+    def add_visual(self, tl: RunTimeline, ev: list[Evidence], a: int, b: int) -> None:
+        """seg_a.visual_weight: the scene change score (DINOv2 embeddings, change_score over
+        seg_a.visual_window_s) adds visual_weight * its value: at the frame of a dense
+        candidate, and its highest value within seg_a.engine_b_window_s of any other
+        candidate (no_person stretches too: a title card is a scene change)."""
+        from .boundary_tcn import change_score
+        valid = tl.visual_valid if tl.visual_valid is not None else np.ones(tl.n_frames, bool)
+        score = change_score(tl.visual[:tl.n_frames], valid[:tl.n_frames], int(round(self.s["visual_window_s"] * tl.fps)))
+        top = float(score[a:b].max()) if b > a else 0.0
+        val = score / top if top > 0 else score
+        if self.cfg["engine_b"]["candidates"] == "dense" and not any(e.kind == "dense" for e in ev):
+            self.add_dense(tl, ev, a, b, np.zeros(tl.n_frames), self.s["visual_window_s"])
+        w = int(round(self.s["engine_b_window_s"] * tl.fps))
+        for e in ev:
+            if e.kind == "dense":
+                v = float(val[e.start])
+            else:
+                lo, hi = max(a, e.start - w), min(b, e.end + w + 1)
+                v = float(val[lo:hi].max()) if hi > lo else 0.0
+            e.visual_change = round(v, 4)
+            e.strength += self.s["visual_weight"] * e.visual_change
 
     def add_embed_change(self, tl: RunTimeline, ev: list[Evidence], a: int, b: int) -> None:
         from .boundary_tcn import change_score, normalize_video, peaks
@@ -197,8 +229,10 @@ class RuleBasedEngine(SegmentationEngine):
         if self.cfg["engine_b"]["candidates"] == "dense":
             self.add_dense(tl, ev, a, b, val)
 
-    def add_dense(self, tl: RunTimeline, ev: list[Evidence], a: int, b: int, val: np.ndarray) -> None:
-        """engine_b.candidates = "dense": a grid of Engine B candidates (see the module doc)."""
+    def add_dense(self, tl: RunTimeline, ev: list[Evidence], a: int, b: int, val: np.ndarray,
+                  window_s: float | None = None) -> None:
+        """engine_b.candidates = "dense": a grid of Engine B candidates (see the module doc);
+        window_s: the change window of the score that sets their strength (the edge guard)."""
         step = max(1, int(round(self.cfg["engine_b"]["candidate_step_s"] * tl.fps)))
         head = None
         if self.s["refine_window_s"] > 0 and tl.boundary_prob is not None:
@@ -207,7 +241,7 @@ class RuleBasedEngine(SegmentationEngine):
             head = head / top if top > 0 else head
         taken = [(x.start, x.end) for x in ev]
         half = step // 2
-        edge = int(round(self.s["embed_window_s"] * tl.fps)) // 2  # half a change window: no truncated windows
+        edge = int(round((window_s or self.s["embed_window_s"]) * tl.fps)) // 2  # half a change window: no truncated windows
         for f in range(a + step, b, step):
             if f - a < edge or b - f < edge:
                 continue
@@ -414,7 +448,7 @@ class RuleBasedEngine(SegmentationEngine):
     def segment_run(self, tl: RunTimeline) -> list[Step]:
         idx = np.flatnonzero(tl.person)
         engine = engine_label(self.cfg)
-        if engine != "A" and tl.boundary_prob is None and tl.embedding is None:
+        if engine != "A" and tl.boundary_prob is None and tl.embedding is None and tl.visual is None:
             engine = "A"                    # Engine B requested but unavailable (AV-SEG-001)
         rep = {"engine": engine, "vocabulary": self.vocabulary, "fps": tl.fps, "duration_s": round(tl.duration_s, 3)}
         self.report = rep
@@ -464,7 +498,8 @@ class RuleBasedEngine(SegmentationEngine):
                             "strength": round(e.strength, 4), "used": e.used,
                             **({} if e.activity_change is None else {"activity_change": e.activity_change}),
                             **({} if e.engine_b is None else {"engine_b": e.engine_b}),
-                            **({} if e.embed_change is None else {"embed_change": e.embed_change})}
+                            **({} if e.embed_change is None else {"embed_change": e.embed_change}),
+                            **({} if e.visual_change is None else {"visual_change": e.visual_change})}
                            for e in ev]
         if self.s["activity_change"]:
             rep["activity_change"] = {"on": bool(tl.activity), "ac_weight": self.s["ac_weight"],
@@ -478,6 +513,9 @@ class RuleBasedEngine(SegmentationEngine):
             rep["embed_change"] = {"on": tl.embedding is not None, "embed_weight": self.s["embed_weight"],
                                    "embed_window_s": self.s["embed_window_s"], "window_s": self.s["engine_b_window_s"],
                                    "candidates": self.cfg["engine_b"]["candidates"]}
+        if self.s["visual_weight"] > 0:
+            rep["visual"] = {"on": tl.visual is not None, "visual_weight": self.s["visual_weight"],
+                             "visual_window_s": self.s["visual_window_s"]}
         rep["evidence_counts"] = {k: sum(e.kind == k for e in ev)
                                   for k in ("no_person", "cut_pause", "pause", "cut",
                                             *(("engine_b",) if self.s["engine_b_weight"] > 0 else ()),

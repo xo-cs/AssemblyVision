@@ -43,6 +43,8 @@ class RunTimeline:
     boundary_info: dict = field(default_factory=dict)   # model file, sha256, frames scored
     embedding: np.ndarray | None = None             # float32 [N,C] Engine B unit embedding (seg_a.embed_weight), or None
     embedding_valid: np.ndarray | None = None       # bool [N]: the embedding was measured (subject present)
+    visual: np.ndarray | None = None                # float32 [N,384] DINOv2 scene embedding (seg_a.visual_weight), or None
+    visual_valid: np.ndarray | None = None          # bool [N]: a sampled frame covers this frame
 
     @property
     def duration_s(self) -> float:
