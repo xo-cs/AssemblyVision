@@ -1,0 +1,278 @@
+{
+ "id": "w11-visual-engine-b-test",
+ "kind": "visual_test",
+ "source": "public",
+ "reference": "",
+ "grid": "w11-visual-engine-b-cv",
+ "title": "Visual Engine B: the single test evaluation (rule w11-visual-engine-b)",
+ "rows": [
+  {
+   "row": "Engine A",
+   "sets": {
+    "seg_a": {
+     "engine": "custom",
+     "engine_b_weight": 0.0,
+     "embed_weight": 0.0,
+     "visual_weight": 0.0
+    }
+   },
+   "summary": {
+    "ha4m_p0.5": {
+     "frame_accuracy": 56.94,
+     "f1_50": 47.91,
+     "boundary_mae_s": 9.47,
+     "videos": 65
+    },
+    "ha4m_plain": {
+     "frame_accuracy": 24.01,
+     "f1_50": 9.45,
+     "boundary_mae_s": 23.75,
+     "videos": 65
+    },
+    "Kallax_Shelf_Drawer": {
+     "frame_accuracy": 33.01,
+     "f1_50": 10.36,
+     "boundary_mae_s": 23.48,
+     "videos": 29
+    },
+    "Lack_Coffee_Table": {
+     "frame_accuracy": 60.61,
+     "f1_50": 29.86,
+     "boundary_mae_s": 37.99,
+     "videos": 29
+    }
+   }
+  },
+  {
+   "row": "B v1 as shipped",
+   "sets": {
+    "seg_a": {
+     "engine": "custom",
+     "engine_b_weight": 0.0,
+     "embed_weight": 0.2,
+     "embed_window_s": 30.0,
+     "visual_weight": 0.0,
+     "engine_a_scale": 1.0,
+     "intro_detect": false
+    },
+    "engine_b": {
+     "model": "engine_b/w10-engine-b-v1.pt",
+     "candidates": "engine_a",
+     "video_norm": false
+    }
+   },
+   "summary": {
+    "ha4m_p0.5": {
+     "frame_accuracy": 54.9,
+     "f1_50": 43.96,
+     "boundary_mae_s": 9.25,
+     "videos": 65
+    },
+    "ha4m_plain": {
+     "frame_accuracy": 24.01,
+     "f1_50": 9.45,
+     "boundary_mae_s": 23.75,
+     "videos": 65
+    },
+    "Kallax_Shelf_Drawer": {
+     "frame_accuracy": 33.01,
+     "f1_50": 10.36,
+     "boundary_mae_s": 23.48,
+     "videos": 29
+    },
+    "Lack_Coffee_Table": {
+     "frame_accuracy": 60.46,
+     "f1_50": 29.86,
+     "boundary_mae_s": 37.59,
+     "videos": 29
+    }
+   }
+  },
+  {
+   "row": "selected: v3",
+   "sets": {
+    "seg_a": {
+     "engine": "custom",
+     "engine_b_weight": 0.0,
+     "embed_weight": 1.0,
+     "embed_window_s": 30.0,
+     "visual_weight": 0.5,
+     "visual_window_s": 10.0,
+     "engine_a_scale": 0.25,
+     "refine_window_s": 0.0,
+     "intro_detect": false,
+     "intro_k": 1.0,
+     "intro_sustain_s": 20.0,
+     "intro_active_share": 0.5
+    },
+    "engine_b": {
+     "model": "engine_b/w11-engine-b-v3.pt",
+     "video_norm": false,
+     "candidates": "dense"
+    }
+   },
+   "summary": {
+    "ha4m_p0.5": {
+     "frame_accuracy": 81.17,
+     "f1_50": 81.89,
+     "boundary_mae_s": 6.97,
+     "videos": 65
+    },
+    "ha4m_plain": {
+     "frame_accuracy": 76.6,
+     "f1_50": 75.32,
+     "boundary_mae_s": 7.86,
+     "videos": 65
+    },
+    "Kallax_Shelf_Drawer": {
+     "frame_accuracy": 59.09,
+     "f1_50": 43.75,
+     "boundary_mae_s": 12.35,
+     "videos": 29
+    },
+    "Lack_Coffee_Table": {
+     "frame_accuracy": 81.53,
+     "f1_50": 76.58,
+     "boundary_mae_s": 28.09,
+     "videos": 29
+    }
+   }
+  },
+  {
+   "row": "selected, intro on",
+   "sets": {
+    "seg_a": {
+     "engine": "custom",
+     "engine_b_weight": 0.0,
+     "embed_weight": 1.0,
+     "embed_window_s": 30.0,
+     "visual_weight": 0.5,
+     "visual_window_s": 10.0,
+     "engine_a_scale": 0.25,
+     "refine_window_s": 0.0,
+     "intro_detect": true,
+     "intro_k": 1.0,
+     "intro_sustain_s": 20.0,
+     "intro_active_share": 0.5
+    },
+    "engine_b": {
+     "model": "engine_b/w11-engine-b-v3.pt",
+     "video_norm": false,
+     "candidates": "dense"
+    }
+   },
+   "summary": {
+    "ha4m_p0.5": {
+     "frame_accuracy": 79.38,
+     "f1_50": 79.73,
+     "boundary_mae_s": 6.72,
+     "videos": 65
+    },
+    "ha4m_plain": {
+     "frame_accuracy": 76.61,
+     "f1_50": 74.71,
+     "boundary_mae_s": 7.54,
+     "videos": 65
+    },
+    "Kallax_Shelf_Drawer": {
+     "frame_accuracy": 59.12,
+     "f1_50": 43.75,
+     "boundary_mae_s": 12.35,
+     "videos": 29
+    },
+    "Lack_Coffee_Table": {
+     "frame_accuracy": 80.47,
+     "f1_50": 73.14,
+     "boundary_mae_s": 27.55,
+     "videos": 29
+    }
+   }
+  }
+ ],
+ "ikea_videos": {
+  "Kallax_Shelf_Drawer": [
+   "Kallax_Shelf_Drawer/0001_oak_floor_05_02_2019_08_19_16_54",
+   "Kallax_Shelf_Drawer/0002_black_floor_05_02_2019_08_19_17_50",
+   "Kallax_Shelf_Drawer/0004_white_floor_08_04_2019_08_28_10_58",
+   "Kallax_Shelf_Drawer/0005_black_floor_08_04_2019_08_28_11_22",
+   "Kallax_Shelf_Drawer/0006_oak_floor_05_02_2019_08_19_16_40",
+   "Kallax_Shelf_Drawer/0006_oak_floor_08_04_2019_08_28_12_10",
+   "Kallax_Shelf_Drawer/0006_oak_table_04_02_2019_08_20_12_04",
+   "Kallax_Shelf_Drawer/0007_white_floor_08_04_2019_08_28_10_51",
+   "Kallax_Shelf_Drawer/0008_black_floor_08_04_2019_08_28_11_49",
+   "Kallax_Shelf_Drawer/0012_white_table_04_02_2019_08_20_11_52",
+   "Kallax_Shelf_Drawer/0014_black_floor_05_02_2019_08_19_12_46",
+   "Kallax_Shelf_Drawer/0014_black_floor_08_04_2019_08_28_11_12",
+   "Kallax_Shelf_Drawer/0020_oak_floor_05_02_2019_08_19_12_58",
+   "Kallax_Shelf_Drawer/0021_white_floor_05_02_2019_08_19_13_15",
+   "Kallax_Shelf_Drawer/0022_white_floor_05_02_2019_08_19_15_58",
+   "Kallax_Shelf_Drawer/0023_black_floor_05_02_2019_08_19_16_20",
+   "Kallax_Shelf_Drawer/0023_black_table_04_02_2019_08_20_14_10",
+   "Kallax_Shelf_Drawer/0024_black_table_04_02_2019_08_20_11_21",
+   "Kallax_Shelf_Drawer/0024_oak_floor_05_02_2019_08_19_17_07",
+   "Kallax_Shelf_Drawer/0025_black_table_04_02_2019_08_20_13_51",
+   "Kallax_Shelf_Drawer/0025_oak_floor_05_02_2019_08_19_17_21",
+   "Kallax_Shelf_Drawer/0027_white_table_04_02_2019_08_20_10_52",
+   "Kallax_Shelf_Drawer/0028_white_table_04_02_2019_08_20_10_56",
+   "Kallax_Shelf_Drawer/0029_black_table_04_02_2019_08_20_11_37",
+   "Kallax_Shelf_Drawer/0030_oak_table_04_02_2019_08_20_12_14",
+   "Kallax_Shelf_Drawer/0031_white_table_04_02_2019_08_20_14_26",
+   "Kallax_Shelf_Drawer/0039_white_floor_08_04_2019_08_28_10_41",
+   "Kallax_Shelf_Drawer/0040_oak_floor_08_04_2019_08_28_12_02",
+   "Kallax_Shelf_Drawer/0041_oak_floor_08_04_2019_08_28_12_24"
+  ],
+  "Lack_Coffee_Table": [
+   "Lack_Coffee_Table/0001_black_floor_05_02_2019_08_19_16_51",
+   "Lack_Coffee_Table/0002_white_floor_05_02_2019_08_19_17_47",
+   "Lack_Coffee_Table/0004_white_floor_08_04_2019_08_28_11_04",
+   "Lack_Coffee_Table/0005_black_floor_08_04_2019_08_28_11_20",
+   "Lack_Coffee_Table/0007_white_floor_08_04_2019_08_28_10_49",
+   "Lack_Coffee_Table/0008_black_floor_08_04_2019_08_28_11_29",
+   "Lack_Coffee_Table/0012_black_table_04_02_2019_08_20_11_49",
+   "Lack_Coffee_Table/0014_black_floor_08_04_2019_08_28_11_07",
+   "Lack_Coffee_Table/0014_oak_floor_05_02_2019_08_19_12_40",
+   "Lack_Coffee_Table/0020_white_floor_05_02_2019_08_19_12_55",
+   "Lack_Coffee_Table/0021_black_table_04_02_2019_08_20_13_54",
+   "Lack_Coffee_Table/0021_oak_floor_05_02_2019_08_19_13_11",
+   "Lack_Coffee_Table/0022_white_floor_05_02_2019_08_19_15_53",
+   "Lack_Coffee_Table/0023_black_floor_05_02_2019_08_19_16_14",
+   "Lack_Coffee_Table/0023_black_table_04_02_2019_08_20_14_06",
+   "Lack_Coffee_Table/0024_oak_floor_05_02_2019_08_19_17_03",
+   "Lack_Coffee_Table/0024_oak_table_04_02_2019_08_20_11_19",
+   "Lack_Coffee_Table/0025_oak_floor_05_02_2019_08_19_17_17",
+   "Lack_Coffee_Table/0025_oak_table_04_02_2019_08_20_13_42",
+   "Lack_Coffee_Table/0026_black_floor_05_02_2019_08_19_17_25",
+   "Lack_Coffee_Table/0027_white_table_04_02_2019_08_20_10_47",
+   "Lack_Coffee_Table/0028_black_table_04_02_2019_08_20_11_01",
+   "Lack_Coffee_Table/0029_white_table_04_02_2019_08_20_11_33",
+   "Lack_Coffee_Table/0030_white_table_04_02_2019_08_20_12_12",
+   "Lack_Coffee_Table/0031_oak_table_04_02_2019_08_20_14_23",
+   "Lack_Coffee_Table/0036_oak_floor_08_04_2019_08_28_12_14",
+   "Lack_Coffee_Table/0039_white_floor_08_04_2019_08_28_10_35",
+   "Lack_Coffee_Table/0040_oak_floor_08_04_2019_08_28_11_58",
+   "Lack_Coffee_Table/0041_oak_floor_08_04_2019_08_28_12_22"
+  ]
+ },
+ "provenance": {
+  "git": {
+   "commit": "8f7c1ba80185d94bd670cd3d444c74aa5b2df2f5",
+   "branch": "feat/w10-data",
+   "dirty": [],
+   "outputs_changed": [
+    "experiments/INDEX.md"
+   ]
+  },
+  "date_utc": "2026-11-12T12:53:56Z",
+  "command": "/home/qisens/AssemblyVision/code/assemblyvision/tools/visual_test.py --id w11-visual-engine-b-test --grid w11-visual-engine-b-cv --workers 5"
+ },
+ "finished_utc": "2026-11-12T12:53:56Z",
+ "index": {
+  "cells": [
+   "Engine A: ha4m_p0.5 56.94, ha4m_plain 24.01, Kallax_Shelf_Drawer 33.01, Lack_Coffee_Table 60.61",
+   "B v1 as shipped: ha4m_p0.5 54.9, ha4m_plain 24.01, Kallax_Shelf_Drawer 33.01, Lack_Coffee_Table 60.46",
+   "selected: v3: ha4m_p0.5 81.17, ha4m_plain 76.6, Kallax_Shelf_Drawer 59.09, Lack_Coffee_Table 81.53",
+   "selected, intro on: ha4m_p0.5 79.38, ha4m_plain 76.61, Kallax_Shelf_Drawer 59.12, Lack_Coffee_Table 80.47"
+  ],
+  "verdict": "measurement"
+ }
+}
