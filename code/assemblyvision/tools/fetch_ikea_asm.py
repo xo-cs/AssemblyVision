@@ -60,6 +60,7 @@ def main(argv: list[str] | None = None, repo_root: Path = REPO_ROOT) -> int:
     p = argparse.ArgumentParser(prog="python -m assemblyvision.tools.fetch_ikea_asm")
     p.add_argument("--workers", type=int, default=4)
     p.add_argument("--limit", type=int, help="only the first N videos (a pilot)")
+    p.add_argument("--furniture", help="only this furniture type (for example Lack_TV_Bench)")
     args = p.parse_args(argv)
     cfg = Config.load()
     root = dataset_root(cfg, "ikea_asm", repo_root)
@@ -76,7 +77,8 @@ def main(argv: list[str] | None = None, repo_root: Path = REPO_ROOT) -> int:
         [{"member": i.filename, "size": i.file_size, "crc32": i.CRC, "path": str(video_path(root, i.filename)
                                                                                 .relative_to(root))} for i in infos],
         indent=0) + "\n")
-    todo = infos[:args.limit] if args.limit else infos
+    todo = [i for i in infos if not args.furniture or i.filename.split("/")[1] == args.furniture]
+    todo = todo[:args.limit] if args.limit else todo
     lg.info("%d videos, %.1f GB", len(todo), sum(i.file_size for i in todo) / 1e9)
     failed = []
 
