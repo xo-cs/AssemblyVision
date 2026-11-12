@@ -116,6 +116,12 @@ start_sustain_s = 10.0       # sustained = in a window this long from t, ...
 start_active_share = 0.6     # ... at least this share of frames moves (motion energy >= pause_energy)
 start_max_share = 0.25       # the intro found may be at most this share of the active span (else no intro)
 start_min_intro_s = 10.0     # a still start shorter than this is not an intro (both public clips, which have none, stay unchanged)
+# Zero shot phase likelihood (Week 11): siglip.npz and vlm.npz of the run; all 0 = off
+siglip_weight = 0.0          # weight of the SigLIP 2 full frame phase log likelihood (per minute)
+siglip_crop_weight = 0.0     # weight of the SigLIP 2 subject crop phase log likelihood (per minute)
+vlm_weight = 0.0             # weight of the Qwen3 VL phase log likelihood (per minute)
+siglip_temp = 0.01           # softmax temperature over the cosine similarities of the phases
+shot_smooth = false          # true: average the phase scores within each camera shot before the DP
 # Intro and outro detector (Week 11, docs_team/intro_detector.md): before the DP, off by default
 intro_detect = false         # true: work starts and ends where the motion energy reaches the video's own working level
 intro_k = 1.0                # active frame: smoothed energy >= median - intro_k * MAD (over the frames with a subject)

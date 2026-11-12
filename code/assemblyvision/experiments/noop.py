@@ -65,6 +65,10 @@ def intro_off(v, st) -> bool:
     return _seg(st, "intro_detect", False) is False
 
 
+def likelihood_off(v, st) -> bool:
+    return all(_seg(st, k, 0) == 0 for k in ("siglip_weight", "siglip_crop_weight", "vlm_weight"))
+
+
 def visual_off(v, st) -> bool:
     return _seg(st, "visual_weight", 0) == 0
 
@@ -127,6 +131,11 @@ DECLARATIONS: dict[str, dict] = {
         "engine_a_scale": unit_scale,           # 1 = the strengths as before the key
         "visual_weight": OFF,
         "intro_detect": OFF,
+        "siglip_weight": OFF,
+        "siglip_crop_weight": OFF,
+        "vlm_weight": OFF,
+        "siglip_temp": likelihood_off,
+        "shot_smooth": likelihood_off,
         **{k: intro_off for k in ("intro_k", "intro_smooth_s", "intro_sustain_s", "intro_active_share", "intro_min_s",
                                   "intro_max_share")},
         "visual_window_s": visual_off,

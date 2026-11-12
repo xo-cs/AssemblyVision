@@ -130,6 +130,31 @@ class DecoderTest(unittest.TestCase):
         tl.visual = None
         self.assertEqual(a, RuleBasedEngine(cfg(candidates="dense")).segment_run(tl))
 
+    def test_phase_likelihood_places_the_boundary(self):
+        tl = timeline()
+        tl.embedding = None
+        cos = np.zeros((N, 2), np.float32)
+        cos[:CUT, 0], cos[CUT:, 1] = 0.1, 0.1                                  # phase A then phase B
+        tl.phase_scores = {"siglip_full": cos}
+        e = RuleBasedEngine(cfg(candidates="dense", embed_weight=0.0, siglip_weight=1.0))
+        steps = e.segment_run(tl)
+        self.assertEqual(e.report["phase_likelihood"]["used"], ["siglip_full"])
+        self.assertAlmostEqual(bounds(steps)[0], CUT / FPS, delta=1.0)
+        noisy = np.random.default_rng(0).normal(0, 0.05, (N, 2)).astype(np.float32)
+        tl.phase_scores, tl.cuts = {"siglip_full": noisy}, [1200]
+        e = RuleBasedEngine(cfg(candidates="dense", embed_weight=0.0, siglip_weight=1.0, shot_smooth=True))
+        ll, rep = e.phase_likelihood(tl, 2)
+        step = np.diff(ll, axis=1)                                             # per frame increments
+        self.assertTrue(rep["shot_smooth"])
+        np.testing.assert_allclose(step[:, :1200], step[:, :1][:, [0] * 1200], rtol=1e-9)   # constant within a shot
+        np.testing.assert_allclose(step[:, 1200:], step[:, 1200:1201][:, [0] * (N - 1200)], rtol=1e-9)
+
+    def test_phase_likelihood_off_changes_nothing(self):
+        tl = timeline()
+        a = RuleBasedEngine(cfg(candidates="dense")).segment_run(tl)
+        tl.phase_scores = {"siglip_full": np.random.default_rng(0).normal(size=(N, 2)).astype(np.float32)}
+        self.assertEqual(a, RuleBasedEngine(cfg(candidates="dense")).segment_run(tl))
+
     def test_video_norm(self):
         rng = np.random.default_rng(1)
         e = rng.normal(size=(50, 4)) + np.array([5.0, 0, 0, 0])

@@ -166,3 +166,42 @@ def load_scores(path: Path) -> dict:
     out = {k: z[k] for k in z.files if k != "meta"}
     out["meta"] = json.loads(str(z["meta"]))
     return out
+
+
+def _on_frames(times: np.ndarray, rows: np.ndarray, n_frames: int, fps: float, span_s: float) -> np.ndarray:
+    """Samples at times (each covering span_s from its time) -> per frame rows [n_frames, K],
+    NaN where no sample covers the frame."""
+    t = np.arange(n_frames) / fps
+    out = np.full((n_frames, rows.shape[1]), np.nan, np.float32)
+    if len(times) == 0:
+        return out
+    idx = np.searchsorted(times, t, side="right") - 1
+    ok = (idx >= 0) & (t < times[np.clip(idx, 0, len(times) - 1)] + span_s)
+    out[ok] = rows[idx[ok]]
+    return out
+
+
+def run_phase_scores(root: Path, n_frames: int, fps: float, seg: dict) -> tuple[dict, list[str]]:
+    """{"siglip_full", "siglip_crop", "vlm": [n_frames, K]} from the run's siglip.npz and
+    vlm.npz for the sources whose weight in seg (seg_a settings) is above 0; and the
+    sources whose file is missing."""
+    out, missing = {}, []
+    if seg["siglip_weight"] > 0 or seg["siglip_crop_weight"] > 0:
+        path = root / "siglip.npz"
+        if path.is_file():
+            z = load_scores(path)
+            span = 1.0 / float(z["meta"]["fps"])
+            if seg["siglip_weight"] > 0:
+                out["siglip_full"] = _on_frames(z["time_s"], z["full_cos"], n_frames, fps, span)
+            if seg["siglip_crop_weight"] > 0:
+                out["siglip_crop"] = _on_frames(z["time_s"], z["crop_cos"], n_frames, fps, span)
+        else:
+            missing.append("siglip.npz")
+    if seg["vlm_weight"] > 0:
+        path = root / "vlm.npz"
+        if path.is_file():
+            z = load_scores(path)
+            out["vlm"] = _on_frames(z["time_s"], z["probs"], n_frames, fps, float(z["meta"]["window_s"]))
+        else:
+            missing.append("vlm.npz")
+    return out, missing

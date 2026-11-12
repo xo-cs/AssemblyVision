@@ -45,6 +45,8 @@ class RunTimeline:
     embedding_valid: np.ndarray | None = None       # bool [N]: the embedding was measured (subject present)
     visual: np.ndarray | None = None                # float32 [N,384] DINOv2 scene embedding (seg_a.visual_weight), or None
     visual_valid: np.ndarray | None = None          # bool [N]: a sampled frame covers this frame
+    phase_scores: dict = field(default_factory=dict)   # zero shot phase scores per frame [N,K] (NaN = none):
+                                                       # "siglip_full", "siglip_crop" (cosines), "vlm" (probabilities)
 
     @property
     def duration_s(self) -> float:

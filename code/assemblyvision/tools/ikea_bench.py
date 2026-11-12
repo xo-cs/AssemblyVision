@@ -130,6 +130,13 @@ class IkeaBench:
             if rid not in self._vis:
                 self._vis = {rid: visual.to_frames(visual.load(root / "visual.npz"), tl.n_frames, tl.fps)}
             tl.visual, tl.visual_valid = self._vis[rid]
+        if any(cfg["seg_a"][k] > 0 for k in ("siglip_weight", "siglip_crop_weight", "vlm_weight")):
+            from ..analysis.siglip import run_phase_scores
+            key = (rid, cfg["seg_a"]["siglip_weight"] > 0, cfg["seg_a"]["siglip_crop_weight"] > 0,
+                   cfg["seg_a"]["vlm_weight"] > 0)
+            if getattr(self, "_ps_key", None) != key:
+                self._ps_key, self._ps = key, run_phase_scores(root, tl.n_frames, tl.fps, cfg["seg_a"])[0]
+            tl.phase_scores = self._ps
         pred = engine.segment_run(tl)
         dur = float(manifest["ingest"]["cfr"]["duration_s"])
         gt = gt_steps(vid, dur)

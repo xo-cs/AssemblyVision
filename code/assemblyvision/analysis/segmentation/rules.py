@@ -56,6 +56,12 @@ every other candidate (no_person stretches too) its highest value within
 seg_a.engine_b_window_s. With dense candidates and no pose term, the grid is made for
 the visual term alone.
 
+With seg_a.siglip_weight, siglip_crop_weight or vlm_weight > 0 (default 0 = off) the
+zero shot phase scores of the run (siglip.npz, vlm.npz) add a phase likelihood to the DP:
+phase k over its segment adds the sum over its frames of the weighted log probability of
+phase k (phase_likelihood, per minute), so the DP matches frames to the meaning of each
+phase in the known order. Not with other_ends.
+
 With seg_a.intro_detect (default off) an intro and an outro (the worker is present but
 not working) are found before the DP from the motion energy, relative to the video's
 own working level (detect_intro, docs_team/intro_detector.md); the DP runs on the span
@@ -183,6 +189,8 @@ class RuleBasedEngine(SegmentationEngine):
             self.add_embed_change(tl, ev, a, b)
         if s["visual_weight"] > 0 and tl.visual is not None:
             self.add_visual(tl, ev, a, b)
+        if self.cfg["engine_b"]["candidates"] == "dense" and tl.phase_scores and not any(e.kind == "dense" for e in ev):
+            self.add_dense(tl, ev, a, b, np.zeros(tl.n_frames), 2.0)   # the phase likelihood places the boundaries
         return ev
 
     def add_visual(self, tl: RunTimeline, ev: list[Evidence], a: int, b: int) -> None:
@@ -277,6 +285,45 @@ class RuleBasedEngine(SegmentationEngine):
                 return t, {"on": True, "found": True, "start_s": tl.t(t), "intro_s": intro}
         return a, {"on": True, "found": False, "start_s": tl.t(a), "intro_s": 0.0,
                    "note": f"no sustained activity within the first {s['start_max_share']:g} of the active span"}
+
+    def phase_likelihood(self, tl: RunTimeline, K: int) -> tuple[np.ndarray | None, dict]:
+        """Cumulative phase log likelihood [K, N+1] (per minute) from the zero shot scores:
+        sum over the sources of weight * log p, p = softmax(cosine / siglip_temp) over the K
+        phases for SigLIP, the VLM probabilities as given; with shot_smooth, p is first
+        averaged over the frames of each camera shot. Frames without a score add 0."""
+        s = self.s
+        src = {"siglip_full": s["siglip_weight"], "siglip_crop": s["siglip_crop_weight"], "vlm": s["vlm_weight"]}
+        use = {k: w for k, w in src.items() if w > 0 and k in tl.phase_scores}
+        rep = {"weights": src, "used": sorted(use), "missing": sorted(k for k, w in src.items()
+                                                                      if w > 0 and k not in tl.phase_scores),
+               "shot_smooth": s["shot_smooth"], "siglip_temp": s["siglip_temp"]}
+        if not use:
+            return None, rep
+        N = tl.n_frames
+        total = np.zeros((N, K))
+        cuts = [0] + [c for c in tl.cuts if 0 < c < N] + [N]
+        for k, w in use.items():
+            x = np.asarray(tl.phase_scores[k][:N], np.float64)
+            if x.shape[1] != K:
+                rep.setdefault("skipped", []).append(f"{k}: {x.shape[1]} phases, decoder has {K}")
+                continue
+            ok = np.isfinite(x).all(axis=1)
+            if k.startswith("siglip"):
+                z = np.where(ok[:, None], x, 0.0) / s["siglip_temp"]
+                z = np.exp(z - z.max(axis=1, keepdims=True))
+                p = z / z.sum(axis=1, keepdims=True)
+            else:
+                p = np.where(ok[:, None], x, 1.0 / K)
+                p = p / p.sum(axis=1, keepdims=True)
+            if s["shot_smooth"]:
+                for c0, c1 in zip(cuts[:-1], cuts[1:]):
+                    m = ok[c0:c1]
+                    if m.any():
+                        p[c0:c1] = p[c0:c1][m].mean(axis=0)
+                ok = np.ones(N, bool) if ok.any() else ok
+            total += w * np.where(ok[:, None], np.log(np.clip(p, 1e-6, 1.0)), 0.0)
+        ll = np.vstack([np.zeros((1, K)), np.cumsum(total, axis=0)]).T / (tl.fps * 60.0)
+        return ll, rep
 
     def detect_intro(self, tl: RunTimeline, a: int, b: int) -> tuple[int, int, dict]:
         """seg_a.intro_detect (docs_team/intro_detector.md): (start of work, end of work, report).
@@ -395,8 +442,11 @@ class RuleBasedEngine(SegmentationEngine):
 
     # solvers ----------------------------------------------------------------
 
-    def solve_dp(self, ev: list[Evidence], a: int, b: int, lim: list[dict]) -> list[tuple] | None:
-        """Exactly K - 1 boundaries, max total strength, every phase within its limits."""
+    def solve_dp(self, ev: list[Evidence], a: int, b: int, lim: list[dict],
+                 ll: np.ndarray | None = None) -> list[tuple] | None:
+        """Exactly K - 1 boundaries, max total strength, every phase within its limits.
+        ll [K, N+1]: cumulative phase log likelihood per frame (phase_likelihood); phase k
+        over frames [s, e) adds ll[k, e] - ll[k, s]."""
         K = len(lim)
         if K == 1:
             return [(0, a, b, 1.0, 1.0)]
@@ -415,18 +465,20 @@ class RuleBasedEngine(SegmentationEngine):
         val = np.full((K - 1, M), NEG)
         back = np.full((K - 1, M), -1, np.int64)
         d0 = S - a
-        val[0] = np.where(ok(d0, 0), st - pen * np.abs(d0 - target), NEG)
+        L = (lambda k, s0, e0: ll[k, e0] - ll[k, s0]) if ll is not None else (lambda k, s0, e0: 0.0)
+        val[0] = np.where(ok(d0, 0), st - pen * np.abs(d0 - target) + L(0, a, S), NEG)
         for k in range(1, K - 1):
             for j in range(M):
                 dur = S[j] - E                                   # phase k from E[i] to S[j]
                 cand = np.where((np.arange(M) < j) & ok(dur, k) & np.isfinite(val[k - 1]),
-                                val[k - 1] - pen * np.abs(dur - target), NEG)
+                                val[k - 1] - pen * np.abs(dur - target) + L(k, np.minimum(E, S[j]), S[j]), NEG)
                 i = int(np.argmax(cand))
                 if np.isfinite(cand[i]):
                     val[k, j] = cand[i] + st[j]
                     back[k, j] = i
         last = b - E
-        fin = np.where(ok(last, K - 1) & np.isfinite(val[K - 2]), val[K - 2] - pen * np.abs(last - target), NEG)
+        fin = np.where(ok(last, K - 1) & np.isfinite(val[K - 2]),
+                       val[K - 2] - pen * np.abs(last - target) + L(K - 1, np.minimum(E, b), b), NEG)
         j = int(np.argmax(fin))
         if not np.isfinite(fin[j]):
             return None
@@ -504,7 +556,8 @@ class RuleBasedEngine(SegmentationEngine):
     def segment_run(self, tl: RunTimeline) -> list[Step]:
         idx = np.flatnonzero(tl.person)
         engine = engine_label(self.cfg)
-        if engine != "A" and tl.boundary_prob is None and tl.embedding is None and tl.visual is None:
+        if engine != "A" and tl.boundary_prob is None and tl.embedding is None and tl.visual is None \
+                and not tl.phase_scores:
             engine = "A"                    # Engine B requested but unavailable (AV-SEG-001)
         rep = {"engine": engine, "vocabulary": self.vocabulary, "fps": tl.fps, "duration_s": round(tl.duration_s, 3)}
         self.report = rep
@@ -534,7 +587,11 @@ class RuleBasedEngine(SegmentationEngine):
             if self.s["other_ends"]:                       # Engine B decoder: optional intro and outro
                 lim, names = self.with_other_ends(tl, ev, a, b, lim)
             solver = self.s["phase_solver"]
-            phases = self.solve_dp(ev, a, b, lim) if solver == "dp" else None
+            ll = None
+            if not self.s["other_ends"] and any(self.s[k] > 0 for k in ("siglip_weight", "siglip_crop_weight",
+                                                                          "vlm_weight")):
+                ll, rep["phase_likelihood"] = self.phase_likelihood(tl, len(lim))
+            phases = self.solve_dp(ev, a, b, lim, ll) if solver == "dp" else None
             used = solver
             if phases is None:
                 if solver == "dp":

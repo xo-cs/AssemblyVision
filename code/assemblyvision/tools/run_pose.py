@@ -300,6 +300,11 @@ def segment_stored(manifest: dict, root: Path, cfg: Config, ctx, bprob: dict | N
     from ..analysis.segmentation import build_timeline, create_engine
     engine = create_engine("A", cfg, ctx)
     tl = build_timeline(manifest, root, engine.cleaner, cfg["motion"] if cfg["seg_a"]["activity_change"] else None)
+    if any(cfg["seg_a"][k] > 0 for k in ("siglip_weight", "siglip_crop_weight", "vlm_weight")):
+        from ..analysis.siglip import run_phase_scores
+        tl.phase_scores, missing = run_phase_scores(root, tl.n_frames, tl.fps, cfg["seg_a"])
+        for f in missing:
+            ctx.notice(AvError("AV-SEG-005", file=f), "segmentation")
     if cfg["seg_a"]["visual_weight"] > 0:
         from ..analysis import visual
         path = root / "visual.npz"
