@@ -29,7 +29,8 @@ from ..storage.files import REPO_ROOT, utc_now
 from . import phase_bench as pb
 
 CV_FILE = "experiments/datasets/ha4m_train_cv.json"
-GRID = {"embed_candidates": [False, True], "embed_weight": [0.2, 0.4, 0.8], "embed_window_s": [10.0, 20.0, 30.0],
+CANDIDATES = ["engine_a", "peaks", "dense"]      # peaks = seg_a.embed_candidates, dense = engine_b.candidates
+GRID = {"candidates": CANDIDATES, "embed_weight": [0.2, 0.4, 0.8], "embed_window_s": [10.0, 20.0, 30.0],
         "refine_window_s": [0.0, 5.0, 10.0], "video_norm": [False, True]}
 
 
@@ -40,8 +41,9 @@ def decoders() -> list[dict]:
 
 def overrides(model_file: str, d: dict) -> dict:
     return {"seg_a": {"engine": "custom", "embed_weight": d["embed_weight"], "embed_window_s": d["embed_window_s"],
-                      "embed_candidates": d["embed_candidates"], "refine_window_s": d["refine_window_s"]},
-            "engine_b": {"model": model_file, "video_norm": d["video_norm"]}}
+                      "embed_candidates": d["candidates"] == "peaks", "refine_window_s": d["refine_window_s"]},
+            "engine_b": {"model": model_file, "video_norm": d["video_norm"],
+                         "candidates": "dense" if d["candidates"] == "dense" else "engine_a"}}
 
 
 def score_fold(args: tuple) -> list[dict]:
@@ -58,7 +60,7 @@ def score_fold(args: tuple) -> list[dict]:
 def rank_key(r: dict, models: list[str]):
     s, d = r["summary"], r["decoder"]
     return (-round(s["frame_accuracy"], 2), -(s["f1_50"] or 0), s["boundary_mae_s"] if s["boundary_mae_s"] is not None
-            else 1e9, d["embed_candidates"], d["refine_window_s"], d["video_norm"], models.index(r["model"]),
+            else 1e9, CANDIDATES.index(d["candidates"]), d["refine_window_s"], d["video_norm"], models.index(r["model"]),
             d["embed_weight"], -d["embed_window_s"])
 
 
@@ -115,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
              "F1@25 | F1@50 | MAE s |", "| --- " * 14 + "|"]
     for i, r in enumerate(res_rows[:25]):
         s, dd = r["summary"], r["decoder"]
-        lines.append(f"| {i + 1} | {r['model']} | {dd['embed_candidates']} | {dd['embed_weight']} | {dd['embed_window_s']} | "
+        lines.append(f"| {i + 1} | {r['model']} | {dd['candidates']} | {dd['embed_weight']} | {dd['embed_window_s']} | "
                      f"{dd['refine_window_s']} | {dd['video_norm']} | {s['frame_accuracy']} | {s['frame_accuracy_median']} | "
                      f"{s['edit']} | {s['f1_10']} | {s['f1_25']} | {s['f1_50']} | {s['boundary_mae_s']} |")
     lines += ["", "Best per model:", "", "| model | decoder | frame acc | F1@50 | MAE s |", "| --- | --- | --- | --- | --- |"]

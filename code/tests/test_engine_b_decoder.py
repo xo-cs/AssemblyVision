@@ -13,7 +13,7 @@ FPS, N, CUT = 30.0, 3600, 1800          # 120 s, the phase change at 60 s
 
 
 def cfg(**seg_a):
-    eb = {"video_norm": seg_a.pop("video_norm", False)}
+    eb = {"video_norm": seg_a.pop("video_norm", False), "candidates": seg_a.pop("candidates", "engine_a")}
     over = {"steps": {"use": True, "step": [{"name": "A"}, {"name": "B"}]},
             "seg_a": {"engine": "custom", "embed_weight": 0.4, "embed_window_s": 10.0, **seg_a}, "engine_b": eb}
     return Config.load(overrides=over)
@@ -61,6 +61,37 @@ class DecoderTest(unittest.TestCase):
         self.assertEqual(len(e.report["refined"]), 1)
         e = RuleBasedEngine(cfg(embed_candidates=True, refine_window_s=1.0))     # peak outside the window
         self.assertAlmostEqual(bounds(e.segment_run(timeline(peak_at=CUT + 60)))[0], CUT / FPS, delta=1.0)
+
+    def test_dense_candidates_place_the_boundary(self):
+        e = RuleBasedEngine(cfg(candidates="dense"))
+        steps = e.segment_run(timeline())
+        self.assertEqual(e.report["solver_used"], "dp")
+        self.assertAlmostEqual(bounds(steps)[0], CUT / FPS, delta=1.0)
+        self.assertEqual(e.report["evidence_counts"]["dense"], 119)          # every 1 s inside 120 s
+        self.assertEqual(e.report["embed_change"]["candidates"], "dense")
+
+    def test_dense_strength_adds_the_boundary_head_only_with_refinement(self):
+        tl = timeline(peak_at=CUT + 600)                                      # head peak 20 s after the change
+        e = RuleBasedEngine(cfg(candidates="dense"))
+        e.segment_run(tl)
+        at = [x for x in e.report["evidence"] if x["kind"] == "dense" and x["start_s"] == (CUT + 600) / FPS][0]
+        self.assertNotIn("engine_b", at)
+        e = RuleBasedEngine(cfg(candidates="dense", refine_window_s=2.0))
+        e.segment_run(tl)
+        at = [x for x in e.report["evidence"] if x["kind"] == "dense" and x["start_s"] == (CUT + 600) / FPS][0]
+        self.assertEqual(at["engine_b"], 1.0)
+
+    def test_dense_keeps_engine_a_candidates(self):
+        tl = timeline()
+        tl.cuts = [900]
+        e = RuleBasedEngine(cfg(candidates="dense"))
+        e.segment_run(tl)
+        kinds = [x["kind"] for x in e.report["evidence"] if x["start_s"] == 30.0]
+        self.assertEqual(kinds, ["cut"])                                      # no grid point on top of the cut
+
+    def test_b_v1_preset_uses_dense_candidates(self):
+        self.assertEqual(Config.load()["engine_b"]["candidates"], "dense")
+        self.assertEqual(Config.load(overrides={"seg_a": {"engine": "A"}})["engine_b"]["candidates"], "engine_a")
 
     def test_video_norm(self):
         rng = np.random.default_rng(1)

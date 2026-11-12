@@ -23,7 +23,7 @@ VARIANTS = ("n", "s", "m", "l", "x")
 ENGINE_PRESETS: dict[str, dict[str, Any]] = {
     "A": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 0.0},
     "B v1": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 0.2, "seg_a.embed_window_s": 30.0,
-               "engine_b.model": "engine_b/w10-engine-b-v1.pt"},
+               "engine_b.model": "engine_b/w10-engine-b-v1.pt", "engine_b.candidates": "dense"},
 }
 ENGINES = (*ENGINE_PRESETS, "custom")
 # Engine B = the learned model with the DP decoder; "A+B v1" was the name of "B v1" from 2026-11-11 to 11-12
@@ -139,6 +139,8 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "seg_a.other_max_s": (lambda v: v > 0, "> 0"),
     "seg_a.other_min_strength": (lambda v: v >= 0, ">= 0"),
     "engine_b.video_norm": (lambda v: isinstance(v, bool), "true or false"),
+    "engine_b.candidates": (lambda v: v in ("engine_a", "dense"), "engine_a or dense"),
+    "engine_b.candidate_step_s": (lambda v: 0.1 <= v <= 60, "0.1 to 60 s"),
     "engine_b.contrast_weight": (lambda v: v >= 0, ">= 0"),
     "engine_b.contrast_window_s": (lambda v: 0.5 <= v <= 60, "0.5 to 60 s"),
     "engine_b.contrast_temp": (lambda v: 0 < v <= 10, "above 0, up to 10"),

@@ -36,26 +36,27 @@ videos:
 
 | setting | values |
 | --- | --- |
-| `seg_a.embed_candidates` | off, on |
+| candidates (amendment 1) | `engine_a`, `peaks` (`seg_a.embed_candidates` on), `dense` (`engine_b.candidates`) |
 | `seg_a.embed_weight` | 0.2, 0.4, 0.8 |
 | `seg_a.embed_window_s` | 10, 20, 30 |
 | `seg_a.refine_window_s` (item 6) | 0 (off), 5, 10 |
 | `engine_b.video_norm` (item 7) | off, on |
 
-That is 108 decoder settings per model and 540 in all.
+That is 162 decoder settings per model and 810 in all (108 and 540 before amendment 1).
 
 ## Criterion
 
 - **Primary:** the mean frame accuracy over the 152 train videos under cross validation.
 - **Ties** (equal at two decimals) are broken by, in order: higher mean F1@50; lower mean MAE; the
-  simpler setting (options off before on, v1 before v2, the smaller weight, then the longer window).
+  simpler setting (options off before on, candidates in the order engine_a, peaks, dense, v1 before v2, the smaller weight, then the longer window).
 - **Chosen:**
   - **v1 selected:** the best decoder setting for the v1 model;
   - **v2 selected:** the best model and decoder setting among the v2 models.
 
 ## Test split, once
 
-- **Rows:** Engine A; Engine B v1 as shipped (the current default); v1 selected; v2 selected.
+- **Rows:** Engine A; Engine B v1 as shipped (the current default, dense candidates since
+  amendment 1); v1 selected; v2 selected.
 - **Ablations:** for v1 selected and v2 selected, each with refinement switched to the other value
   and with video_norm switched to the other value. These are information on items 6 and 7, never
   used for choosing.
@@ -75,3 +76,22 @@ That is 108 decoder settings per model and 540 in all.
 - The bias is chosen on the train split, and the result is reported on the test split once.
 - It is not part of the selection above, and it stays off by default unless Khurshid decides
   otherwise.
+
+## Amendment 1 (2026-11-12, before the decoder grid)
+
+Khurshid stopped the work before the CV grid: with no candidates on HA4M the benchmark cannot
+separate any variant. A new decoder option, `engine_b.candidates` = `engine_a` (only Engine A's
+candidates) or `dense` (their union with a grid every `engine_b.candidate_step_s` = 1 s, strength
+from the change score, plus the boundary head when refinement is on), is now part of the "B v1"
+preset. The candidate setting is a grid dimension (table above). The step stays at 1 s, and
+everything else in this rule is unchanged.
+
+Disclosed: before this amendment, the five CV models had been trained (training logs only, no
+decoder scores), and the test split baseline rows were run once, as item 3 asks for every new
+baseline (experiments/w10-phase-bench-baseline-dense):
+
+- Engine A: 24.01;
+- B v1 with engine_a candidates: 24.01;
+- B v1 with dense candidates: 51.42.
+
+No train fold decoder score had been seen. The baseline rows are not used for choosing.

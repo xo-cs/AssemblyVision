@@ -35,6 +35,15 @@ seg_a.embed_window_s before t and of the window after t, divided by its maximum
 over the active span. Every point candidate gets strength += embed_weight * the
 highest score within seg_a.engine_b_window_s of it.
 
+With engine_b.candidates = "dense" (set by the "B v1" preset; "engine_a" = only the
+candidates above) Engine B adds its own candidates: a grid every
+engine_b.candidate_step_s inside the active span (not inside a no_person stretch,
+not on an existing candidate), in union with Engine A's. A grid candidate (kind
+dense) has strength embed_weight * the change score at its frame, plus, with
+seg_a.refine_window_s > 0, embed_weight * the boundary head probability (its
+highest raw value within half a step, divided by its maximum over the active
+span). The DP and its duration limits are the same.
+
 With seg_a.start_detect (default off) phase 1 starts at the start of work, not at
 the first person frame: the first frame t from which at least
 seg_a.start_active_share of the frames in the next seg_a.start_sustain_s move
@@ -179,6 +188,29 @@ class RuleBasedEngine(SegmentationEngine):
             lo, hi = max(a, e.start - w), min(b, e.end + w + 1)
             e.embed_change = round(float(val[lo:hi].max()) if hi > lo else 0.0, 4)
             e.strength = e.strength + self.s["embed_weight"] * e.embed_change
+        if self.cfg["engine_b"]["candidates"] == "dense":
+            self.add_dense(tl, ev, a, b, val)
+
+    def add_dense(self, tl: RunTimeline, ev: list[Evidence], a: int, b: int, val: np.ndarray) -> None:
+        """engine_b.candidates = "dense": a grid of Engine B candidates (see the module doc)."""
+        step = max(1, int(round(self.cfg["engine_b"]["candidate_step_s"] * tl.fps)))
+        head = None
+        if self.s["refine_window_s"] > 0 and tl.boundary_prob is not None:
+            head = np.nan_to_num(tl.boundary_prob[:tl.n_frames]).astype(np.float64)
+            top = float(head[a:b].max()) if b > a else 0.0
+            head = head / top if top > 0 else head
+        taken = [(x.start, x.end) for x in ev]
+        half = step // 2
+        for f in range(a + step, b, step):
+            if any(p - 1 <= f <= q + 1 for p, q in taken if q > p) or any(p == f for p, q in taken if q == p):
+                continue
+            e = Evidence(f, f, "dense", 0.0, embed_change=round(float(val[f]), 4))
+            e.strength = self.s["embed_weight"] * e.embed_change
+            if head is not None:
+                e.engine_b = round(float(head[max(a, f - half):min(b, f + half + 1)].max()), 4)
+                e.strength += self.s["embed_weight"] * e.engine_b
+            ev.append(e)
+        ev.sort(key=lambda e: (e.start, e.end))
 
     def start_of_work(self, tl: RunTimeline, a: int, b: int) -> tuple[int, dict]:
         """(first frame of phase 1, report) under seg_a.start_detect (see the module doc)."""
@@ -435,11 +467,13 @@ class RuleBasedEngine(SegmentationEngine):
                                **getattr(self, "_b_rate", {}), **tl.boundary_info}
         if self.s["embed_weight"] > 0:
             rep["embed_change"] = {"on": tl.embedding is not None, "embed_weight": self.s["embed_weight"],
-                                   "embed_window_s": self.s["embed_window_s"], "window_s": self.s["engine_b_window_s"]}
+                                   "embed_window_s": self.s["embed_window_s"], "window_s": self.s["engine_b_window_s"],
+                                   "candidates": self.cfg["engine_b"]["candidates"]}
         rep["evidence_counts"] = {k: sum(e.kind == k for e in ev)
                                   for k in ("no_person", "cut_pause", "pause", "cut",
                                             *(("engine_b",) if self.s["engine_b_weight"] > 0 else ()),
                                             *(("embed",) if self.s["embed_candidates"] else ()),
+                                            *(("dense",) if self.cfg["engine_b"]["candidates"] == "dense" else ()),
                                             *(("edge",) if self.s["other_ends"] else ()), "forced")}
         check_contract(steps, tl, self.vocabulary)
         return steps

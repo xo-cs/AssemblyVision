@@ -61,6 +61,10 @@ def candidates_e_off(v, st) -> bool:
     return _seg(st, "embed_candidates", False) is False
 
 
+def dense_off(v, st) -> bool:
+    return st.get("engine_b", {}).get("candidates", "engine_a") == "engine_a" or embed_off(v, st)
+
+
 def other_off(v, st) -> bool:
     return _seg(st, "other_ends", False) is False
 
@@ -123,6 +127,8 @@ DECLARATIONS: dict[str, dict] = {
                          "crop_s pos_weight train_seed eval_tols_s action_weight n_actions hip_calibration "
                          "calibration_from contrast_weight contrast_window_s contrast_temp"),
         "video_norm": OFF,
+        "candidates": Legacy("engine_a"),       # added 2026-11-12; "dense" through the "B v1" preset
+        "candidate_step_s": dense_off,
         "model": engine_b_off,                  # a run reads the model file only with a weight > 0
         "pool_s": boundary_term_off,
         "peak_threshold": boundary_term_off,    # the firing rate and engine_b candidates
