@@ -63,3 +63,9 @@ Khurshid runs siglip_scores and vlm_scores on the x run, then one compare:
 - the pre chosen setting first;
 - then the untuned equal weight row;
 - B v1 as the reference.
+
+## Disclosure added before any grid (2026-11-12)
+
+A smoke run of vlm_scores on one Kallax video gave the first phase in every window (argmax agrees
+with the GT on 22.2 % of its 18 windows). The prompt was not changed after it. The grid decides
+the VLM weight, including 0.
