@@ -30,10 +30,12 @@ SOURCE = "ha4m_macro"
 _OF_ACTION = {a: k for k, (_, acts) in enumerate(MACRO_PHASES) for a in acts}
 
 
-def macro_index(actions: np.ndarray) -> np.ndarray:
-    """Per frame action ids (0 = don't care) -> macro phase index per frame, -1 = other."""
+def macro_index(actions: np.ndarray, of_action: dict | None = None) -> np.ndarray:
+    """Per frame action ids (0 = don't care) -> macro phase index per frame, -1 = other.
+    of_action: action id -> phase index (default: the HA4M grouping)."""
     a = np.asarray(actions, np.int64)
-    k = np.array([_OF_ACTION.get(int(x), -1) for x in a], np.int64)
+    m = _OF_ACTION if of_action is None else of_action
+    k = np.array([m.get(int(x), -1) for x in a], np.int64)
     known = np.flatnonzero(k >= 0)
     if known.size == 0:
         return k
@@ -51,13 +53,14 @@ def macro_index(actions: np.ndarray) -> np.ndarray:
     return out
 
 
-def steps_from_index(idx: np.ndarray, fps: float, source: str = SOURCE) -> list[Step]:
+def steps_from_index(idx: np.ndarray, fps: float, source: str = SOURCE, names: list[str] | None = None) -> list[Step]:
     """Contiguous segments of a per frame phase index as steps (other included)."""
+    names = NAMES if names is None else names
     steps = []
     start = 0
     for f in range(1, len(idx) + 1):
         if f == len(idx) or idx[f] != idx[start]:
-            label = OTHER if idx[start] < 0 else NAMES[int(idx[start])]
+            label = OTHER if idx[start] < 0 else names[int(idx[start])]
             steps.append(Step(label, round(start / fps, 3), round(f / fps, 3), source))
             start = f
     return steps
@@ -68,7 +71,7 @@ def gt_steps(labels: np.ndarray, fps: float) -> list[Step]:
     return steps_from_index(macro_index(np.asarray(labels)[:, 0]), fps)
 
 
-def in_task_order(steps: list[Step]) -> bool:
+def in_task_order(steps: list[Step], names: list[str] | None = None) -> bool:
     """True if the phases (other left out) appear once each, in MACRO_PHASES order."""
     seq = [s.label for s in steps if s.label != OTHER]
-    return seq == NAMES
+    return seq == (NAMES if names is None else names)
