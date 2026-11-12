@@ -151,3 +151,17 @@ Equal settings tie and fall to the simplicity order.
   span. Engine A's candidates are unchanged.
 - The test split baseline 51.42 of amendment 1 (B v1 dense) was measured before this fix. The
   "B v1 as shipped" row of the final test measures it again with the fix.
+
+## Amendment 3 (2026-11-12): item 8 in detail, before it runs
+
+- **Decoder:** the v2 selected decoder of amendment 2 (`w10-engine-b-v2-w4-c10` CV models on the
+  train split, then the final v2 model on the test split), plus `seg_a.other_ends = true`.
+- **Videos:** every video twice, once plain and once with a synthetic intro (`phase_bench.with_intro`,
+  a still first pose). Its length is drawn uniformly from 5 to 30 s, seeded per video (seed 42).
+  No cuts.
+- **Grid:** `seg_a.other_min_strength` in 0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1.0, with `other_max_s`
+  30 s.
+- **Criterion:** the mean frame accuracy over the 304 train videos (plain and intro) under CV.
+  Ties go to the larger bias (fewer false intros).
+- **Report:** plain and intro separately, against `other_ends` off. The test split is scored once
+  with the chosen bias. `other_ends` stays off by default unless Khurshid decides otherwise.

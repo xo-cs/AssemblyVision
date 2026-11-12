@@ -1,0 +1,340 @@
+{
+ "id": "w10-other-ends-cv",
+ "kind": "other_ends_cv",
+ "source": "public",
+ "reference": "",
+ "split": "train",
+ "title": "Item 8: optional intro and outro on synthetic intros (train split; rule w10-engine-b-v2, amendment 3)",
+ "rule": "experiments/w10-engine-b-v2/rule.md",
+ "decoder": {
+  "embed_weight": 1.0,
+  "engine_a_scale": 0.0,
+  "embed_window_s": 10.0,
+  "refine_window_s": 0.0,
+  "video_norm": false
+ },
+ "model": "w10-engine-b-v2-w4-c10 (CV)",
+ "intro_s": [
+  5.0,
+  30.0
+ ],
+ "seed": 42,
+ "rows": [
+  {
+   "other_min_strength": "off",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 89.35,
+    "edit": 99.33,
+    "f1_10": 98.44,
+    "f1_25": 97.65,
+    "f1_50": 94.53,
+    "boundary_mae_s": 6.12,
+    "frame_accuracy_median": 93.02,
+    "videos_at_85": 131
+   },
+   "intro": {
+    "videos": 152,
+    "frame_accuracy": 74.18,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.51,
+    "boundary_mae_s": 6.24,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 30
+   },
+   "all": {
+    "videos": 304,
+    "frame_accuracy": 81.77,
+    "edit": 99.33,
+    "f1_10": 97.05,
+    "f1_25": 96.27,
+    "f1_50": 90.02,
+    "boundary_mae_s": 6.18,
+    "frame_accuracy_median": 85.39,
+    "videos_at_85": 161
+   }
+  },
+  {
+   "other_min_strength": "0.05",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 33.03,
+    "edit": 99.33,
+    "f1_10": 54.69,
+    "f1_25": 35.91,
+    "f1_50": 28.01,
+    "boundary_mae_s": 6.01,
+    "frame_accuracy_median": 28.33,
+    "videos_at_85": 2
+   },
+   "intro": {
+    "videos": 152,
+    "frame_accuracy": 45.79,
+    "edit": 99.33,
+    "f1_10": 52.59,
+    "f1_25": 42.5,
+    "f1_50": 32.63,
+    "boundary_mae_s": 4.53,
+    "frame_accuracy_median": 43.81,
+    "videos_at_85": 3
+   },
+   "all": {
+    "videos": 304,
+    "frame_accuracy": 39.41,
+    "edit": 99.33,
+    "f1_10": 53.64,
+    "f1_25": 39.2,
+    "f1_50": 30.32,
+    "boundary_mae_s": 5.27,
+    "frame_accuracy_median": 35.34,
+    "videos_at_85": 5
+   }
+  },
+  {
+   "other_min_strength": "0.1",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 33.03,
+    "edit": 99.33,
+    "f1_10": 54.69,
+    "f1_25": 35.91,
+    "f1_50": 28.01,
+    "boundary_mae_s": 6.01,
+    "frame_accuracy_median": 28.33,
+    "videos_at_85": 2
+   },
+   "intro": {
+    "videos": 152,
+    "frame_accuracy": 45.79,
+    "edit": 99.33,
+    "f1_10": 52.59,
+    "f1_25": 42.5,
+    "f1_50": 32.63,
+    "boundary_mae_s": 4.53,
+    "frame_accuracy_median": 43.81,
+    "videos_at_85": 3
+   },
+   "all": {
+    "videos": 304,
+    "frame_accuracy": 39.41,
+    "edit": 99.33,
+    "f1_10": 53.64,
+    "f1_25": 39.2,
+    "f1_50": 30.32,
+    "boundary_mae_s": 5.27,
+    "frame_accuracy_median": 35.34,
+    "videos_at_85": 5
+   }
+  },
+  {
+   "other_min_strength": "0.2",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 33.03,
+    "edit": 99.33,
+    "f1_10": 54.69,
+    "f1_25": 35.91,
+    "f1_50": 28.01,
+    "boundary_mae_s": 6.01,
+    "frame_accuracy_median": 28.33,
+    "videos_at_85": 2
+   },
+   "intro": {
+    "videos": 152,
+    "frame_accuracy": 45.79,
+    "edit": 99.33,
+    "f1_10": 52.59,
+    "f1_25": 42.5,
+    "f1_50": 32.63,
+    "boundary_mae_s": 4.53,
+    "frame_accuracy_median": 43.81,
+    "videos_at_85": 3
+   },
+   "all": {
+    "videos": 304,
+    "frame_accuracy": 39.41,
+    "edit": 99.33,
+    "f1_10": 53.64,
+    "f1_25": 39.2,
+    "f1_50": 30.32,
+    "boundary_mae_s": 5.27,
+    "frame_accuracy_median": 35.34,
+    "videos_at_85": 5
+   }
+  },
+  {
+   "other_min_strength": "0.3",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 34.11,
+    "edit": 99.33,
+    "f1_10": 55.74,
+    "f1_25": 36.96,
+    "f1_50": 29.2,
+    "boundary_mae_s": 6.02,
+    "frame_accuracy_median": 29.46,
+    "videos_at_85": 4
+   },
+   "intro": {
+    "videos": 152,
+    "frame_accuracy": 43.55,
+    "edit": 99.33,
+    "f1_10": 51.94,
+    "f1_25": 42.11,
+    "f1_50": 31.45,
+    "boundary_mae_s": 4.84,
+    "frame_accuracy_median": 41.23,
+    "videos_at_85": 3
+   },
+   "all": {
+    "videos": 304,
+    "frame_accuracy": 38.83,
+    "edit": 99.33,
+    "f1_10": 53.84,
+    "f1_25": 39.53,
+    "f1_50": 30.32,
+    "boundary_mae_s": 5.43,
+    "frame_accuracy_median": 35.16,
+    "videos_at_85": 7
+   }
+  },
+  {
+   "other_min_strength": "0.5",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 42.93,
+    "edit": 99.33,
+    "f1_10": 62.71,
+    "f1_25": 46.17,
+    "f1_50": 40.25,
+    "boundary_mae_s": 6.21,
+    "frame_accuracy_median": 32.85,
+    "videos_at_85": 26
+   },
+   "intro": {
+    "videos": 152,
+    "frame_accuracy": 47.71,
+    "edit": 99.33,
+    "f1_10": 59.83,
+    "f1_25": 52.11,
+    "f1_50": 41.32,
+    "boundary_mae_s": 5.71,
+    "frame_accuracy_median": 46.64,
+    "videos_at_85": 16
+   },
+   "all": {
+    "videos": 304,
+    "frame_accuracy": 45.32,
+    "edit": 99.33,
+    "f1_10": 61.27,
+    "f1_25": 49.14,
+    "f1_50": 40.78,
+    "boundary_mae_s": 5.96,
+    "frame_accuracy_median": 37.67,
+    "videos_at_85": 42
+   }
+  },
+  {
+   "other_min_strength": "0.75",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 78.91,
+    "edit": 99.33,
+    "f1_10": 90.67,
+    "f1_25": 86.59,
+    "f1_50": 82.95,
+    "boundary_mae_s": 6.02,
+    "frame_accuracy_median": 92.47,
+    "videos_at_85": 107
+   },
+   "intro": {
+    "videos": 152,
+    "frame_accuracy": 67.47,
+    "edit": 99.33,
+    "f1_10": 85.86,
+    "f1_25": 84.15,
+    "f1_50": 76.2,
+    "boundary_mae_s": 5.86,
+    "frame_accuracy_median": 77.29,
+    "videos_at_85": 31
+   },
+   "all": {
+    "videos": 304,
+    "frame_accuracy": 73.19,
+    "edit": 99.33,
+    "f1_10": 88.27,
+    "f1_25": 85.37,
+    "f1_50": 79.58,
+    "boundary_mae_s": 5.94,
+    "frame_accuracy_median": 82.78,
+    "videos_at_85": 138
+   }
+  },
+  {
+   "other_min_strength": "1",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 89.35,
+    "edit": 99.33,
+    "f1_10": 98.44,
+    "f1_25": 97.65,
+    "f1_50": 94.53,
+    "boundary_mae_s": 6.12,
+    "frame_accuracy_median": 93.02,
+    "videos_at_85": 131
+   },
+   "intro": {
+    "videos": 152,
+    "frame_accuracy": 74.17,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.51,
+    "boundary_mae_s": 6.24,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 30
+   },
+   "all": {
+    "videos": 304,
+    "frame_accuracy": 81.76,
+    "edit": 99.33,
+    "f1_10": 97.05,
+    "f1_25": 96.27,
+    "f1_50": 90.02,
+    "boundary_mae_s": 6.18,
+    "frame_accuracy_median": 85.39,
+    "videos_at_85": 161
+   }
+  }
+ ],
+ "chosen": "1",
+ "provenance": {
+  "git": {
+   "commit": "5a22b9f01914808399b69974d84d010b64d15e52",
+   "branch": "feat/w10-data",
+   "dirty": [],
+   "outputs_changed": [
+    "experiments/w10-engine-b-v2/rule.md"
+   ]
+  },
+  "date_utc": "2026-11-12T01:52:01Z",
+  "command": "/home/qisens/AssemblyVision/code/assemblyvision/tools/other_ends_cv.py --id w10-other-ends-cv"
+ },
+ "finished_utc": "2026-11-12T01:52:01Z",
+ "index": {
+  "cells": [
+   "off: all 81.77, plain 89.35, intro 74.18",
+   "0.05: all 39.41, plain 33.03, intro 45.79",
+   "0.1: all 39.41, plain 33.03, intro 45.79",
+   "0.2: all 39.41, plain 33.03, intro 45.79",
+   "0.3: all 38.83, plain 34.11, intro 43.55",
+   "0.5: all 45.32, plain 42.93, intro 47.71",
+   "0.75: all 73.19, plain 78.91, intro 67.47",
+   "1: all 81.76, plain 89.35, intro 74.17",
+   "chosen bias 1"
+  ],
+  "verdict": "measurement"
+ }
+}
