@@ -4,7 +4,7 @@
     python -m assemblyvision.tools.visual_cv_grid --id w11-visual-engine-b-cv [--workers 6]
 
 CPU only, public data only. Three selection sets: HA4M macro phases (152 train videos,
-synthetic cuts p 0.5, pose only), IKEA ASM Kallax Shelf Drawer and Lack TV Bench (official
+synthetic cuts p 0.5, pose only), IKEA ASM Kallax Shelf Drawer and Lack Coffee Table (official
 training subset, stored runs with visual.npz). Every decoder setting of GRID with every
 model; each held out video is decoded by the model of its fold. Ranked by the worst
 case over the sets of the mean frame accuracy. Writes experiments/<id>/.
@@ -34,7 +34,7 @@ MODELS = {   # model: (HA4M fold model pattern, IKEA model pattern); {fold} is t
 GRID = {"visual_weight": [0.0, 0.5, 1.0, 2.0], "visual_window_s": [40.0, 20.0, 10.0], "embed_weight": [0.2, 0.0, 1.0],
         "embed_window_s": [30.0, 10.0], "engine_a_scale": [1.0, 0.5, 0.25], "intro_detect": [False, True]}
 INTRO = {"intro_k": 1.0, "intro_sustain_s": 20.0, "intro_active_share": 0.5}
-SETS = ("ha4m", "Kallax_Shelf_Drawer", "Lack_TV_Bench")
+SETS = ("ha4m", "Kallax_Shelf_Drawer", "Lack_Coffee_Table")
 CHUNK = 6
 
 
@@ -125,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
     best = rows[0]
     from ..experiments.provenance import git_state
     res = {"id": args.id, "kind": "visual_cv_grid", "source": "public", "reference": "",
-           "title": "Visual Engine B selection: CV on HA4M (p 0.5) and IKEA ASM Kallax and Lack TV Bench "
+           "title": "Visual Engine B selection: CV on HA4M (p 0.5) and IKEA ASM Kallax and Lack Coffee Table "
                     "(rule w11-visual-engine-b)", "rule": "experiments/w11-visual-engine-b/rule.md",
            "models": {m: MODELS[m] for m in models}, "grid": GRID, "intro": INTRO, "ikea_videos": ikea,
            "selected": best, "rows": rows,
@@ -144,7 +144,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"{d['embed_window_s']} | {d['engine_a_scale']} | {d['intro_detect']} | {r['worst']} | "
                 + " | ".join(str(r["sets"][s]["frame_accuracy"]) for s in SETS) + f" | {r['mean']} |")
     head = ["| model | visual w | visual win s | embed w | embed win s | A scale | intro | worst | HA4M p0.5 | "
-            "Kallax | Lack TV | mean |", "| --- " * 12 + "|"]
+            "Kallax | Lack Coffee | mean |", "| --- " * 12 + "|"]
     lines = [f"# {args.id}", "", res["title"], "", f"Videos: HA4M {sum(len(f['test_videos']) for f in ha)}, "
              + ", ".join(f"{s} {len(v)}" for s, v in ikea.items()) + ". Frame accuracy, mean over videos, CV.", "",
              *head, *map(line, rows[:25]), "", "Best per model:", "", *head]

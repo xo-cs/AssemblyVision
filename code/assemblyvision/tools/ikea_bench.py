@@ -29,7 +29,7 @@ from ..types import Step
 
 ROOT = REPO_ROOT / "data/public/datasets/ikea_asm"
 FOLDS = "experiments/datasets/ikea_asm_cv.json"
-SELECTION = ("Kallax_Shelf_Drawer", "Lack_TV_Bench")      # the furniture types of the selection set
+SELECTION = ("Kallax_Shelf_Drawer", "Lack_Coffee_Table")      # the furniture types of the selection set
 
 
 def runs() -> dict:

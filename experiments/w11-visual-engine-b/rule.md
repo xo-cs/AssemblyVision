@@ -74,3 +74,11 @@ Refinement and video_norm stay off (w10-engine-b-v2 ablations, QiSens mixed).
 - The pre chosen headline is the selected setting (v3 rows with the final v3 model).
 - B v1 is the reference row.
 - The default changes only with Khurshid's decision.
+
+## Amendment 1 (2026-11-12, before the grid, before v3)
+
+**Lack Coffee Table replaces Lack TV Bench as the Lack selection set.** Google Drive stopped
+serving the IKEA ASM top view zip to this server after about 170 videos (HTTP 200 instead of
+206: the file's download quota). Not one Lack TV Bench video had arrived. 87 of the 95 Lack Coffee
+Table videos had, and the Coffee Table has the same three macro phases (attach legs, flip table,
+attach shelf). No result of either set had been seen.

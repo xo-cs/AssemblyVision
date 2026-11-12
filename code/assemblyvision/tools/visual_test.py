@@ -29,7 +29,7 @@ A_ROW = {"seg_a": {"engine": "custom", "engine_b_weight": 0.0, "embed_weight": 0
 B_V1 = {"seg_a": {"engine": "custom", "engine_b_weight": 0.0, "embed_weight": 0.2, "embed_window_s": 30.0,
                   "visual_weight": 0.0, "engine_a_scale": 1.0, "intro_detect": False},
         "engine_b": {"model": FINAL["v1"], "candidates": "engine_a", "video_norm": False}}
-CONDS = ("ha4m_p0.5", "ha4m_plain", "Kallax_Shelf_Drawer", "Lack_TV_Bench")
+CONDS = ("ha4m_p0.5", "ha4m_plain", "Kallax_Shelf_Drawer", "Lack_Coffee_Table")
 
 
 def score(job: tuple) -> list:
@@ -90,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
     out.mkdir(parents=True, exist_ok=True)
     (out / "results.json").write_text(json.dumps(res, indent=1, default=float) + "\n")
     lines = [f"# {args.id}", "", res["title"], "", f"Selected by {args.grid}: {sel['model']} {d}.", "",
-             "| row | HA4M p0.5 | HA4M plain | Kallax | Lack TV | F1@50 Kallax | MAE s Kallax |",
+             "| row | HA4M p0.5 | HA4M plain | Kallax | Lack Coffee | F1@50 Kallax | MAE s Kallax |",
              "| --- | --- | --- | --- | --- | --- | --- |"]
     for r in res_rows:
         s = r["summary"]
