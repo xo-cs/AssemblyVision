@@ -142,7 +142,8 @@ def main(argv: list[str] | None = None) -> int:
     cache = eb.cache_dir(HA4MLoader(cfg, repo_root=REPO_ROOT).root)
     runs = ib.runs()
     folds = ["cv1", "cv2", "cv3"] if args.folds == "cv" else ["all"]
-    res = {"id": args.id, "kind": "engine_b_v3", "source": "public", "reference": "",
+    exp_id = f"{args.id}-{args.folds}"              # w11-engine-b-v3-cv, -all; the model files keep args.id
+    res = {"id": exp_id, "kind": "engine_b_v3", "source": "public", "reference": "",
            "title": f"Engine B v3 on pose plus visual features ({args.folds})", "settings": {"engine_b": dict(e)},
            "datasets": {"ha4m": "Kinect COCO 17 cache, visual masked", "ikea_asm": list(ib.SELECTION)},
            "n_actions": N_ACTIONS, "phase_offsets": PHASE_OFFSET, "folds": {}}
@@ -170,10 +171,10 @@ def main(argv: list[str] | None = None) -> int:
     res["finished_utc"] = utc_now()
     res["index"] = {"cells": [f"{f}: HA4M {r['ha4m_train']} + IKEA {r['ikea_train']} train videos, "
                               f"{r['seconds']} s" for f, r in res["folds"].items()], "verdict": "measurement"}
-    d = REPO_ROOT / "experiments" / args.id
+    d = REPO_ROOT / "experiments" / exp_id
     d.mkdir(parents=True, exist_ok=True)
     (d / "results.json").write_text(json.dumps(res, indent=1, default=str) + "\n")
-    (d / "table.md").write_text(f"# {args.id}\n\n{res['title']}\n\n" + "\n".join(f"- {c}" for c in res["index"]["cells"])
+    (d / "table.md").write_text(f"# {exp_id}\n\n{res['title']}\n\n" + "\n".join(f"- {c}" for c in res["index"]["cells"])
                                 + "\n")
     reg.write_index(REPO_ROOT / "experiments")
     if lock is not None:
