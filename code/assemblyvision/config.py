@@ -22,13 +22,24 @@ VARIANTS = ("n", "s", "m", "l", "x")
 # step engine presets (seg_a.engine): the keys each preset sets; "custom" leaves them as configured
 ENGINE_PRESETS: dict[str, dict[str, Any]] = {
     "A": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 0.0},
+    # the default: 67.26 blind on QiSens (x run), the best of every Engine B setting there so far
     "B v1": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 0.2, "seg_a.embed_window_s": 30.0,
-               "engine_b.model": "engine_b/w10-engine-b-v1.pt", "engine_b.candidates": "dense"},
-    # v2 selected by the rule experiments/w10-engine-b-v2/rule.md (CV grid w10-engine-b-v2-cv, test w10-phase-bench-v2-test)
+             "engine_b.model": "engine_b/w10-engine-b-v1.pt", "engine_b.candidates": "engine_a"},
+    # public benchmark only, not better on QiSens (experiments/w10-qisens-engine-b-v2)
+    "B v1 dense": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 0.2, "seg_a.embed_window_s": 30.0,
+                   "engine_b.model": "engine_b/w10-engine-b-v1.pt", "engine_b.candidates": "dense"},
+    # v1 and v2 selected by the rule experiments/w10-engine-b-v2/rule.md (CV grid w10-engine-b-v2-cv,
+    # test w10-phase-bench-v2-test); public benchmark only, not better on QiSens
+    "B v1 selected": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 0.5, "seg_a.embed_window_s": 10.0,
+                      "seg_a.engine_a_scale": 0.5, "seg_a.refine_window_s": 0.0, "engine_b.video_norm": True,
+                      "engine_b.model": "engine_b/w10-engine-b-v1.pt", "engine_b.candidates": "dense"},
     "B v2": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 1.0, "seg_a.embed_window_s": 10.0,
              "seg_a.engine_a_scale": 0.0, "seg_a.refine_window_s": 0.0, "engine_b.video_norm": False,
              "engine_b.model": "engine_b/w10-engine-b-v2.pt", "engine_b.candidates": "dense"},
 }
+# presets kept for the paper's public rows, shown with this note wherever a preset is chosen
+BENCHMARK_ONLY = {"B v1 dense", "B v1 selected", "B v2"}
+BENCHMARK_ONLY_NOTE = "public benchmark only, not better on QiSens"
 ENGINES = (*ENGINE_PRESETS, "custom")
 # Engine B = the learned model with the DP decoder; "A+B v1" was the name of "B v1" from 2026-11-11 to 11-12
 ENGINE_ALIASES = {"A+B v1": "B v1"}
@@ -302,7 +313,7 @@ class Config:
 
     @staticmethod
     def _apply_engine(d: dict, shipped: dict) -> None:
-        """seg_a.engine "A", "B v1" or "B v2" sets its preset keys (ENGINE_PRESETS). A preset key
+        """seg_a.engine "A", "B v1" or another preset of ENGINE_PRESETS sets its preset keys (ENGINE_PRESETS). A preset key
         given with another value than the preset's and the shipped default's is a conflict
         (AV-CFG-002): change it with seg_a.engine = "custom"."""
         d["seg_a"]["engine"] = ENGINE_ALIASES.get(d["seg_a"]["engine"], d["seg_a"]["engine"])

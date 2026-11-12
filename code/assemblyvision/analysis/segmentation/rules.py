@@ -39,8 +39,8 @@ seg_a.engine_a_scale (default 1) multiplies the base strength of every Engine A
 candidate (no_person, cut_pause, pause, cut) before any Engine B term is added, so
 Engine B can outweigh the cuts; 0 leaves Engine B's evidence alone.
 
-With engine_b.candidates = "dense" (set by the "B v1" preset; "engine_a" = only the
-candidates above) Engine B adds its own candidates: a grid every
+With engine_b.candidates = "dense" (the presets "B v1 dense", "B v1 selected" and
+"B v2"; "engine_a", the default and "B v1", = only the candidates above) Engine B adds its own candidates: a grid every
 engine_b.candidate_step_s inside the active span (at least half of
 seg_a.embed_window_s from its ends, where a window of the change score would be cut
 short and noisy; not inside a no_person stretch, not on an existing candidate), in union with Engine A's. A grid candidate (kind

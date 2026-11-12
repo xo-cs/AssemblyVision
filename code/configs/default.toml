@@ -193,7 +193,8 @@ contrast_weight = 0.0        # v2: weight of the supervised contrastive loss on 
 contrast_window_s = 4.0      # v2: window length of the window embeddings (s)
 contrast_temp = 0.1          # v2: temperature of the contrastive loss
 candidates = "engine_a"      # DP candidates of Engine B: "engine_a" = only Engine A's (pauses, cuts, no_person); "dense" = their
-                             # union with a grid every candidate_step_s (strength from the change score; acts with seg_a.embed_weight > 0)
+                             # union with a grid every candidate_step_s (strength from the change score; acts with seg_a.embed_weight > 0;
+                             # the presets "B v1 dense", "B v1 selected", "B v2": public benchmark only, not better on QiSens)
 candidate_step_s = 1.0       # grid step of the dense candidates (s)
 pool_s = 30.0                # moving average of the probability before it becomes DP evidence (s; 0 = none);
                              # 30 chosen on public runs before any QiSens result (experiments/w10-engine-b-pool)

@@ -1,0 +1,188 @@
+{
+  "id": "w10-qisens-engine-b-v2",
+  "kind": "qisens_summary",
+  "source": "qisens",
+  "reference": "",
+  "title": "QiSens, Engine B v2 and the v1 selected decoder, blind: chosen on the HA4M macro phase benchmark by the rule w10-engine-b-v2 (amendments 1 to 3)",
+  "finished_utc": "2026-11-12",
+  "approved_by": "Khurshid Ortikov",
+  "approved_utc": "2026-11-12",
+  "model": "engine_b/w10-engine-b-v2.pt (v2), engine_b/w10-engine-b-v1.pt (v1)",
+  "settings": {
+    "v2 selected": {
+      "seg_a.embed_weight": 1.0,
+      "seg_a.embed_window_s": 10.0,
+      "seg_a.engine_a_scale": 0.0,
+      "seg_a.refine_window_s": 0.0,
+      "engine_b.video_norm": false,
+      "engine_b.candidates": "dense"
+    },
+    "v1 selected": {
+      "seg_a.embed_weight": 0.5,
+      "seg_a.embed_window_s": 10.0,
+      "seg_a.engine_a_scale": 0.5,
+      "seg_a.refine_window_s": 0.0,
+      "engine_b.video_norm": true,
+      "engine_b.candidates": "dense"
+    }
+  },
+  "rows": [
+    {
+      "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+      "pose": "YOLO26 x",
+      "setting": "B v1 (engine_a candidates; w10-qisens-engine-b-v1)",
+      "role": "reference, the current default",
+      "frame_acc": 67.26,
+      "edit": 100,
+      "f1": [
+        100,
+        100,
+        40
+      ],
+      "mae_s": 39.06
+    },
+    {
+      "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+      "pose": "YOLO26 x",
+      "setting": "**v2 selected: refinement 0, video_norm off (C1)**",
+      "role": "pre chosen headline (rule w10-engine-b-v2)",
+      "frame_acc": 52.5,
+      "edit": 100,
+      "f1": [
+        80,
+        60,
+        20
+      ],
+      "mae_s": 35.51
+    },
+    {
+      "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+      "pose": "YOLO26 x",
+      "setting": "v2 selected, refinement 10 s (C1)",
+      "role": "ablation, item 6",
+      "frame_acc": 59.77,
+      "edit": 100,
+      "f1": [
+        60,
+        60,
+        40
+      ],
+      "mae_s": 26.17
+    },
+    {
+      "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+      "pose": "YOLO26 x",
+      "setting": "v2 selected, video_norm on (C2)",
+      "role": "ablation, item 7",
+      "frame_acc": 57.44,
+      "edit": 100,
+      "f1": [
+        80,
+        80,
+        60
+      ],
+      "mae_s": 27.23
+    },
+    {
+      "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+      "pose": "YOLO26 x",
+      "setting": "v2 selected, video_norm on, refinement 10 s (C2)",
+      "role": "ablation, items 6 and 7",
+      "frame_acc": 59.77,
+      "edit": 100,
+      "f1": [
+        60,
+        60,
+        40
+      ],
+      "mae_s": 26.17
+    },
+    {
+      "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+      "pose": "YOLO26 x",
+      "setting": "v1 selected: refinement 0, video_norm on (B1)",
+      "role": "selected v1 decoder (CV)",
+      "frame_acc": 50.28,
+      "edit": 100,
+      "f1": [
+        80,
+        60,
+        20
+      ],
+      "mae_s": 32.47
+    },
+    {
+      "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+      "pose": "YOLO26 x",
+      "setting": "v1 selected, refinement 10 s (B1)",
+      "role": "ablation, item 6",
+      "frame_acc": 57.23,
+      "edit": 100,
+      "f1": [
+        80,
+        80,
+        20
+      ],
+      "mae_s": 36.05
+    },
+    {
+      "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+      "pose": "YOLO26 x",
+      "setting": "v1 selected, video_norm off (B2)",
+      "role": "ablation, item 7",
+      "frame_acc": 65.59,
+      "edit": 100,
+      "f1": [
+        100,
+        100,
+        40
+      ],
+      "mae_s": 41.06
+    },
+    {
+      "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+      "pose": "YOLO26 x",
+      "setting": "v1 selected, video_norm off, refinement 10 s (B2)",
+      "role": "ablation, items 6 and 7; post hoc, never used for choosing",
+      "frame_acc": 67.94,
+      "edit": 100,
+      "f1": [
+        100,
+        100,
+        60
+      ],
+      "mae_s": 38.25
+    },
+    {
+      "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+      "pose": "YOLO26 x",
+      "setting": "v2 selected, engine_a_scale 0, 0.25, 0.5, 1.0 (D)",
+      "role": "post hoc sensitivity, all four identical",
+      "frame_acc": 52.5,
+      "edit": 100,
+      "f1": [
+        80,
+        60,
+        20
+      ],
+      "mae_s": 35.51
+    }
+  ],
+  "findings": [
+    "Headline (pre chosen by the rule, v2 selected on YOLO26 x): 52.50 / 100 / 80,60,20 / MAE 35.51 s, below the current default B v1 (67.26).",
+    "v2 reaches 88.53 on the HA4M macro phase benchmark (w10-phase-bench-v2-test) but 52.50 on QiSens blind, so it does not transfer from HA4M macro phases to the QiSens task.",
+    "v1 selected (50.28) is also below B v1 (67.26); its best ablation (video_norm off, refinement 10 s: 67.94) is post hoc and within one step of B v1, so nothing is chosen from it.",
+    "The decoder settings chosen on the public benchmark (dense candidates, short window, Engine A scale) did not help on QiSens. Refinement and video_norm help v2 there (52.50 to 57.44 to 59.77), the opposite of the benchmark.",
+    "engine_a_scale changes nothing on QiSens (D). Checked (2026-11-12): the value reaches the decoder in the compare path (public process_480p30 run: 62.41 at scale 0, 60.57 at 0.25 to 1.0; test TC in test_engine_b_model). The reason is that Engine A's candidates also get the Engine B term (embed_weight x the highest change score within engine_b_window_s), so at embed_weight 1.0 the base strengths (cut 0.2) are small next to it, and no_person stretches get no Engine B term at all.",
+    "The first B v1 dense against engine_a compare (A1) was invalid: the stored run has Engine B off, so both rows were Engine A (50.00). A corrected command is in the report of 2026-11-12; compare now warns in that case.",
+    "The YOLO26 l run (run_20261025_053609_fd62) has not been reported for v2 yet."
+  ],
+  "conclusion": "v2 reaches 88.53 on the HA4M benchmark but 52.50 on QiSens blind, so it does not transfer from HA4M macro phases to the QiSens task.",
+  "index": {
+    "cells": [
+      "v2 selected on YOLO26 x (pre chosen headline): 52.50, F1 80,60,20, MAE 35.51 s (B v1: 67.26)",
+      "v1 selected 50.28; does not transfer from HA4M macro phases (benchmark 88.53)"
+    ],
+    "verdict": "measurement"
+  }
+}

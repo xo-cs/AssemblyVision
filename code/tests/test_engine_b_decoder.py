@@ -89,8 +89,9 @@ class DecoderTest(unittest.TestCase):
         kinds = [x["kind"] for x in e.report["evidence"] if x["start_s"] == 30.0]
         self.assertEqual(kinds, ["cut"])                                      # no grid point on top of the cut
 
-    def test_b_v1_preset_uses_dense_candidates(self):
-        self.assertEqual(Config.load()["engine_b"]["candidates"], "dense")
+    def test_b_v1_preset_uses_engine_a_candidates(self):
+        self.assertEqual(Config.load()["engine_b"]["candidates"], "engine_a")
+        self.assertEqual(Config.load(overrides={"seg_a": {"engine": "B v1 dense"}})["engine_b"]["candidates"], "dense")
         self.assertEqual(Config.load(overrides={"seg_a": {"engine": "A"}})["engine_b"]["candidates"], "engine_a")
 
     def test_engine_a_scale(self):

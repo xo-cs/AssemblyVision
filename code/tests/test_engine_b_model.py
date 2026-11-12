@@ -290,6 +290,39 @@ class StoredRunTest(unittest.TestCase):
         self.assertTrue(any(n.startswith("AV-SEG-001") for n in rows[1]["notices"]))
 
 
+    def test_compare_hands_engine_a_scale_to_the_decoder(self):
+        from unittest import mock
+        from test_activity_change import CompareModeTest
+        from assemblyvision.analysis.segmentation.rules import RuleBasedEngine
+        from assemblyvision.tools.run_pose import compare_run
+        tmp = fake_root()
+        self.addCleanup(tmp.cleanup)
+        ctx = CompareModeTest.fake_run(None, Path(tmp.name))
+        manifest = json.loads(ctx.paths.manifest.read_text())
+        gt = Path(tmp.name) / "data/qisens/gt.csv"
+        gt.write_text("step,label,start_s,end_s,source\n1,A,0,62,gt\n2,B,62,120,gt\n")
+        cfg = Config.load(overrides={"steps": {"use": True, "step": [{"name": "A"}, {"name": "B"}]},
+                                     "seg_a": {"engine": "custom"}})
+        seen, strengths, real = [], [], RuleBasedEngine.segment_run
+
+        def spy(engine, tl):
+            out = real(engine, tl)
+            seen.append(engine.s["engine_a_scale"])
+            strengths.append([e["strength"] for e in engine.report["evidence"]])
+            return out
+        with mock.patch.object(RuleBasedEngine, "segment_run", spy):
+            compare_run(manifest, ctx.paths.root, "qisens", cfg, "seg_a.engine_a_scale=0.0,0.5,1.0", gt)
+        self.assertEqual(seen, [0.0, 0.5, 1.0])
+        self.assertTrue(strengths[2] and all(x == 0 for x in strengths[0]))
+        self.assertEqual([round(2 * x, 6) for x in strengths[1]], [round(x, 6) for x in strengths[2]])
+        import contextlib
+        import io
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):               # an Engine B key while Engine B is off: a warning
+            compare_run(manifest, ctx.paths.root, "qisens", cfg, 'engine_b.candidates="engine_a","dense"', gt)
+        self.assertIn("Engine B is off", err.getvalue())
+
+
 class CalibrationTest(unittest.TestCase):
     def test_offsets_are_the_plain_mean_of_the_labs(self):
         def video(hip):

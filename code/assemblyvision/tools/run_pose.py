@@ -451,11 +451,13 @@ def compare_run(manifest: dict, root: Path, source: str, cfg: Config, spec: str,
     if key in ENGINE_PRESETS.get(cfg["seg_a"]["engine"], {}):
         print(f"{key} is set by seg_a.engine = {cfg['seg_a']['engine']!r}; compared with seg_a.engine = \"custom\" "
               "(the preset's other values kept)", file=sys.stderr)
+    engine_b_off = []
     for value in values:
         over = {section: {name: value}}
         if key in ENGINE_PRESETS.get(cfg["seg_a"]["engine"], {}):
             over = deep_merge(over, {"seg_a": {"engine": "custom"}})
         c = Config.load(overrides=deep_merge(cfg.snapshot(), over))
+        engine_b_off.append(not engine_b_needed(c))
         mctx = _MemoryCtx(source)
         if bprob is None and engine_b_needed(c):
             bprob = boundary_probability(manifest, root, c, mctx) or {}
@@ -469,6 +471,10 @@ def compare_run(manifest: dict, root: Path, source: str, cfg: Config, spec: str,
                      "engine_b_rate": (f"{rep['engine_b'].get('peaks_per_min_raw')}/{rep['engine_b'].get('peaks_per_min_pooled')}"
                                        if rep.get("engine_b", {}).get("on") else "-"),
                      "steps": [(s.label, s.start_s, s.end_s) for s in steps if s.label != "other"]})
+    if section == "engine_b" and all(engine_b_off):
+        print(f"warning: Engine B is off in every compared setting (seg_a.engine_b_weight = 0 and seg_a.embed_weight "
+              f"= 0, as stored in this run), so {key} cannot change anything; set a preset, for example "
+              "--set 'seg_a.engine=\"B v1\"'", file=sys.stderr)
     return rows
 
 

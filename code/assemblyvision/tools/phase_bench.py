@@ -61,9 +61,8 @@ CUT_PS = (0.5, 0.75, 1.0)
 CUT_SEED = 42
 METRICS = ("frame_accuracy", "edit", "f1_10", "f1_25", "f1_50", "boundary_mae_s")
 DEFAULT_ROWS = ['Engine A:seg_a.engine="A"',
-                'Engine B v1, engine_a candidates:seg_a.engine="custom";seg_a.embed_weight=0.2;seg_a.embed_window_s=30.0;'
-                'engine_b.model="engine_b/w10-engine-b-v1.pt";engine_b.candidates="engine_a"',
-                'Engine B v1, dense candidates:seg_a.engine="B v1"']
+                'Engine B v1, engine_a candidates:seg_a.engine="B v1"',
+                'Engine B v1, dense candidates:seg_a.engine="B v1 dense"']
 
 
 def parse_row(spec: str) -> tuple[str, dict]:
