@@ -4,6 +4,7 @@ models/
 env/
 envs/
 /tools/
+third_party/
 logs/
 tmp/
 .locks/

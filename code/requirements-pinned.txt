@@ -2,6 +2,7 @@
 # torch 2.14.1+cu126 comes from the PyTorch cu126 index; do not upgrade (CLAUDE.md).
 # Regenerate after an approved install: pip freeze > code/requirements-pinned.txt (keep this header).
 # 2026-11-07: pycocotools 2.0.10 added (OKS AP for the pose labels evaluation).
+# 2026-11-12: transformers 5.18.0 (with regex, safetensors, tokenizers) added for SigLIP 2 (zero shot phase scoring).
 aiofiles==24.1.0
 annotated-doc==0.0.5
 annotated-types==0.8.0
@@ -75,20 +76,24 @@ python-dateutil==2.9.0.post0
 python-multipart==0.0.32
 pytz==2026.5
 PyYAML==6.0.3
+regex==2026.11.9
 requests==2.34.2
 rich==15.0.0
 ruff==0.17.2
 safehttpx==0.1.7
+safetensors==0.8.0
 scenedetect==0.7.2
 semantic-version==2.10.0
 shellingham==1.5.4
 six==1.17.0
 starlette==0.52.1
 sympy==1.14.0
+tokenizers==0.23.3
 tomlkit==0.13.3
 torch==2.14.1+cu126
 torchvision==0.29.1+cu126
 tqdm==4.70.1
+transformers==5.18.0
 triton==3.8.0
 typer==0.27.3
 typing-inspection==0.4.4
