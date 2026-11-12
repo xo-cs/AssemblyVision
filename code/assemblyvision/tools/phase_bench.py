@@ -109,7 +109,10 @@ def model_outputs(d: dict, model, settings: dict, present: np.ndarray) -> dict:
     test split's own features, no augmentation)."""
     T, fps = len(d["features"]), float(d["meta"]["fps"])
     idx = bt.sample_index(T, fps, settings["model_fps"])
-    prob, emb = bt.to_frames(bt.predict_all(model, d["features"][idx]), idx, T, fps, settings["model_fps"], present)
+    x = d["features"][idx]
+    if settings.get("visual"):                          # v3: HA4M has no RGB here, the visual input is masked
+        x = bt.with_visual(x, None, None)
+    prob, emb = bt.to_frames(bt.predict_all(model, x), idx, T, fps, settings["model_fps"], present)
     return {"prob": prob, "embedding": emb, "embedding_valid": present.copy()}
 
 

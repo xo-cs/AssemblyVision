@@ -69,9 +69,14 @@ def fold_of(vid: str) -> str:
     raise KeyError(vid)
 
 
+_DB: dict = {}
+
+
 def gt_steps(vid: str, duration_s: float) -> list[Step]:
     furn = vid.split("/")[0]
-    db = ip.load_annotations(ROOT)
+    if not _DB:
+        _DB.update(ip.load_annotations(ROOT))
+    db = _DB
     n = int(round(duration_s * ip.FPS))
     steps = ip.gt_steps(furn, db[vid]["annotation"], n)
     names = ip.names(furn)
@@ -90,8 +95,9 @@ class IkeaBench:
         furn = vid.split("/")[0]
         root = REPO_ROOT / "data/public/runs" / self.r[vid]
         from .run_pose import stored_config
-        manifest = json.loads((root / "manifest.json").read_text())
-        base = stored_config(manifest)
+        if getattr(self, "_cfg_vid", None) != vid:
+            self._cfg_vid, self._stored = vid, stored_config(json.loads((root / "manifest.json").read_text()))
+        base = json.loads(json.dumps(self._stored))
         base["seg_a"]["engine"] = "custom"           # every row sets its keys; the stored run gives the rest
         return Config.load(overrides=deep_merge(base, {"steps": {"use": True, "step": [{"name": n} for n in
                                                                                         ip.names(furn)]}}, over))
@@ -128,8 +134,7 @@ class IkeaBench:
         dur = float(manifest["ingest"]["cfr"]["duration_s"])
         gt = gt_steps(vid, dur)
         res, _ = evaluate(pred, gt, dur, cfg["eval"]["seg_fps"], cfg["eval"]["overlaps"])
-        return {"video": vid, "metrics": res, "in_task_order": ip.in_task_order(vid.split("/")[0], ip.gt_steps(
-            vid.split("/")[0], ip.load_annotations(ROOT)[vid]["annotation"], int(round(dur * ip.FPS))))}
+        return {"video": vid, "metrics": res}
 
 
 def main(argv: list[str] | None = None) -> int:
