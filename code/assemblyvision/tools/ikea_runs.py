@@ -21,6 +21,7 @@ import time
 from pathlib import Path
 
 from ..storage.files import REPO_ROOT
+from .ikea_bench import SELECTION
 
 ROOT = REPO_ROOT / "data/public/datasets/ikea_asm"
 RUNS = ROOT / "derived/runs.json"
@@ -47,6 +48,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--gpu", type=int, default=0)
     p.add_argument("--max-minutes", type=float, default=55.0)
     p.add_argument("--furniture", choices=ORDER)
+    p.add_argument("--all", action="store_true", help="every furniture type (default: the selection set of ikea_bench)")
     args = p.parse_args(argv)
     runs = json.loads(RUNS.read_text()) if RUNS.is_file() else {}
     t0 = time.monotonic()
@@ -54,6 +56,8 @@ def main(argv: list[str] | None = None) -> int:
     for video in ready_videos():
         vid = video_id(video)
         if args.furniture and video.parent.name != args.furniture:
+            continue
+        if not args.all and not args.furniture and video.parent.name not in SELECTION:
             continue
         rid = runs.get(vid)
         if rid and (REPO_ROOT / "data/public/runs" / rid / "visual.npz").is_file():
@@ -82,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
             continue
         done += 1
         print(f"ikea_runs: {vid} -> {rid} ({(time.monotonic() - t0) / 60:.1f} min)", flush=True)
-    left = sum(1 for v in ready_videos() if not (runs.get(video_id(v)) and
+    left = sum(1 for v in ready_videos() if (args.all or v.parent.name in SELECTION) and not (runs.get(video_id(v)) and
                                                  (REPO_ROOT / "data/public/runs" / runs[video_id(v)] / "visual.npz").is_file()))
     print(f"ikea_runs: {done} done, {failed} failed, {left} ready videos left")
     return 1 if failed else 0
