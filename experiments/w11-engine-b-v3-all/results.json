@@ -1,0 +1,387 @@
+{
+ "id": "w11-engine-b-v3-all",
+ "kind": "engine_b_v3",
+ "source": "public",
+ "reference": "",
+ "title": "Engine B v3 on pose plus visual features (all)",
+ "settings": {
+  "engine_b": {
+   "augment": true,
+   "jitter_torso": 0.03,
+   "joint_dropout": 0.05,
+   "frame_dropout": 0.02,
+   "conf_visible": 0.9,
+   "conf_predicted": 0.4,
+   "conf_noise": 0.1,
+   "aug_seed": 42,
+   "model": "engine_b/w10-engine-b-v1.pt",
+   "model_fps": 10,
+   "stages": 2,
+   "layers": 10,
+   "channels": 64,
+   "dropout": 0.5,
+   "epochs": 60,
+   "lr": 0.0005,
+   "weight_decay": 0.0,
+   "batch_videos": 8,
+   "crop_s": 120.0,
+   "pos_weight": 0.0,
+   "train_seed": 42,
+   "peak_threshold": 0.5,
+   "peak_min_gap_s": 0.5,
+   "eval_tols_s": [
+    0.2,
+    0.5
+   ],
+   "action_weight": 1.0,
+   "n_actions": 12,
+   "hip_calibration": false,
+   "calibration_from": "w10-ha4m-domain-gap",
+   "video_norm": false,
+   "contrast_weight": 1.0,
+   "contrast_window_s": 4.0,
+   "contrast_temp": 0.1,
+   "candidates": "engine_a",
+   "candidate_step_s": 1.0,
+   "pool_s": 30.0
+  }
+ },
+ "datasets": {
+  "ha4m": "Kinect COCO 17 cache, visual masked",
+  "ikea_asm": [
+   "Kallax_Shelf_Drawer",
+   "Lack_Coffee_Table"
+  ]
+ },
+ "n_actions": 43,
+ "phase_offsets": {
+  "ha4m": 0,
+  "Lack_TV_Bench": 5,
+  "Lack_Coffee_Table": 8,
+  "Lack_Side_Table": 11,
+  "Kallax_Shelf_Drawer": 13
+ },
+ "folds": {
+  "all": {
+   "ha4m_train": 152,
+   "ha4m_held_out": 0,
+   "ikea_train": 119,
+   "ikea_held_out": 0,
+   "model": "engine_b/w11-engine-b-v3.pt",
+   "sha256": "df1e0775ba308561f3677bb706650a1300263cc12810041a589a35dd18f6e8ce",
+   "training": {
+    "pos_weight": 9.372,
+    "history": [
+     {
+      "epoch": 1,
+      "train_loss": 13.46392,
+      "seconds": 2.76
+     },
+     {
+      "epoch": 2,
+      "train_loss": 11.23173,
+      "seconds": 1.7
+     },
+     {
+      "epoch": 3,
+      "train_loss": 9.85124,
+      "seconds": 1.84
+     },
+     {
+      "epoch": 4,
+      "train_loss": 9.50264,
+      "seconds": 1.66
+     },
+     {
+      "epoch": 5,
+      "train_loss": 9.22897,
+      "seconds": 1.56
+     },
+     {
+      "epoch": 6,
+      "train_loss": 8.91931,
+      "seconds": 2.01
+     },
+     {
+      "epoch": 7,
+      "train_loss": 8.84967,
+      "seconds": 2.02
+     },
+     {
+      "epoch": 8,
+      "train_loss": 8.52765,
+      "seconds": 1.76
+     },
+     {
+      "epoch": 9,
+      "train_loss": 8.26981,
+      "seconds": 2.37
+     },
+     {
+      "epoch": 10,
+      "train_loss": 8.21521,
+      "seconds": 2.27
+     },
+     {
+      "epoch": 11,
+      "train_loss": 7.96096,
+      "seconds": 1.54
+     },
+     {
+      "epoch": 12,
+      "train_loss": 7.74945,
+      "seconds": 1.55
+     },
+     {
+      "epoch": 13,
+      "train_loss": 7.8328,
+      "seconds": 1.56
+     },
+     {
+      "epoch": 14,
+      "train_loss": 7.63532,
+      "seconds": 1.55
+     },
+     {
+      "epoch": 15,
+      "train_loss": 7.52261,
+      "seconds": 1.57
+     },
+     {
+      "epoch": 16,
+      "train_loss": 7.47443,
+      "seconds": 1.56
+     },
+     {
+      "epoch": 17,
+      "train_loss": 7.3945,
+      "seconds": 1.58
+     },
+     {
+      "epoch": 18,
+      "train_loss": 7.29076,
+      "seconds": 1.66
+     },
+     {
+      "epoch": 19,
+      "train_loss": 7.19873,
+      "seconds": 1.65
+     },
+     {
+      "epoch": 20,
+      "train_loss": 7.05617,
+      "seconds": 1.59
+     },
+     {
+      "epoch": 21,
+      "train_loss": 6.93975,
+      "seconds": 1.57
+     },
+     {
+      "epoch": 22,
+      "train_loss": 6.96142,
+      "seconds": 1.58
+     },
+     {
+      "epoch": 23,
+      "train_loss": 6.93537,
+      "seconds": 1.58
+     },
+     {
+      "epoch": 24,
+      "train_loss": 7.0266,
+      "seconds": 1.58
+     },
+     {
+      "epoch": 25,
+      "train_loss": 6.79122,
+      "seconds": 1.58
+     },
+     {
+      "epoch": 26,
+      "train_loss": 6.64528,
+      "seconds": 1.56
+     },
+     {
+      "epoch": 27,
+      "train_loss": 6.77956,
+      "seconds": 1.65
+     },
+     {
+      "epoch": 28,
+      "train_loss": 6.67326,
+      "seconds": 1.57
+     },
+     {
+      "epoch": 29,
+      "train_loss": 6.68649,
+      "seconds": 1.57
+     },
+     {
+      "epoch": 30,
+      "train_loss": 6.66668,
+      "seconds": 1.61
+     },
+     {
+      "epoch": 31,
+      "train_loss": 6.40716,
+      "seconds": 1.59
+     },
+     {
+      "epoch": 32,
+      "train_loss": 6.63051,
+      "seconds": 1.57
+     },
+     {
+      "epoch": 33,
+      "train_loss": 6.30004,
+      "seconds": 1.59
+     },
+     {
+      "epoch": 34,
+      "train_loss": 6.29789,
+      "seconds": 1.55
+     },
+     {
+      "epoch": 35,
+      "train_loss": 6.27596,
+      "seconds": 1.56
+     },
+     {
+      "epoch": 36,
+      "train_loss": 6.22611,
+      "seconds": 1.55
+     },
+     {
+      "epoch": 37,
+      "train_loss": 6.06094,
+      "seconds": 1.67
+     },
+     {
+      "epoch": 38,
+      "train_loss": 5.99853,
+      "seconds": 1.58
+     },
+     {
+      "epoch": 39,
+      "train_loss": 6.05422,
+      "seconds": 1.75
+     },
+     {
+      "epoch": 40,
+      "train_loss": 6.03879,
+      "seconds": 1.64
+     },
+     {
+      "epoch": 41,
+      "train_loss": 5.90788,
+      "seconds": 1.56
+     },
+     {
+      "epoch": 42,
+      "train_loss": 5.86087,
+      "seconds": 1.85
+     },
+     {
+      "epoch": 43,
+      "train_loss": 5.84396,
+      "seconds": 1.74
+     },
+     {
+      "epoch": 44,
+      "train_loss": 5.8209,
+      "seconds": 1.59
+     },
+     {
+      "epoch": 45,
+      "train_loss": 5.83916,
+      "seconds": 1.59
+     },
+     {
+      "epoch": 46,
+      "train_loss": 5.8177,
+      "seconds": 1.74
+     },
+     {
+      "epoch": 47,
+      "train_loss": 5.72297,
+      "seconds": 1.78
+     },
+     {
+      "epoch": 48,
+      "train_loss": 5.9232,
+      "seconds": 1.58
+     },
+     {
+      "epoch": 49,
+      "train_loss": 5.97902,
+      "seconds": 1.67
+     },
+     {
+      "epoch": 50,
+      "train_loss": 6.00474,
+      "seconds": 1.55
+     },
+     {
+      "epoch": 51,
+      "train_loss": 5.74296,
+      "seconds": 1.57
+     },
+     {
+      "epoch": 52,
+      "train_loss": 5.672,
+      "seconds": 1.57
+     },
+     {
+      "epoch": 53,
+      "train_loss": 5.64345,
+      "seconds": 1.55
+     },
+     {
+      "epoch": 54,
+      "train_loss": 5.57526,
+      "seconds": 1.59
+     },
+     {
+      "epoch": 55,
+      "train_loss": 5.5526,
+      "seconds": 1.56
+     },
+     {
+      "epoch": 56,
+      "train_loss": 5.52813,
+      "seconds": 1.67
+     },
+     {
+      "epoch": 57,
+      "train_loss": 5.47056,
+      "seconds": 1.55
+     },
+     {
+      "epoch": 58,
+      "train_loss": 5.5345,
+      "seconds": 1.52
+     },
+     {
+      "epoch": 59,
+      "train_loss": 5.48934,
+      "seconds": 1.62
+     },
+     {
+      "epoch": 60,
+      "train_loss": 5.43875,
+      "seconds": 1.66
+     }
+    ]
+   },
+   "seconds": 105.9
+  }
+ },
+ "finished_utc": "2026-11-12T12:21:03Z",
+ "index": {
+  "cells": [
+   "all: HA4M 152 + IKEA 119 train videos, 105.9 s"
+  ],
+  "verdict": "measurement"
+ }
+}
