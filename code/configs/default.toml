@@ -117,6 +117,7 @@ start_active_share = 0.6     # ... at least this share of frames moves (motion e
 start_max_share = 0.25       # the intro found may be at most this share of the active span (else no intro)
 start_min_intro_s = 10.0     # a still start shorter than this is not an intro (both public clips, which have none, stay unchanged)
 # Engine B decoder (Week 10, experiments/w10-engine-b-v2/rule.md); all off by default
+engine_a_scale = 1.0         # multiplier on the base strength of every Engine A candidate (0 = Engine B's evidence alone)
 embed_candidates = false     # true: peaks of the embedding change score become DP candidates (needs embed_weight > 0)
 embed_peak_min = 0.2         # a change score peak (divided by its maximum in the active span) at least this high
 embed_peak_gap_s = 5.0       # change score peaks at least this far apart (s)

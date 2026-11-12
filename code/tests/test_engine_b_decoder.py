@@ -67,7 +67,7 @@ class DecoderTest(unittest.TestCase):
         steps = e.segment_run(timeline())
         self.assertEqual(e.report["solver_used"], "dp")
         self.assertAlmostEqual(bounds(steps)[0], CUT / FPS, delta=1.0)
-        self.assertEqual(e.report["evidence_counts"]["dense"], 119)          # every 1 s inside 120 s
+        self.assertEqual(e.report["evidence_counts"]["dense"], 111)          # every 1 s, at least 5 s from the ends
         self.assertEqual(e.report["embed_change"]["candidates"], "dense")
 
     def test_dense_strength_adds_the_boundary_head_only_with_refinement(self):
@@ -92,6 +92,16 @@ class DecoderTest(unittest.TestCase):
     def test_b_v1_preset_uses_dense_candidates(self):
         self.assertEqual(Config.load()["engine_b"]["candidates"], "dense")
         self.assertEqual(Config.load(overrides={"seg_a": {"engine": "A"}})["engine_b"]["candidates"], "engine_a")
+
+    def test_engine_a_scale(self):
+        tl = timeline()
+        tl.cuts = [900]                                                       # a wrong cut at 30 s
+        e = RuleBasedEngine(cfg(candidates="dense", strength_cut=1.0))
+        self.assertAlmostEqual(bounds(e.segment_run(tl))[0], 30.0, places=2)  # the cut wins
+        e = RuleBasedEngine(cfg(candidates="dense", strength_cut=1.0, engine_a_scale=0.0))
+        self.assertAlmostEqual(bounds(e.segment_run(tl))[0], CUT / FPS, delta=1.0)
+        cut = [x for x in e.report["evidence"] if x["kind"] == "cut"][0]
+        self.assertAlmostEqual(cut["strength"], 0.4 * cut["embed_change"], places=3)
 
     def test_video_norm(self):
         rng = np.random.default_rng(1)

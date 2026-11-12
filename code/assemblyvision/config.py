@@ -134,6 +134,7 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "seg_a.embed_candidates": (lambda v: isinstance(v, bool), "true or false"),
     "seg_a.embed_peak_min": (lambda v: 0 <= v <= 1, "0 to 1"),
     "seg_a.embed_peak_gap_s": (lambda v: v > 0, "> 0"),
+    "seg_a.engine_a_scale": (lambda v: 0 <= v <= 10, "0 to 10"),
     "seg_a.refine_window_s": (lambda v: 0 <= v <= 120, "0 to 120 s"),
     "seg_a.other_ends": (lambda v: isinstance(v, bool), "true or false"),
     "seg_a.other_max_s": (lambda v: v > 0, "> 0"),

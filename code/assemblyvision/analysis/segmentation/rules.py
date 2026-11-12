@@ -35,10 +35,15 @@ seg_a.embed_window_s before t and of the window after t, divided by its maximum
 over the active span. Every point candidate gets strength += embed_weight * the
 highest score within seg_a.engine_b_window_s of it.
 
+seg_a.engine_a_scale (default 1) multiplies the base strength of every Engine A
+candidate (no_person, cut_pause, pause, cut) before any Engine B term is added, so
+Engine B can outweigh the cuts; 0 leaves Engine B's evidence alone.
+
 With engine_b.candidates = "dense" (set by the "B v1" preset; "engine_a" = only the
 candidates above) Engine B adds its own candidates: a grid every
-engine_b.candidate_step_s inside the active span (not inside a no_person stretch,
-not on an existing candidate), in union with Engine A's. A grid candidate (kind
+engine_b.candidate_step_s inside the active span (at least half of
+seg_a.embed_window_s from its ends, where a window of the change score would be cut
+short and noisy; not inside a no_person stretch, not on an existing candidate), in union with Engine A's. A grid candidate (kind
 dense) has strength embed_weight * the change score at its frame, plus, with
 seg_a.refine_window_s > 0, embed_weight * the boundary head probability (its
 highest raw value within half a step, divided by its maximum over the active
@@ -134,7 +139,8 @@ class RuleBasedEngine(SegmentationEngine):
         n_min = int(round(s["no_person_min_s"] * fps))
         empty = [(p, q) for p, q in _runs(~tl.person[a:b]) if q - p >= n_min]
         empty = [(p + a, q + a) for p, q in empty]
-        ev = [Evidence(p, q, "no_person", s["strength_no_person"]) for p, q in empty]
+        k = s["engine_a_scale"]                         # Engine B decoder: weight of Engine A's evidence
+        ev = [Evidence(p, q, "no_person", k * s["strength_no_person"]) for p, q in empty]
 
         def in_empty(f: int) -> bool:
             return any(p - 1 <= f <= q + 1 for p, q in empty)
@@ -147,13 +153,13 @@ class RuleBasedEngine(SegmentationEngine):
             near = [i for i, (p, q) in enumerate(longp) if p - w <= c <= q + w]
             if near:
                 consumed.update(near)
-                ev.append(Evidence(c, c, "cut_pause", s["strength_cut_pause"]))
+                ev.append(Evidence(c, c, "cut_pause", k * s["strength_cut_pause"]))
             else:
-                ev.append(Evidence(c, c, "cut", s["strength_cut"]))
+                ev.append(Evidence(c, c, "cut", k * s["strength_cut"]))
         for i, (p, q) in enumerate(longp):
             m = (p + q) // 2
             if i not in consumed and not in_empty(m):
-                ev.append(Evidence(m, m, "pause", s["strength_pause"]))
+                ev.append(Evidence(m, m, "pause", k * s["strength_pause"]))
         ev.sort(key=lambda e: (e.start, e.end))
         if s["activity_change"] and tl.activity:
             self.add_activity_change(tl, ev, a, b)
@@ -201,7 +207,10 @@ class RuleBasedEngine(SegmentationEngine):
             head = head / top if top > 0 else head
         taken = [(x.start, x.end) for x in ev]
         half = step // 2
+        edge = int(round(self.s["embed_window_s"] * tl.fps)) // 2  # half a change window: no truncated windows
         for f in range(a + step, b, step):
+            if f - a < edge or b - f < edge:
+                continue
             if any(p - 1 <= f <= q + 1 for p, q in taken if q > p) or any(p == f for p, q in taken if q == p):
                 continue
             e = Evidence(f, f, "dense", 0.0, embed_change=round(float(val[f]), 4))

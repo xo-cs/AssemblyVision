@@ -95,3 +95,59 @@ baseline (experiments/w10-phase-bench-baseline-dense):
 - B v1 with dense candidates: 51.42.
 
 No train fold decoder score had been seen. The baseline rows are not used for choosing.
+
+## Amendment 2 (2026-11-12, before the decoder grid)
+
+Khurshid's changes to the grid (the first grid run was stopped before it wrote anything):
+
+**Candidates.** Dense candidates on for every setting (`engine_b.candidates = "dense"`). The
+candidate dimension of amendment 1 is dropped.
+
+**Scales.** The embed weight 0.2 was chosen when Engine B could only reweight Engine A's
+candidates. New dimensions:
+
+| setting | values |
+| --- | --- |
+| `seg_a.embed_weight` | 0.2, 0.5, 1.0, 2.0 |
+| `seg_a.engine_a_scale` (multiplier on the base strength of every Engine A candidate) | 1.0, 0.5, 0.25, 0 (0 = Engine B alone) |
+| `seg_a.embed_window_s` | 10, 20, 30 |
+| `seg_a.refine_window_s` | 0, 5, 10 |
+| `engine_b.video_norm` | off, on |
+
+That is 288 decoder settings per model and 1440 in all. Only the ratio of the two scales changes
+the DP's choice (every strength is linear in them). So for example (embed 0.5, scale 0.25)
+decodes like (embed 2.0, scale 1.0), and with scale 0 every embed weight gives the same result.
+Equal settings tie and fall to the simplicity order.
+
+**Synthetic editing layer** (benchmark, train and test splits alike):
+
+- Cut candidates at the cut rate of the QiSens video. **Disclosed: the rate comes from the QiSens
+  shot count** (37 shots in 596 s, so 36 cuts, 3.62 cuts per minute). The shot count is the only
+  QiSens figure used, and it is not a label.
+- A share p (0.5, 0.75, 1.0) of the true macro phase boundaries of a video get a cut on the
+  boundary (chosen at random). The other cuts of that video fall at random frames.
+- Cuts per video = round(rate × duration). Seed 42, per (video, p).
+- Stored once in `experiments/datasets/ha4m_synthetic_cuts.json` (217 videos; on average 6.1
+  cuts and 4.0 phase boundaries per video).
+- Every setting is scored without cuts and with the cuts of each p.
+
+**Criterion** (replaces the primary criterion above, for every dimension including the model):
+
+- the worst case over the three p values of the mean frame accuracy over the 152 train videos
+  under cross validation;
+- ties (two decimals) are broken by higher F1@50, then lower MAE, both in that worst condition,
+  then by the simpler setting: refinement off, video_norm off, Engine A scale 1 first (then 0.5,
+  0.25, 0), v1 before v2, the smaller embed weight, the longer window.
+- Every p and the no cut condition are reported separately.
+
+**Test split, once:** the rows of the section above, each without cuts and with each p.
+
+**Decoder fix found before the grid** (disclosed):
+
+- A smoke check of the scale dimension on 4, then 8, train videos of fold cv1 (v1 CV model;
+  train data only) showed dense candidates near the start of the active span. There the change
+  score window is cut short and noisy: a boundary was chosen at 7 s.
+- Fix: no dense candidate closer than half of `seg_a.embed_window_s` to either end of the active
+  span. Engine A's candidates are unchanged.
+- The test split baseline 51.42 of amendment 1 (B v1 dense) was measured before this fix. The
+  "B v1 as shipped" row of the final test measures it again with the fix.

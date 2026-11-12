@@ -61,6 +61,10 @@ def candidates_e_off(v, st) -> bool:
     return _seg(st, "embed_candidates", False) is False
 
 
+def unit_scale(v, st) -> bool:
+    return v == 1.0
+
+
 def dense_off(v, st) -> bool:
     return st.get("engine_b", {}).get("candidates", "engine_a") == "engine_a" or embed_off(v, st)
 
@@ -112,6 +116,7 @@ DECLARATIONS: dict[str, dict] = {
         "embed_peak_min": candidates_e_off,
         "embed_peak_gap_s": candidates_e_off,
         "refine_window_s": OFF,
+        "engine_a_scale": unit_scale,           # 1 = the strengths as before the key
         "other_ends": OFF,
         "other_max_s": other_off,
         "other_min_strength": other_off,

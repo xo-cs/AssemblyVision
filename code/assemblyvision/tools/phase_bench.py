@@ -2,7 +2,8 @@
 
     source ~/AssemblyVision/av.sh && cd ~/AssemblyVision/code
     python -m assemblyvision.tools.phase_bench --id w10-phase-bench-baseline \\
-        [--split test|train] [--row 'LABEL:KEY=VALUE;KEY=VALUE' ...] [--no-clips]
+        [--split test|train] [--row 'LABEL:KEY=VALUE;KEY=VALUE' ...] [--no-clips] [--cuts]
+    python -m assemblyvision.tools.phase_bench --make-cuts --id x      # stores the synthetic cuts
 
 CPU only, public data only. HA4M videos (the 65 cross subject test videos, or the
 152 train videos) with the 12 actions grouped into the 5 macro phases of
@@ -16,6 +17,10 @@ edit, F1@10/25/50, boundary MAE) per video, then the mean over videos.
 The two public clips (process_480p30, shots_check_480p30) are scored from their
 stored runs of w10-pose-sens-x (YOLO26 x, reference profile) against their GTs.
 A row is a label and settings (--row); default rows: Engine A and Engine B v1.
+With --cuts every row is also scored under a synthetic editing layer: cuts at the
+QiSens cut rate (37 shots in 596 s, the shot count only), a share p (0.5, 0.75, 1)
+of the true macro phase boundaries with a cut on it, the rest at random frames
+(seeded, stored in experiments/datasets/ha4m_synthetic_cuts.json).
 Writes experiments/<id>/ (results.json, table.md) and INDEX.md.
 """
 from __future__ import annotations
@@ -48,6 +53,12 @@ from .train_engine_b import video_arrays
 CACHE = "data/public/datasets/ha4m/engine_b/kinect_coco17"
 SPLITS = "experiments/datasets/ha4m_splits.json"
 CLIPS_FROM = "w10-pose-sens-x"
+CUTS = "experiments/datasets/ha4m_synthetic_cuts.json"
+# Synthetic editing layer: the cut rate of the QiSens video (37 shots in 596 s, so 36 cuts;
+# the shot count is the only QiSens figure used, it is not a label)
+CUT_RATE_PER_S = 36 / 596
+CUT_PS = (0.5, 0.75, 1.0)
+CUT_SEED = 42
 METRICS = ("frame_accuracy", "edit", "f1_10", "f1_25", "f1_50", "boundary_mae_s")
 DEFAULT_ROWS = ['Engine A:seg_a.engine="A"',
                 'Engine B v1, engine_a candidates:seg_a.engine="custom";seg_a.embed_weight=0.2;seg_a.embed_window_s=30.0;'
@@ -123,6 +134,42 @@ def with_intro(d: dict, seconds: float, rng, cfg: Config) -> dict:
             "labelled": np.concatenate([np.ones(n, bool), np.asarray(d["labelled"], bool)]), "meta": meta}
 
 
+def phase_boundaries(labels, fps: float) -> list[int]:
+    """Frames where one macro phase ends and the next begins (not to or from other)."""
+    steps = hp.gt_steps(labels, fps)
+    return [int(round(b.start_s * fps)) for a, b in zip(steps, steps[1:]) if a.label != "other" and b.label != "other"]
+
+
+def synthetic_cuts(labels, fps: float, n_frames: int, p: float, rng) -> list[int]:
+    """CUT_RATE_PER_S cuts over the video: a share p of the true macro phase boundaries
+    (chosen at random) get a cut on the boundary, the other cuts fall at random frames."""
+    bounds = phase_boundaries(labels, fps)
+    n = max(int(round(CUT_RATE_PER_S * n_frames / fps)), 1)
+    at = sorted(rng.choice(bounds, size=int(round(p * len(bounds))), replace=False).tolist()) if bounds else []
+    free = np.setdiff1d(np.arange(1, n_frames - 1), at)
+    rest = rng.choice(free, size=min(max(n - len(at), 0), len(free)), replace=False).tolist()
+    return sorted(int(x) for x in at + rest)
+
+
+def make_cuts(repo_root: Path = REPO_ROOT) -> dict:
+    """Builds and stores the synthetic cuts of every benchmark video (train and test)."""
+    vids = split_videos("train", repo_root) + split_videos("test", repo_root)
+    out = {"rule": "a share p of the true macro phase boundaries get a cut on the boundary, the other cuts at "
+                   "random frames; cuts per video = round(rate * duration)",
+           "rate_per_s": CUT_RATE_PER_S, "rate_source": "QiSens video: 37 shots in 596 s (the shot count only)",
+           "ps": list(CUT_PS), "seed": CUT_SEED, "videos": {}}
+    for i, v in enumerate(sorted(vids)):
+        d = video_arrays(repo_root / CACHE, v)
+        fps, T = float(d["meta"]["fps"]), len(d["labels"])
+        out["videos"][v] = {"fps": fps, "frames": T, "boundaries": phase_boundaries(d["labels"], fps),
+                            **{f"{p:g}": synthetic_cuts(d["labels"], fps, T, p,
+                                                        np.random.default_rng([CUT_SEED, i, int(p * 100)]))
+                               for p in CUT_PS}}
+    path = repo_root / CUTS
+    path.write_text(json.dumps(out, indent=None, separators=(",", ":")) + "\n")
+    return out
+
+
 class Bench:
     """Decodes and scores HA4M videos for any number of settings (models are cached)."""
 
@@ -131,19 +178,42 @@ class Bench:
         self.cache = repo_root / CACHE
         self._models: dict[str, tuple] = {}
         self._outputs: dict[tuple[str, str], dict] = {}
+        self._cuts: dict | None = None
+        self._base: dict[tuple, tuple] = {}
+
+    def cuts(self, vid: str, p: float) -> list[int]:
+        if self._cuts is None:
+            self._cuts = json.loads((self.root / CUTS).read_text())["videos"]
+        return list(self._cuts[vid][f"{p:g}"])
 
     def model(self, name: str):
         if name not in self._models:
             self._models[name] = bt.load_model(self.root / "models" / name)
         return self._models[name]
 
-    def video(self, vid: str, cfg: Config, intro_s: float = 0.0, seed: int = 0) -> dict:
-        d = video_arrays(self.cache, vid)
+    def video(self, vid: str, cfg: Config, intro_s: float = 0.0, seed: int = 0, cuts_p: float | None = None) -> dict:
+        """cuts_p: with the synthetic cuts of share p (CUTS); None = no cuts."""
+        cuts = self.cuts(vid, cuts_p) if cuts_p is not None else []
+        name = vid if cuts_p is None else f"{vid}+cuts{cuts_p:g}"
         if intro_s > 0:
-            d = with_intro(d, intro_s, np.random.default_rng(seed), cfg)
-            vid = f"{vid}+intro{intro_s:g}"
+            name = f"{name}+intro{intro_s:g}"
         engine = RuleBasedEngine(cfg)
-        tl = video_timeline(d, cfg, engine)
+        # the skeleton and Engine A's base timeline do not depend on the decoder settings
+        bkey = (vid, intro_s, seed, json.dumps([cfg["clean"], {k: cfg["engine_b"][k] for k in
+                                                               ("conf_visible", "conf_predicted", "conf_noise")}]))
+        if bkey not in self._base:
+            d = video_arrays(self.cache, vid)
+            if intro_s > 0:
+                d = with_intro(d, intro_s, np.random.default_rng(seed), cfg)
+            base = video_timeline(d, cfg, engine)
+            self._base = {k: v for k, v in self._base.items() if k[0] == vid}    # one video at a time
+            self._base[bkey] = (d, base.person, base.energy)
+        d, person, energy = self._base[bkey]
+        if intro_s > 0:
+            vid = f"{vid}+intro{intro_s:g}"
+            cuts = [c + int(round(d["meta"]["intro_s"] * float(d["meta"]["fps"]))) for c in cuts]
+        tl = RunTimeline(float(d["meta"]["fps"]), len(person), person.copy(), energy, [])
+        tl.cuts = cuts
         if cfg["seg_a"]["engine_b_weight"] > 0 or cfg["seg_a"]["embed_weight"] > 0:
             name = cfg["engine_b"]["model"]
             key = (name, vid)
@@ -155,7 +225,7 @@ class Bench:
         pred = engine.segment_run(tl)
         gt = hp.gt_steps(d["labels"], tl.fps)
         res, _ = evaluate(pred, gt, tl.duration_s, cfg["eval"]["seg_fps"], cfg["eval"]["overlaps"])
-        return {"video": vid, "metrics": res, "in_task_order": hp.in_task_order(gt),
+        return {"video": name, "metrics": res, "in_task_order": hp.in_task_order(gt),
                 "phases": f"{engine.report.get('phases_found')}/{engine.report.get('phases_expected')}",
                 "engine": engine.report.get("engine")}
 
@@ -207,6 +277,17 @@ def table_md(res: dict) -> str:
         lines.append(f"| {r['label']} | {r['engine']} | {s['frame_accuracy']} | {s['frame_accuracy_median']} | "
                      f"{s['videos_at_85']}/{s['videos']} | {s['edit']} | {s['f1_10']} | {s['f1_25']} | {s['f1_50']} | "
                      f"{s['boundary_mae_s']} |")
+    if any(r.get("cuts") for r in res["rows"]):
+        lines += ["", f"With synthetic cuts ({CUTS}; {CUT_RATE_PER_S * 60:.2f} cuts per minute, the QiSens cut rate; "
+                  "a share p of the true phase boundaries gets a cut):", "",
+                  "| row | p | frame acc | median | at 85 | edit | F1@10 | F1@25 | F1@50 | MAE s |",
+                  "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+        for r in res["rows"]:
+            for p, c in (r.get("cuts") or {}).items():
+                s = c["summary"]
+                lines.append(f"| {r['label']} | {p} | {s['frame_accuracy']} | {s['frame_accuracy_median']} | "
+                             f"{s['videos_at_85']}/{s['videos']} | {s['edit']} | {s['f1_10']} | {s['f1_25']} | "
+                             f"{s['f1_50']} | {s['boundary_mae_s']} |")
     if any(r.get("clips") for r in res["rows"]):
         lines += ["", f"Public clips (stored YOLO26 x runs of {CLIPS_FROM}):", "",
                   "| row | clip | frame acc | edit | F1@10 | F1@25 | F1@50 | MAE s |", "| --- | --- | --- | --- | --- | --- | --- | --- |"]
@@ -218,12 +299,13 @@ def table_md(res: dict) -> str:
 
 
 def run_bench(exp_id: str, title: str, split: str, specs: list[str], clips: bool,
-              repo_root: Path = REPO_ROOT, videos: list[str] | None = None, log=print) -> dict:
+              repo_root: Path = REPO_ROOT, videos: list[str] | None = None, log=print, cuts: bool = False) -> dict:
+    """cuts: also score every row with the synthetic cuts of each p (CUT_PS); summary is without cuts."""
     from ..experiments.provenance import git_state
     vids = videos or split_videos(split, repo_root)
     bench = Bench(repo_root)
     res = {"id": exp_id, "kind": "phase_bench", "source": "public", "title": title, "reference": "",
-           "split": split, "n_videos": len(vids), "videos": vids, "rows": []}
+           "split": split, "synthetic_cuts": CUTS if cuts else None, "n_videos": len(vids), "videos": vids, "rows": []}
     for spec in specs:
         label, over = parse_row(spec)
         cfg = bench_cfg(over)
@@ -231,6 +313,12 @@ def run_bench(exp_id: str, title: str, split: str, specs: list[str], clips: bool
         for v in vids:
             per.append(bench.video(v, cfg))
         row = {"label": label, "sets": over, "engine": engine_label(cfg), "summary": summarise(per), "per_video": per}
+        if cuts:
+            row["cuts"] = {}
+            for p in CUT_PS:
+                pc = [bench.video(v, cfg, cuts_p=p) for v in vids]
+                row["cuts"][f"{p:g}"] = {"summary": summarise(pc), "per_video": pc}
+            row["worst_cuts_frame_accuracy"] = min(c["summary"]["frame_accuracy"] for c in row["cuts"].values())
         if clips:
             row["clips"] = clip_rows(over, repo_root)
         res["rows"].append(row)
@@ -257,9 +345,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--split", choices=("test", "train"), default="test")
     p.add_argument("--row", action="append", default=[])
     p.add_argument("--no-clips", action="store_true")
+    p.add_argument("--cuts", action="store_true", help="also score with the synthetic cuts of each p")
+    p.add_argument("--make-cuts", action="store_true", help=f"build and store {CUTS}, then stop")
     args = p.parse_args(argv)
     os.environ["XDG_CONFIG_HOME"] = str(REPO_ROOT / ".config")
-    res = run_bench(args.id, args.title, args.split, args.row or DEFAULT_ROWS, not args.no_clips)
+    if args.make_cuts:
+        out = make_cuts()
+        print(f"wrote {CUTS}: {len(out['videos'])} videos")
+        return 0
+    res = run_bench(args.id, args.title, args.split, args.row or DEFAULT_ROWS, not args.no_clips, cuts=args.cuts)
     print(table_md(res))
     return 0
 
