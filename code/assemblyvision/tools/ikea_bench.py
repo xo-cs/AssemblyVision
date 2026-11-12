@@ -29,6 +29,7 @@ from ..types import Step
 
 ROOT = REPO_ROOT / "data/public/datasets/ikea_asm"
 FOLDS = "experiments/datasets/ikea_asm_cv.json"
+CUTS = "experiments/datasets/ikea_asm_synthetic_cuts.json"
 SELECTION = ("Kallax_Shelf_Drawer", "Lack_Coffee_Table")      # the furniture types of the selection set
 
 
@@ -84,6 +85,33 @@ def gt_steps(vid: str, duration_s: float) -> list[Step]:
                  s.source) for s in steps]
 
 
+def make_cuts(seed: int = 42) -> dict:
+    """The synthetic editing layer of phase_bench for IKEA ASM: CUT_RATE_PER_S cuts per video,
+    a share p of the true macro phase boundaries with a cut on it, the rest at random run
+    frames; seeded per (video, p), stored in CUTS (run frames of each video's run)."""
+    from . import phase_bench as pb
+    r = runs()
+    out = {"rule": "phase_bench.synthetic_cuts on the IKEA macro phase boundaries (run frames)",
+           "rate_per_s": pb.CUT_RATE_PER_S, "ps": list(pb.CUT_PS), "seed": seed, "videos": {}}
+    for i, vid in enumerate(sorted(r)):
+        root = REPO_ROOT / "data/public/runs" / r[vid]
+        cfr = json.loads((root / "manifest.json").read_text())["ingest"]["cfr"]
+        fps, n = float(cfr["fps"]), int(cfr["frame_count"])
+        steps = gt_steps(vid, n / fps)
+        bounds = [int(round(b.start_s * fps)) for a, b in zip(steps, steps[1:]) if a.label != "other" and b.label != "other"]
+        rec = {"fps": fps, "frames": n, "boundaries": bounds}
+        for p in pb.CUT_PS:
+            rng = np.random.default_rng([seed, i, int(p * 100)])
+            k = max(int(round(pb.CUT_RATE_PER_S * n / fps)), 1)
+            at = sorted(rng.choice(bounds, size=int(round(p * len(bounds))), replace=False).tolist()) if bounds else []
+            free = np.setdiff1d(np.arange(1, n - 1), at)
+            rest = rng.choice(free, size=min(max(k - len(at), 0), len(free)), replace=False).tolist()
+            rec[f"{p:g}"] = sorted(int(x) for x in at + rest)
+        out["videos"][vid] = rec
+    (REPO_ROOT / CUTS).write_text(json.dumps(out, separators=(",", ":")) + "\n")
+    return out
+
+
 class IkeaBench:
     def __init__(self):
         self.r = runs()
@@ -102,7 +130,8 @@ class IkeaBench:
         return Config.load(overrides=deep_merge(base, {"steps": {"use": True, "step": [{"name": n} for n in
                                                                                         ip.names(furn)]}}, over))
 
-    def video(self, vid: str, over: dict) -> dict:
+    def video(self, vid: str, over: dict, cuts_p: float | None = None) -> dict:
+        """cuts_p: with the synthetic cuts of share p (CUTS); None = the run's own shots."""
         from ..analysis import visual
         from ..analysis.segmentation import build_timeline, create_engine
         from ..analysis.segmentation.base import RunTimeline
@@ -118,6 +147,10 @@ class IkeaBench:
             self._base = {rid: (manifest, build_timeline(manifest, root, engine.cleaner))}
         manifest, b = self._base[rid]
         tl = RunTimeline(b.fps, b.n_frames, b.person.copy(), b.energy, list(b.cuts), b.offset_s)
+        if cuts_p is not None:
+            if getattr(self, "_cuts", None) is None:
+                self._cuts = json.loads((REPO_ROOT / CUTS).read_text())["videos"]
+            tl.cuts = sorted(set(tl.cuts) | set(self._cuts[vid][f"{cuts_p:g}"]))
         if engine_b_needed(cfg):
             key = (rid, cfg["engine_b"]["model"])
             if key not in self._b:
@@ -147,7 +180,11 @@ class IkeaBench:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="python -m assemblyvision.tools.ikea_bench")
     p.add_argument("--make-folds", action="store_true")
+    p.add_argument("--make-cuts", action="store_true")
     args = p.parse_args(argv)
+    if args.make_cuts:
+        out = make_cuts()
+        print(f"{CUTS}: {len(out['videos'])} videos")
     if args.make_folds:
         out = make_folds()
         print({f["name"]: len(f["test_videos"]) for f in out["folds"]})
