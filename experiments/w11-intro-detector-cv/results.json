@@ -1,0 +1,1376 @@
+{
+ "id": "w11-intro-detector-cv",
+ "kind": "intro_cv",
+ "source": "public",
+ "reference": "",
+ "split": "train",
+ "title": "Intro detector on HA4M with still and sway intros (train split; rule w11-intro-detector)",
+ "rule": "experiments/w11-intro-detector/rule.md",
+ "decoder": {
+  "embed_weight": 1.0,
+  "engine_a_scale": 0.0,
+  "embed_window_s": 10.0,
+  "refine_window_s": 0.0,
+  "video_norm": false
+ },
+ "grid": {
+  "intro_k": [
+   0.5,
+   1.0,
+   1.5
+  ],
+  "intro_sustain_s": [
+   5.0,
+   10.0,
+   20.0
+  ],
+  "intro_active_share": [
+   0.5,
+   0.6,
+   0.8
+  ]
+ },
+ "rows": [
+  {
+   "setting": "off",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 89.35,
+    "edit": 99.33,
+    "f1_10": 98.44,
+    "f1_25": 97.65,
+    "f1_50": 94.53,
+    "boundary_mae_s": 6.12,
+    "frame_accuracy_median": 93.02,
+    "videos_at_85": 131
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 74.18,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.51,
+    "boundary_mae_s": 6.24,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 30
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 74.18,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.51,
+    "boundary_mae_s": 6.24,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 30
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 79.24,
+    "edit": 99.33,
+    "f1_10": 96.59,
+    "f1_25": 95.8,
+    "f1_50": 88.52,
+    "boundary_mae_s": 6.2,
+    "frame_accuracy_median": 82.25,
+    "videos_at_85": 191
+   }
+  },
+  {
+   "setting": "0.5,5,0.5",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 88.76,
+    "edit": 99.33,
+    "f1_10": 98.17,
+    "f1_25": 96.86,
+    "f1_50": 93.47,
+    "boundary_mae_s": 6.1,
+    "frame_accuracy_median": 92.97,
+    "videos_at_85": 126
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 88.24,
+    "edit": 99.33,
+    "f1_10": 97.78,
+    "f1_25": 96.86,
+    "f1_50": 92.82,
+    "boundary_mae_s": 3.01,
+    "frame_accuracy_median": 94.2,
+    "videos_at_85": 123
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 88.2,
+    "edit": 99.33,
+    "f1_10": 97.78,
+    "f1_25": 96.86,
+    "f1_50": 92.83,
+    "boundary_mae_s": 3.03,
+    "frame_accuracy_median": 93.84,
+    "videos_at_85": 124
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 88.4,
+    "edit": 99.33,
+    "f1_10": 97.91,
+    "f1_25": 96.86,
+    "f1_50": 93.04,
+    "boundary_mae_s": 4.05,
+    "frame_accuracy_median": 93.52,
+    "videos_at_85": 373
+   }
+  },
+  {
+   "setting": "0.5,5,0.6",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 86.8,
+    "edit": 99.33,
+    "f1_10": 96.59,
+    "f1_25": 94.23,
+    "f1_50": 90.97,
+    "boundary_mae_s": 6.1,
+    "frame_accuracy_median": 92.66,
+    "videos_at_85": 117
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 86.67,
+    "edit": 99.33,
+    "f1_10": 96.46,
+    "f1_25": 94.75,
+    "f1_50": 90.71,
+    "boundary_mae_s": 3.02,
+    "frame_accuracy_median": 93.89,
+    "videos_at_85": 117
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 86.97,
+    "edit": 99.33,
+    "f1_10": 96.86,
+    "f1_25": 95.02,
+    "f1_50": 90.99,
+    "boundary_mae_s": 3.04,
+    "frame_accuracy_median": 93.39,
+    "videos_at_85": 119
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 86.81,
+    "edit": 99.33,
+    "f1_10": 96.64,
+    "f1_25": 94.66,
+    "f1_50": 90.89,
+    "boundary_mae_s": 4.05,
+    "frame_accuracy_median": 93.08,
+    "videos_at_85": 353
+   }
+  },
+  {
+   "setting": "0.5,5,0.8",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 77.14,
+    "edit": 99.33,
+    "f1_10": 86.86,
+    "f1_25": 81.59,
+    "f1_50": 78.87,
+    "boundary_mae_s": 6.43,
+    "frame_accuracy_median": 87.24,
+    "videos_at_85": 85
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 80.92,
+    "edit": 99.33,
+    "f1_10": 90.15,
+    "f1_25": 85.94,
+    "f1_50": 80.84,
+    "boundary_mae_s": 3.3,
+    "frame_accuracy_median": 88.13,
+    "videos_at_85": 90
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 80.97,
+    "edit": 99.33,
+    "f1_10": 90.67,
+    "f1_25": 86.07,
+    "f1_50": 81.12,
+    "boundary_mae_s": 3.33,
+    "frame_accuracy_median": 88.23,
+    "videos_at_85": 90
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 79.67,
+    "edit": 99.33,
+    "f1_10": 89.23,
+    "f1_25": 84.53,
+    "f1_50": 80.28,
+    "boundary_mae_s": 4.35,
+    "frame_accuracy_median": 88.02,
+    "videos_at_85": 265
+   }
+  },
+  {
+   "setting": "0.5,10,0.5",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 79.39,
+    "edit": 99.33,
+    "f1_10": 90.41,
+    "f1_25": 83.87,
+    "f1_50": 79.96,
+    "boundary_mae_s": 6.39,
+    "frame_accuracy_median": 86.48,
+    "videos_at_85": 86
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 83.08,
+    "edit": 99.33,
+    "f1_10": 93.68,
+    "f1_25": 88.68,
+    "f1_50": 83.68,
+    "boundary_mae_s": 3.23,
+    "frame_accuracy_median": 89.06,
+    "videos_at_85": 101
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 83.6,
+    "edit": 99.33,
+    "f1_10": 95.0,
+    "f1_25": 89.21,
+    "f1_50": 84.35,
+    "boundary_mae_s": 3.25,
+    "frame_accuracy_median": 88.9,
+    "videos_at_85": 103
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 82.02,
+    "edit": 99.33,
+    "f1_10": 93.03,
+    "f1_25": 87.25,
+    "f1_50": 82.66,
+    "boundary_mae_s": 4.29,
+    "frame_accuracy_median": 88.31,
+    "videos_at_85": 290
+   }
+  },
+  {
+   "setting": "0.5,10,0.6",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 75.19,
+    "edit": 99.33,
+    "f1_10": 87.52,
+    "f1_25": 78.21,
+    "f1_50": 74.3,
+    "boundary_mae_s": 6.4,
+    "frame_accuracy_median": 81.19,
+    "videos_at_85": 64
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 79.73,
+    "edit": 99.33,
+    "f1_10": 90.65,
+    "f1_25": 84.34,
+    "f1_50": 78.55,
+    "boundary_mae_s": 3.34,
+    "frame_accuracy_median": 86.44,
+    "videos_at_85": 86
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 80.63,
+    "edit": 99.33,
+    "f1_10": 92.23,
+    "f1_25": 85.13,
+    "f1_50": 79.61,
+    "boundary_mae_s": 3.37,
+    "frame_accuracy_median": 86.87,
+    "videos_at_85": 88
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 78.51,
+    "edit": 99.33,
+    "f1_10": 90.13,
+    "f1_25": 82.56,
+    "f1_50": 77.49,
+    "boundary_mae_s": 4.37,
+    "frame_accuracy_median": 85.43,
+    "videos_at_85": 238
+   }
+  },
+  {
+   "setting": "0.5,10,0.8",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 68.83,
+    "edit": 99.33,
+    "f1_10": 77.78,
+    "f1_25": 71.86,
+    "f1_50": 68.35,
+    "boundary_mae_s": 6.77,
+    "frame_accuracy_median": 74.92,
+    "videos_at_85": 60
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 74.37,
+    "edit": 99.33,
+    "f1_10": 83.44,
+    "f1_25": 76.99,
+    "f1_50": 71.38,
+    "boundary_mae_s": 3.66,
+    "frame_accuracy_median": 81.53,
+    "videos_at_85": 64
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 74.82,
+    "edit": 99.33,
+    "f1_10": 84.67,
+    "f1_25": 76.92,
+    "f1_50": 71.69,
+    "boundary_mae_s": 3.68,
+    "frame_accuracy_median": 81.72,
+    "videos_at_85": 66
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 72.67,
+    "edit": 99.33,
+    "f1_10": 81.96,
+    "f1_25": 75.25,
+    "f1_50": 70.48,
+    "boundary_mae_s": 4.7,
+    "frame_accuracy_median": 80.15,
+    "videos_at_85": 190
+   }
+  },
+  {
+   "setting": "0.5,20,0.5",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 82.39,
+    "edit": 99.33,
+    "f1_10": 93.7,
+    "f1_25": 88.74,
+    "f1_50": 85.09,
+    "boundary_mae_s": 6.29,
+    "frame_accuracy_median": 88.09,
+    "videos_at_85": 91
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 85.49,
+    "edit": 99.33,
+    "f1_10": 96.05,
+    "f1_25": 92.89,
+    "f1_50": 88.42,
+    "boundary_mae_s": 3.1,
+    "frame_accuracy_median": 91.72,
+    "videos_at_85": 112
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 85.53,
+    "edit": 99.33,
+    "f1_10": 96.05,
+    "f1_25": 93.02,
+    "f1_50": 88.56,
+    "boundary_mae_s": 3.12,
+    "frame_accuracy_median": 91.67,
+    "videos_at_85": 113
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 84.47,
+    "edit": 99.33,
+    "f1_10": 95.27,
+    "f1_25": 91.55,
+    "f1_50": 87.36,
+    "boundary_mae_s": 4.17,
+    "frame_accuracy_median": 90.78,
+    "videos_at_85": 316
+   }
+  },
+  {
+   "setting": "0.5,20,0.6",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 76.46,
+    "edit": 99.33,
+    "f1_10": 88.83,
+    "f1_25": 80.84,
+    "f1_50": 76.41,
+    "boundary_mae_s": 6.48,
+    "frame_accuracy_median": 83.98,
+    "videos_at_85": 71
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 82.5,
+    "edit": 99.33,
+    "f1_10": 93.02,
+    "f1_25": 88.55,
+    "f1_50": 83.68,
+    "boundary_mae_s": 3.29,
+    "frame_accuracy_median": 88.69,
+    "videos_at_85": 100
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 82.86,
+    "edit": 99.33,
+    "f1_10": 93.55,
+    "f1_25": 89.08,
+    "f1_50": 84.22,
+    "boundary_mae_s": 3.31,
+    "frame_accuracy_median": 88.94,
+    "videos_at_85": 102
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 80.61,
+    "edit": 99.33,
+    "f1_10": 91.8,
+    "f1_25": 86.16,
+    "f1_50": 81.44,
+    "boundary_mae_s": 4.36,
+    "frame_accuracy_median": 87.16,
+    "videos_at_85": 273
+   }
+  },
+  {
+   "setting": "0.5,20,0.8",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 72.65,
+    "edit": 99.33,
+    "f1_10": 83.04,
+    "f1_25": 75.15,
+    "f1_50": 71.64,
+    "boundary_mae_s": 6.62,
+    "frame_accuracy_median": 78.9,
+    "videos_at_85": 60
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 75.83,
+    "edit": 99.33,
+    "f1_10": 86.86,
+    "f1_25": 79.36,
+    "f1_50": 73.09,
+    "boundary_mae_s": 3.69,
+    "frame_accuracy_median": 82.2,
+    "videos_at_85": 67
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 75.13,
+    "edit": 99.33,
+    "f1_10": 86.38,
+    "f1_25": 77.97,
+    "f1_50": 72.09,
+    "boundary_mae_s": 3.73,
+    "frame_accuracy_median": 81.93,
+    "videos_at_85": 67
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 74.54,
+    "edit": 99.33,
+    "f1_10": 85.43,
+    "f1_25": 77.49,
+    "f1_50": 72.27,
+    "boundary_mae_s": 4.68,
+    "frame_accuracy_median": 81.24,
+    "videos_at_85": 194
+   }
+  },
+  {
+   "setting": "1,5,0.5",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 89.24,
+    "edit": 99.33,
+    "f1_10": 98.44,
+    "f1_25": 97.52,
+    "f1_50": 94.4,
+    "boundary_mae_s": 6.14,
+    "frame_accuracy_median": 93.0,
+    "videos_at_85": 130
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 87.95,
+    "edit": 99.33,
+    "f1_10": 97.91,
+    "f1_25": 96.99,
+    "f1_50": 93.22,
+    "boundary_mae_s": 3.12,
+    "frame_accuracy_median": 93.44,
+    "videos_at_85": 121
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 87.22,
+    "edit": 99.33,
+    "f1_10": 97.78,
+    "f1_25": 96.99,
+    "f1_50": 92.83,
+    "boundary_mae_s": 3.26,
+    "frame_accuracy_median": 92.9,
+    "videos_at_85": 117
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 88.13,
+    "edit": 99.33,
+    "f1_10": 98.04,
+    "f1_25": 97.16,
+    "f1_50": 93.48,
+    "boundary_mae_s": 4.18,
+    "frame_accuracy_median": 93.16,
+    "videos_at_85": 368
+   }
+  },
+  {
+   "setting": "1,5,0.6",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 88.44,
+    "edit": 99.33,
+    "f1_10": 98.04,
+    "f1_25": 96.46,
+    "f1_50": 93.08,
+    "boundary_mae_s": 6.13,
+    "frame_accuracy_median": 92.91,
+    "videos_at_85": 126
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 87.95,
+    "edit": 99.33,
+    "f1_10": 97.91,
+    "f1_25": 96.99,
+    "f1_50": 93.22,
+    "boundary_mae_s": 3.12,
+    "frame_accuracy_median": 93.44,
+    "videos_at_85": 121
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 87.11,
+    "edit": 99.33,
+    "f1_10": 97.78,
+    "f1_25": 96.99,
+    "f1_50": 92.7,
+    "boundary_mae_s": 3.27,
+    "frame_accuracy_median": 92.9,
+    "videos_at_85": 117
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 87.83,
+    "edit": 99.33,
+    "f1_10": 97.91,
+    "f1_25": 96.81,
+    "f1_50": 93.0,
+    "boundary_mae_s": 4.17,
+    "frame_accuracy_median": 93.1,
+    "videos_at_85": 364
+   }
+  },
+  {
+   "setting": "1,5,0.8",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 86.3,
+    "edit": 99.33,
+    "f1_10": 96.46,
+    "f1_25": 93.04,
+    "f1_50": 89.53,
+    "boundary_mae_s": 6.07,
+    "frame_accuracy_median": 92.66,
+    "videos_at_85": 115
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 87.79,
+    "edit": 99.33,
+    "f1_10": 97.52,
+    "f1_25": 96.2,
+    "f1_50": 92.7,
+    "boundary_mae_s": 3.05,
+    "frame_accuracy_median": 93.44,
+    "videos_at_85": 122
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 86.84,
+    "edit": 99.33,
+    "f1_10": 97.38,
+    "f1_25": 96.2,
+    "f1_50": 92.04,
+    "boundary_mae_s": 3.18,
+    "frame_accuracy_median": 92.92,
+    "videos_at_85": 118
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 86.98,
+    "edit": 99.33,
+    "f1_10": 97.12,
+    "f1_25": 95.15,
+    "f1_50": 91.42,
+    "boundary_mae_s": 4.1,
+    "frame_accuracy_median": 93.02,
+    "videos_at_85": 355
+   }
+  },
+  {
+   "setting": "1,10,0.5",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 87.57,
+    "edit": 99.33,
+    "f1_10": 97.65,
+    "f1_25": 94.62,
+    "f1_50": 90.84,
+    "boundary_mae_s": 6.14,
+    "frame_accuracy_median": 92.47,
+    "videos_at_85": 121
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 88.01,
+    "edit": 99.33,
+    "f1_10": 97.91,
+    "f1_25": 96.59,
+    "f1_50": 92.83,
+    "boundary_mae_s": 3.09,
+    "frame_accuracy_median": 93.41,
+    "videos_at_85": 122
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 87.43,
+    "edit": 99.33,
+    "f1_10": 97.78,
+    "f1_25": 96.46,
+    "f1_50": 92.7,
+    "boundary_mae_s": 3.22,
+    "frame_accuracy_median": 92.61,
+    "videos_at_85": 118
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 87.67,
+    "edit": 99.33,
+    "f1_10": 97.78,
+    "f1_25": 95.89,
+    "f1_50": 92.12,
+    "boundary_mae_s": 4.15,
+    "frame_accuracy_median": 92.72,
+    "videos_at_85": 361
+   }
+  },
+  {
+   "setting": "1,10,0.6",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 86.91,
+    "edit": 99.33,
+    "f1_10": 97.52,
+    "f1_25": 93.83,
+    "f1_50": 89.26,
+    "boundary_mae_s": 6.11,
+    "frame_accuracy_median": 91.27,
+    "videos_at_85": 116
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 87.95,
+    "edit": 99.33,
+    "f1_10": 97.91,
+    "f1_25": 96.59,
+    "f1_50": 92.7,
+    "boundary_mae_s": 3.07,
+    "frame_accuracy_median": 93.41,
+    "videos_at_85": 122
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 87.45,
+    "edit": 99.33,
+    "f1_10": 97.78,
+    "f1_25": 96.46,
+    "f1_50": 92.56,
+    "boundary_mae_s": 3.17,
+    "frame_accuracy_median": 92.72,
+    "videos_at_85": 120
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 87.44,
+    "edit": 99.33,
+    "f1_10": 97.73,
+    "f1_25": 95.63,
+    "f1_50": 91.51,
+    "boundary_mae_s": 4.12,
+    "frame_accuracy_median": 92.7,
+    "videos_at_85": 358
+   }
+  },
+  {
+   "setting": "1,10,0.8",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 82.45,
+    "edit": 99.33,
+    "f1_10": 94.88,
+    "f1_25": 88.7,
+    "f1_50": 82.96,
+    "boundary_mae_s": 6.19,
+    "frame_accuracy_median": 86.81,
+    "videos_at_85": 96
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 88.08,
+    "edit": 99.33,
+    "f1_10": 98.04,
+    "f1_25": 96.33,
+    "f1_50": 92.17,
+    "boundary_mae_s": 3.04,
+    "frame_accuracy_median": 93.34,
+    "videos_at_85": 122
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 87.05,
+    "edit": 99.33,
+    "f1_10": 97.65,
+    "f1_25": 95.8,
+    "f1_50": 91.51,
+    "boundary_mae_s": 3.11,
+    "frame_accuracy_median": 92.55,
+    "videos_at_85": 121
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 85.86,
+    "edit": 99.33,
+    "f1_10": 96.86,
+    "f1_25": 93.61,
+    "f1_50": 88.88,
+    "boundary_mae_s": 4.11,
+    "frame_accuracy_median": 91.56,
+    "videos_at_85": 339
+   }
+  },
+  {
+   "setting": "1,20,0.5",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 89.4,
+    "edit": 99.33,
+    "f1_10": 98.57,
+    "f1_25": 97.52,
+    "f1_50": 94.4,
+    "boundary_mae_s": 6.13,
+    "frame_accuracy_median": 92.97,
+    "videos_at_85": 131
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 88.01,
+    "edit": 99.33,
+    "f1_10": 97.91,
+    "f1_25": 96.99,
+    "f1_50": 93.22,
+    "boundary_mae_s": 3.11,
+    "frame_accuracy_median": 93.44,
+    "videos_at_85": 122
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 87.4,
+    "edit": 99.33,
+    "f1_10": 97.91,
+    "f1_25": 97.12,
+    "f1_50": 93.22,
+    "boundary_mae_s": 3.27,
+    "frame_accuracy_median": 92.39,
+    "videos_at_85": 119
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 88.27,
+    "edit": 99.33,
+    "f1_10": 98.13,
+    "f1_25": 97.21,
+    "f1_50": 93.61,
+    "boundary_mae_s": 4.17,
+    "frame_accuracy_median": 93.0,
+    "videos_at_85": 372
+   }
+  },
+  {
+   "setting": "1,20,0.6",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 88.4,
+    "edit": 99.33,
+    "f1_10": 97.91,
+    "f1_25": 96.46,
+    "f1_50": 93.08,
+    "boundary_mae_s": 6.09,
+    "frame_accuracy_median": 92.47,
+    "videos_at_85": 127
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 88.12,
+    "edit": 99.33,
+    "f1_10": 97.91,
+    "f1_25": 96.99,
+    "f1_50": 93.22,
+    "boundary_mae_s": 3.1,
+    "frame_accuracy_median": 93.44,
+    "videos_at_85": 123
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 87.73,
+    "edit": 99.33,
+    "f1_10": 97.78,
+    "f1_25": 96.99,
+    "f1_50": 93.35,
+    "boundary_mae_s": 3.22,
+    "frame_accuracy_median": 92.68,
+    "videos_at_85": 121
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 88.08,
+    "edit": 99.33,
+    "f1_10": 97.87,
+    "f1_25": 96.81,
+    "f1_50": 93.22,
+    "boundary_mae_s": 4.14,
+    "frame_accuracy_median": 92.9,
+    "videos_at_85": 371
+   }
+  },
+  {
+   "setting": "1,20,0.8",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 81.97,
+    "edit": 99.33,
+    "f1_10": 94.23,
+    "f1_25": 88.44,
+    "f1_50": 82.59,
+    "boundary_mae_s": 6.25,
+    "frame_accuracy_median": 87.01,
+    "videos_at_85": 95
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 87.95,
+    "edit": 99.33,
+    "f1_10": 97.52,
+    "f1_25": 96.2,
+    "f1_50": 92.04,
+    "boundary_mae_s": 3.12,
+    "frame_accuracy_median": 93.34,
+    "videos_at_85": 121
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 87.37,
+    "edit": 99.33,
+    "f1_10": 97.25,
+    "f1_25": 95.8,
+    "f1_50": 91.91,
+    "boundary_mae_s": 3.2,
+    "frame_accuracy_median": 92.5,
+    "videos_at_85": 120
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 85.76,
+    "edit": 99.33,
+    "f1_10": 96.33,
+    "f1_25": 93.48,
+    "f1_50": 88.85,
+    "boundary_mae_s": 4.19,
+    "frame_accuracy_median": 91.65,
+    "videos_at_85": 336
+   }
+  },
+  {
+   "setting": "1.5,5,0.5",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 89.35,
+    "edit": 99.33,
+    "f1_10": 98.44,
+    "f1_25": 97.65,
+    "f1_50": 94.53,
+    "boundary_mae_s": 6.12,
+    "frame_accuracy_median": 93.02,
+    "videos_at_85": 131
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 74.35,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.38,
+    "boundary_mae_s": 6.15,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 31
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 74.3,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.38,
+    "boundary_mae_s": 6.18,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 31
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 79.34,
+    "edit": 99.33,
+    "f1_10": 96.59,
+    "f1_25": 95.8,
+    "f1_50": 88.43,
+    "boundary_mae_s": 6.15,
+    "frame_accuracy_median": 82.25,
+    "videos_at_85": 193
+   }
+  },
+  {
+   "setting": "1.5,5,0.6",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 89.33,
+    "edit": 99.33,
+    "f1_10": 98.44,
+    "f1_25": 97.65,
+    "f1_50": 94.53,
+    "boundary_mae_s": 6.11,
+    "frame_accuracy_median": 93.02,
+    "videos_at_85": 131
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 74.36,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.38,
+    "boundary_mae_s": 6.15,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 31
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 74.3,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.38,
+    "boundary_mae_s": 6.18,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 31
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 79.33,
+    "edit": 99.33,
+    "f1_10": 96.59,
+    "f1_25": 95.8,
+    "f1_50": 88.43,
+    "boundary_mae_s": 6.15,
+    "frame_accuracy_median": 82.25,
+    "videos_at_85": 193
+   }
+  },
+  {
+   "setting": "1.5,5,0.8",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 89.33,
+    "edit": 99.33,
+    "f1_10": 98.44,
+    "f1_25": 97.65,
+    "f1_50": 94.53,
+    "boundary_mae_s": 6.11,
+    "frame_accuracy_median": 93.02,
+    "videos_at_85": 131
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 74.37,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.38,
+    "boundary_mae_s": 6.15,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 32
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 74.3,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.38,
+    "boundary_mae_s": 6.18,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 31
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 79.33,
+    "edit": 99.33,
+    "f1_10": 96.59,
+    "f1_25": 95.8,
+    "f1_50": 88.43,
+    "boundary_mae_s": 6.15,
+    "frame_accuracy_median": 82.25,
+    "videos_at_85": 194
+   }
+  },
+  {
+   "setting": "1.5,10,0.5",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 89.35,
+    "edit": 99.33,
+    "f1_10": 98.44,
+    "f1_25": 97.65,
+    "f1_50": 94.53,
+    "boundary_mae_s": 6.12,
+    "frame_accuracy_median": 93.02,
+    "videos_at_85": 131
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 74.35,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.38,
+    "boundary_mae_s": 6.15,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 31
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 74.3,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.38,
+    "boundary_mae_s": 6.18,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 31
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 79.34,
+    "edit": 99.33,
+    "f1_10": 96.59,
+    "f1_25": 95.8,
+    "f1_50": 88.43,
+    "boundary_mae_s": 6.15,
+    "frame_accuracy_median": 82.25,
+    "videos_at_85": 193
+   }
+  },
+  {
+   "setting": "1.5,10,0.6",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 89.35,
+    "edit": 99.33,
+    "f1_10": 98.44,
+    "f1_25": 97.65,
+    "f1_50": 94.53,
+    "boundary_mae_s": 6.12,
+    "frame_accuracy_median": 93.02,
+    "videos_at_85": 131
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 74.35,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.38,
+    "boundary_mae_s": 6.15,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 31
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 74.3,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.38,
+    "boundary_mae_s": 6.18,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 31
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 79.34,
+    "edit": 99.33,
+    "f1_10": 96.59,
+    "f1_25": 95.8,
+    "f1_50": 88.43,
+    "boundary_mae_s": 6.15,
+    "frame_accuracy_median": 82.25,
+    "videos_at_85": 193
+   }
+  },
+  {
+   "setting": "1.5,10,0.8",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 88.93,
+    "edit": 99.33,
+    "f1_10": 98.04,
+    "f1_25": 97.12,
+    "f1_50": 94.0,
+    "boundary_mae_s": 6.12,
+    "frame_accuracy_median": 93.02,
+    "videos_at_85": 130
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 74.36,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.38,
+    "boundary_mae_s": 6.15,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 31
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 74.3,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.38,
+    "boundary_mae_s": 6.18,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 31
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 79.2,
+    "edit": 99.33,
+    "f1_10": 96.46,
+    "f1_25": 95.63,
+    "f1_50": 88.25,
+    "boundary_mae_s": 6.15,
+    "frame_accuracy_median": 82.25,
+    "videos_at_85": 192
+   }
+  },
+  {
+   "setting": "1.5,20,0.5",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 89.35,
+    "edit": 99.33,
+    "f1_10": 98.44,
+    "f1_25": 97.65,
+    "f1_50": 94.53,
+    "boundary_mae_s": 6.12,
+    "frame_accuracy_median": 93.02,
+    "videos_at_85": 131
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 74.31,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.38,
+    "boundary_mae_s": 6.17,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 31
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 74.27,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.38,
+    "boundary_mae_s": 6.19,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 31
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 79.31,
+    "edit": 99.33,
+    "f1_10": 96.59,
+    "f1_25": 95.8,
+    "f1_50": 88.43,
+    "boundary_mae_s": 6.16,
+    "frame_accuracy_median": 82.25,
+    "videos_at_85": 193
+   }
+  },
+  {
+   "setting": "1.5,20,0.6",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 89.35,
+    "edit": 99.33,
+    "f1_10": 98.44,
+    "f1_25": 97.65,
+    "f1_50": 94.53,
+    "boundary_mae_s": 6.12,
+    "frame_accuracy_median": 93.02,
+    "videos_at_85": 131
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 74.31,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.38,
+    "boundary_mae_s": 6.17,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 31
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 74.27,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.38,
+    "boundary_mae_s": 6.19,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 31
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 79.31,
+    "edit": 99.33,
+    "f1_10": 96.59,
+    "f1_25": 95.8,
+    "f1_50": 88.43,
+    "boundary_mae_s": 6.16,
+    "frame_accuracy_median": 82.25,
+    "videos_at_85": 193
+   }
+  },
+  {
+   "setting": "1.5,20,0.8",
+   "plain": {
+    "videos": 152,
+    "frame_accuracy": 89.35,
+    "edit": 99.33,
+    "f1_10": 98.44,
+    "f1_25": 97.65,
+    "f1_50": 94.53,
+    "boundary_mae_s": 6.12,
+    "frame_accuracy_median": 93.02,
+    "videos_at_85": 131
+   },
+   "still": {
+    "videos": 152,
+    "frame_accuracy": 74.35,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.38,
+    "boundary_mae_s": 6.15,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 31
+   },
+   "sway": {
+    "videos": 152,
+    "frame_accuracy": 74.3,
+    "edit": 99.33,
+    "f1_10": 95.67,
+    "f1_25": 94.88,
+    "f1_50": 85.38,
+    "boundary_mae_s": 6.18,
+    "frame_accuracy_median": 78.25,
+    "videos_at_85": 31
+   },
+   "all": {
+    "videos": 456,
+    "frame_accuracy": 79.34,
+    "edit": 99.33,
+    "f1_10": 96.59,
+    "f1_25": 95.8,
+    "f1_50": 88.43,
+    "boundary_mae_s": 6.15,
+    "frame_accuracy_median": 82.25,
+    "videos_at_85": 193
+   }
+  }
+ ],
+ "chosen": "1,20,0.5",
+ "provenance": {
+  "git": {
+   "commit": "fbc30d7a0bda8c8940fbd708d6797bf3b0884d92",
+   "branch": "feat/w10-data",
+   "dirty": [
+    "code/assemblyvision/analysis/segmentation/rules.py",
+    "code/assemblyvision/config.py",
+    "code/assemblyvision/experiments/noop.py",
+    "code/assemblyvision/tools/phase_bench.py",
+    "code/configs/default.toml"
+   ],
+   "outputs_changed": []
+  },
+  "date_utc": "2026-11-12T07:58:46Z",
+  "command": "/home/qisens/AssemblyVision/code/assemblyvision/tools/intro_cv.py --id w11-intro-detector-cv --workers 4"
+ },
+ "finished_utc": "2026-11-12T07:58:46Z",
+ "index": {
+  "cells": [
+   "off: all 79.24 (plain 89.35, still 74.18, sway 74.18)",
+   "1,20,0.5: all 88.27 (plain 89.4, still 88.01, sway 87.4)"
+  ],
+  "verdict": "measurement"
+ }
+}

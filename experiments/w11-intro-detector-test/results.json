@@ -1,0 +1,158 @@
+{
+ "id": "w11-intro-detector-test",
+ "kind": "intro_cv",
+ "source": "public",
+ "reference": "",
+ "split": "test",
+ "title": "Intro detector on HA4M with still and sway intros (test split; rule w11-intro-detector)",
+ "rule": "experiments/w11-intro-detector/rule.md",
+ "decoder": {
+  "embed_weight": 1.0,
+  "engine_a_scale": 0.0,
+  "embed_window_s": 10.0,
+  "refine_window_s": 0.0,
+  "video_norm": false
+ },
+ "grid": {
+  "intro_k": [
+   0.5,
+   1.0,
+   1.5
+  ],
+  "intro_sustain_s": [
+   5.0,
+   10.0,
+   20.0
+  ],
+  "intro_active_share": [
+   0.5,
+   0.6,
+   0.8
+  ]
+ },
+ "rows": [
+  {
+   "setting": "off",
+   "plain": {
+    "videos": 65,
+    "frame_accuracy": 88.53,
+    "edit": 99.13,
+    "f1_10": 96.17,
+    "f1_25": 94.94,
+    "f1_50": 92.17,
+    "boundary_mae_s": 6.16,
+    "frame_accuracy_median": 93.0,
+    "videos_at_85": 54
+   },
+   "still": {
+    "videos": 65,
+    "frame_accuracy": 72.77,
+    "edit": 99.13,
+    "f1_10": 95.86,
+    "f1_25": 93.71,
+    "f1_50": 82.66,
+    "boundary_mae_s": 6.23,
+    "frame_accuracy_median": 76.38,
+    "videos_at_85": 11
+   },
+   "sway": {
+    "videos": 65,
+    "frame_accuracy": 72.77,
+    "edit": 99.13,
+    "f1_10": 95.86,
+    "f1_25": 93.71,
+    "f1_50": 82.66,
+    "boundary_mae_s": 6.23,
+    "frame_accuracy_median": 76.38,
+    "videos_at_85": 11
+   },
+   "all": {
+    "videos": 195,
+    "frame_accuracy": 78.02,
+    "edit": 99.13,
+    "f1_10": 95.96,
+    "f1_25": 94.12,
+    "f1_50": 85.83,
+    "boundary_mae_s": 6.2,
+    "frame_accuracy_median": 81.68,
+    "videos_at_85": 76
+   }
+  },
+  {
+   "setting": "1,20,0.5",
+   "plain": {
+    "videos": 65,
+    "frame_accuracy": 87.61,
+    "edit": 99.13,
+    "f1_10": 95.24,
+    "f1_25": 93.71,
+    "f1_50": 90.32,
+    "boundary_mae_s": 6.01,
+    "frame_accuracy_median": 92.28,
+    "videos_at_85": 51
+   },
+   "still": {
+    "videos": 65,
+    "frame_accuracy": 84.88,
+    "edit": 99.13,
+    "f1_10": 95.86,
+    "f1_25": 94.63,
+    "f1_50": 88.78,
+    "boundary_mae_s": 3.5,
+    "frame_accuracy_median": 92.51,
+    "videos_at_85": 48
+   },
+   "sway": {
+    "videos": 65,
+    "frame_accuracy": 83.97,
+    "edit": 99.13,
+    "f1_10": 95.24,
+    "f1_25": 93.71,
+    "f1_50": 88.78,
+    "boundary_mae_s": 3.57,
+    "frame_accuracy_median": 90.8,
+    "videos_at_85": 47
+   },
+   "all": {
+    "videos": 195,
+    "frame_accuracy": 85.49,
+    "edit": 99.13,
+    "f1_10": 95.45,
+    "f1_25": 94.01,
+    "f1_50": 89.3,
+    "boundary_mae_s": 4.36,
+    "frame_accuracy_median": 91.92,
+    "videos_at_85": 146
+   }
+  }
+ ],
+ "chosen": null,
+ "provenance": {
+  "git": {
+   "commit": "fbc30d7a0bda8c8940fbd708d6797bf3b0884d92",
+   "branch": "feat/w10-data",
+   "dirty": [
+    "code/assemblyvision/analysis/segmentation/boundary_tcn.py",
+    "code/assemblyvision/analysis/segmentation/rules.py",
+    "code/assemblyvision/config.py",
+    "code/assemblyvision/experiments/noop.py",
+    "code/assemblyvision/tools/phase_bench.py",
+    "code/assemblyvision/tools/train_engine_b.py",
+    "code/configs/default.toml"
+   ],
+   "outputs_changed": [
+    "experiments/INDEX.md"
+   ]
+  },
+  "date_utc": "2026-11-12T07:59:58Z",
+  "command": "/home/qisens/AssemblyVision/code/assemblyvision/tools/intro_cv.py --id w11-intro-detector-test --split test --setting 1,20,0.5 --workers 4"
+ },
+ "finished_utc": "2026-11-12T07:59:58Z",
+ "index": {
+  "cells": [
+   "off: all 78.02 (plain 88.53, still 72.77, sway 72.77)",
+   "no setting passes the plain gate"
+  ],
+  "verdict": "measurement"
+ }
+}

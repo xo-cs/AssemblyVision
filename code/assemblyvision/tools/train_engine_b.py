@@ -93,7 +93,7 @@ def batches(items: list[dict], size: int, crop: int, rng: np.random.Generator):
             s = int(rng.integers(0, T - crop + 1)) if T > crop else 0
             part.append({n: it[n][s:s + crop] for n in ("x", "y", "m", "c", "p") if n in it})
         L = max(len(p["x"]) for p in part)
-        X = np.zeros((len(part), eb.N_FEATURES, L), np.float32)
+        X = np.zeros((len(part), part[0]["x"].shape[1], L), np.float32)
         Y = np.zeros((len(part), L), np.float32)
         M = np.zeros((len(part), L), np.float32)
         C = np.full((len(part), L), -1, np.int64)
@@ -171,13 +171,16 @@ def evaluate(model, items: list[dict], cfg: Config, device: str) -> dict:
 
 
 def train(cfg: Config, train_items: list[dict], train_raw: list[dict], device: str, image_h: float,
-          progress=log.info, offsets: np.ndarray | None = None) -> tuple:
+          progress=log.info, offsets: np.ndarray | None = None, items_fn=None, n_actions: int | None = None) -> tuple:
+    """items_fn(rng) -> the training items of one epoch (v3: several datasets), instead of
+    prepare() on train_raw; n_actions overrides engine_b.n_actions (v3: every dataset's actions)."""
     import torch
     e = cfg["engine_b"]
     torch.manual_seed(e["train_seed"])
     rng = np.random.default_rng(e["train_seed"])
-    n_act = e["n_actions"] if e["action_weight"] > 0 else 0
-    model = bt.build_model(eb.N_FEATURES, e["stages"], e["layers"], e["channels"], e["dropout"], n_act).to(device)
+    n_act = (n_actions or e["n_actions"]) if e["action_weight"] > 0 else 0
+    n_in = train_items[0]["x"].shape[1] if train_items else eb.N_FEATURES
+    model = bt.build_model(n_in, e["stages"], e["layers"], e["channels"], e["dropout"], n_act).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=e["lr"], weight_decay=e["weight_decay"])
     pw = e["pos_weight"] or auto_pos_weight(train_items)
     pos_weight = torch.tensor(pw, device=device)
@@ -185,7 +188,10 @@ def train(cfg: Config, train_items: list[dict], train_raw: list[dict], device: s
     history = []
     for ep in range(e["epochs"]):
         t0 = time.monotonic()
-        items = [prepare(d, cfg, True, rng, image_h, offsets) for d in train_raw] if e["augment"] else train_items
+        if items_fn is not None:
+            items = items_fn(rng)
+        else:
+            items = [prepare(d, cfg, True, rng, image_h, offsets) for d in train_raw] if e["augment"] else train_items
         model.train()
         tot, n = 0.0, 0.0
         for X, Y, M, C, P in batches(items, e["batch_videos"], crop, rng):

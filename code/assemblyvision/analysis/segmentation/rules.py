@@ -56,6 +56,11 @@ every other candidate (no_person stretches too) its highest value within
 seg_a.engine_b_window_s. With dense candidates and no pose term, the grid is made for
 the visual term alone.
 
+With seg_a.intro_detect (default off) an intro and an outro (the worker is present but
+not working) are found before the DP from the motion energy, relative to the video's
+own working level (detect_intro, docs_team/intro_detector.md); the DP runs on the span
+between them and the intro and outro are other.
+
 With seg_a.start_detect (default off) phase 1 starts at the start of work, not at
 the first person frame: the first frame t from which at least
 seg_a.start_active_share of the frames in the next seg_a.start_sustain_s move
@@ -273,6 +278,57 @@ class RuleBasedEngine(SegmentationEngine):
         return a, {"on": True, "found": False, "start_s": tl.t(a), "intro_s": 0.0,
                    "note": f"no sustained activity within the first {s['start_max_share']:g} of the active span"}
 
+    def detect_intro(self, tl: RunTimeline, a: int, b: int) -> tuple[int, int, dict]:
+        """seg_a.intro_detect (docs_team/intro_detector.md): (start of work, end of work, report).
+        Active frame: the energy, smoothed by a moving mean of intro_smooth_s, at least the
+        video's working level minus intro_k spreads (median and MAD over the frames with a
+        subject in [a, b)). Start of work: the first frame from which intro_active_share of
+        the next intro_sustain_s are active, moved to the first active frame; the end the same
+        backwards. An intro or outro shorter than intro_min_s or longer than intro_max_share of
+        the span is not one."""
+        s = self.s
+        e = tl.energy[:tl.n_frames].astype(np.float64)
+        has = np.isfinite(e) & tl.person[:tl.n_frames]
+        span = np.zeros(tl.n_frames, bool)
+        span[a:b] = True
+        vals = e[has & span]
+        rep: dict = {"on": True, "start_s": tl.t(a), "end_s": tl.t(b), "intro_s": 0.0, "outro_s": 0.0}
+        if len(vals) < 2:
+            return a, b, {**rep, "note": "no energy measured"}
+        level = float(np.median(vals))
+        spread = float(np.median(np.abs(vals - level)))
+        x = np.where(has, e, 0.0)
+        m = max(1, int(round(s["intro_smooth_s"] * tl.fps)))
+        if m > 1:
+            cs = np.r_[0.0, np.cumsum(x)]
+            cn = np.r_[0.0, np.cumsum(has)]
+            lo, hi = np.maximum(np.arange(tl.n_frames) - m // 2, 0), np.minimum(np.arange(tl.n_frames) + m - m // 2, tl.n_frames)
+            n = cn[hi] - cn[lo]
+            x = np.where(n > 0, (cs[hi] - cs[lo]) / np.maximum(n, 1), 0.0)
+        active = (x >= level - s["intro_k"] * spread) & has
+        rep.update(working_level=round(level, 5), spread=round(spread, 5),
+                   active_share=round(float(active[a:b].mean()), 3) if b > a else 0.0)
+        n = max(1, int(round(s["intro_sustain_s"] * tl.fps)))
+        limit = int(s["intro_max_share"] * (b - a))
+        mn = int(round(s["intro_min_s"] * tl.fps))
+
+        def first_work(act: np.ndarray) -> int | None:
+            cs = np.r_[0, np.cumsum(act)]
+            for t in range(0, min(limit, len(act) - n) + 1):
+                if cs[t + n] - cs[t] >= s["intro_active_share"] * n:
+                    return t + int(np.argmax(act[t:t + n]))
+            return None
+        seg = active[a:b]
+        t0 = first_work(seg)
+        t1 = first_work(seg[::-1])
+        start = a + t0 if t0 is not None and mn <= t0 <= limit else a
+        end = b - t1 if t1 is not None and mn <= t1 <= limit else b
+        if end - start < n:                                  # never leave less than one sustain window
+            start, end = a, b
+        rep.update(start_s=tl.t(start), end_s=tl.t(end), intro_s=round((start - a) / tl.fps, 3),
+                   outro_s=round((b - end) / tl.fps, 3), found=start > a or end < b)
+        return start, end, rep
+
     def engine_b_evidence(self, tl: RunTimeline, a: int, b: int) -> np.ndarray:
         """Pooled (engine_b.pool_s) and normalized (seg_a.engine_b_norm) Engine B probability [N]."""
         from .boundary_tcn import pool
@@ -462,6 +518,8 @@ class RuleBasedEngine(SegmentationEngine):
         a, b = int(idx[0]), int(idx[-1]) + 1
         if self.s["start_detect"]:
             a, rep["start_of_work"] = self.start_of_work(tl, a, b)
+        if self.s["intro_detect"]:
+            a, b, rep["intro"] = self.detect_intro(tl, a, b)
         T_s = (b - a) / tl.fps
         rep["active"] = {"start_s": tl.t(a), "end_s": tl.t(b), "T_s": round(T_s, 3)}
         ev = self.evidence(tl, a, b)

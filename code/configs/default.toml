@@ -116,6 +116,14 @@ start_sustain_s = 10.0       # sustained = in a window this long from t, ...
 start_active_share = 0.6     # ... at least this share of frames moves (motion energy >= pause_energy)
 start_max_share = 0.25       # the intro found may be at most this share of the active span (else no intro)
 start_min_intro_s = 10.0     # a still start shorter than this is not an intro (both public clips, which have none, stay unchanged)
+# Intro and outro detector (Week 11, docs_team/intro_detector.md): before the DP, off by default
+intro_detect = false         # true: work starts and ends where the motion energy reaches the video's own working level
+intro_k = 1.0                # active frame: smoothed energy >= median - intro_k * MAD (over the frames with a subject)
+intro_smooth_s = 2.0         # moving mean of the energy before the threshold (s)
+intro_sustain_s = 10.0       # start of work: the first frame from which ...
+intro_active_share = 0.6     # ... at least this share of the next intro_sustain_s is active (the same backwards for the end)
+intro_min_s = 3.0            # a shorter intro or outro is not one
+intro_max_share = 0.25       # an intro or outro is at most this share of the active span
 # Engine B decoder (Week 10, experiments/w10-engine-b-v2/rule.md); all off by default
 visual_weight = 0.0          # strength += visual_weight * the visual change score (needs visual.npz in the run; 0 = off)
 visual_window_s = 20.0       # visual change score at t: distance of the mean embedding over this window before t and after t (s)

@@ -113,7 +113,7 @@ def model_outputs(d: dict, model, settings: dict, present: np.ndarray) -> dict:
     return {"prob": prob, "embedding": emb, "embedding_valid": present.copy()}
 
 
-def with_intro(d: dict, seconds: float, rng, cfg: Config) -> dict:
+def with_intro(d: dict, seconds: float, rng, cfg: Config, mode: str = "still") -> dict:
     """A synthetic intro (item 8): the first measured pose of the video held still for
     seconds (Gaussian jitter of 1 px), prepended to the skeleton; its frames are labelled
     don't care, so the GT macro phases make them other. Engine B features are computed
@@ -123,12 +123,17 @@ def with_intro(d: dict, seconds: float, rng, cfg: Config) -> dict:
     xy, kc = np.asarray(d["xy"], np.float64), np.asarray(d["kinect_conf"], np.float64)
     first = int(np.argmax((np.isfinite(xy).all(axis=2) & (kc > 0)).sum(axis=1) >= 12))
     still = xy[first][None].repeat(n, axis=0) + rng.normal(0, 1.0, (n, 17, 2))
+    if mode == "sway":                       # standing, a slow random drift of the whole body (no work)
+        k = max(1, int(round(fps)))
+        walk = np.cumsum(rng.normal(0, 0.5, (n + k, 2)), axis=0)
+        walk = np.stack([np.convolve(walk[:, j], np.ones(k) / k, "valid")[:n] for j in range(2)], axis=1)
+        still = still + walk[:, None, :]
     xy2 = np.concatenate([still, xy]).astype(np.float32)
     kc2 = np.concatenate([kc[first][None].repeat(n, axis=0), kc]).astype(np.float32)
     labels = np.concatenate([np.zeros((n, 2), np.int64), np.asarray(d["labels"], np.int64)])
     a = eb.AugmentConfig.from_cfg(cfg)
     feats = eb.features(xy2, eb.yolo_like_conf(kc2, a), float(RGB_SIZE[1]), float(d["median_torso_px"]))
-    meta = {**d["meta"], "frames": len(xy2), "intro_s": round(n / fps, 3)}
+    meta = {**d["meta"], "frames": len(xy2), "intro_s": round(n / fps, 3), "intro_mode": mode}
     return {**d, "xy": xy2, "kinect_conf": kc2, "labels": labels, "features": feats.astype(np.float32),
             "labelled": np.concatenate([np.ones(n, bool), np.asarray(d["labelled"], bool)]), "meta": meta}
 
@@ -190,26 +195,27 @@ class Bench:
             self._models[name] = bt.load_model(self.root / "models" / name)
         return self._models[name]
 
-    def video(self, vid: str, cfg: Config, intro_s: float = 0.0, seed: int = 0, cuts_p: float | None = None) -> dict:
+    def video(self, vid: str, cfg: Config, intro_s: float = 0.0, seed: int = 0, cuts_p: float | None = None,
+              intro_mode: str = "still") -> dict:
         """cuts_p: with the synthetic cuts of share p (CUTS); None = no cuts."""
         cuts = self.cuts(vid, cuts_p) if cuts_p is not None else []
         name = vid if cuts_p is None else f"{vid}+cuts{cuts_p:g}"
         if intro_s > 0:
-            name = f"{name}+intro{intro_s:g}"
+            name = f"{name}+intro{intro_s:g}" + ("" if intro_mode == "still" else intro_mode)
         engine = RuleBasedEngine(cfg)
         # the skeleton and Engine A's base timeline do not depend on the decoder settings
-        bkey = (vid, intro_s, seed, json.dumps([cfg["clean"], {k: cfg["engine_b"][k] for k in
+        bkey = (vid, intro_s, seed, intro_mode, json.dumps([cfg["clean"], {k: cfg["engine_b"][k] for k in
                                                                ("conf_visible", "conf_predicted", "conf_noise")}]))
         if bkey not in self._base:
             d = video_arrays(self.cache, vid)
             if intro_s > 0:
-                d = with_intro(d, intro_s, np.random.default_rng(seed), cfg)
+                d = with_intro(d, intro_s, np.random.default_rng(seed), cfg, intro_mode)
             base = video_timeline(d, cfg, engine)
             self._base = {k: v for k, v in self._base.items() if k[0] == vid}    # one video at a time
             self._base[bkey] = (d, base.person, base.energy)
         d, person, energy = self._base[bkey]
         if intro_s > 0:
-            vid = f"{vid}+intro{intro_s:g}"
+            vid = f"{vid}+intro{intro_s:g}" + ("" if intro_mode == "still" else intro_mode)
             cuts = [c + int(round(d["meta"]["intro_s"] * float(d["meta"]["fps"]))) for c in cuts]
         tl = RunTimeline(float(d["meta"]["fps"]), len(person), person.copy(), energy, [])
         tl.cuts = cuts

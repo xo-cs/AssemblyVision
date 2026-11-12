@@ -179,11 +179,15 @@ def build_model(n_in: int, stages: int, layers: int, channels: int, dropout: flo
     return BoundaryTCN()
 
 
-def model_settings(cfg) -> dict:
+def model_settings(cfg, n_actions: int | None = None, visual: bool = False) -> dict:
+    """visual (v3): the input is the pose features, the DINOv2 embedding (VISUAL_DIM) and
+    a visual mask channel (1 = the frame has a visual embedding)."""
     e = cfg["engine_b"]
     out = {k: e[k] for k in ("model_fps", "stages", "layers", "channels", "dropout")}
     if e["action_weight"] > 0:
-        out["n_actions"] = e["n_actions"]
+        out["n_actions"] = n_actions or e["n_actions"]
+    if visual:
+        out["visual"] = True
     return out
 
 
@@ -193,7 +197,8 @@ def save_model(path: Path, model, settings: dict, extra: dict) -> str:
     from ...datasets.engine_b import FEATURE_VERSION, N_FEATURES
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
-    torch.save({"format": FORMAT, "settings": settings, "n_features": N_FEATURES,
+    n_in = N_FEATURES + (VISUAL_DIM + 1 if settings.get("visual") else 0)
+    torch.save({"format": FORMAT, "settings": settings, "n_features": n_in,
                 "feature_version": FEATURE_VERSION, "extra": extra,
                 "state_dict": {k: v.detach().cpu() for k, v in model.state_dict().items()}}, tmp)
     tmp.replace(path)
@@ -211,6 +216,19 @@ def load_model(path: Path, device: str = "cpu"):
     m = build_model(ck["n_features"], s["stages"], s["layers"], s["channels"], s["dropout"], s.get("n_actions", 0))
     m.load_state_dict(ck["state_dict"])
     return m.to(device).eval(), s
+
+
+VISUAL_DIM = 384
+
+
+def with_visual(feats: np.ndarray, vis: np.ndarray | None, ok: np.ndarray | None) -> np.ndarray:
+    """v3 input [T, F + VISUAL_DIM + 1]: pose features, the visual embedding (0 where there
+    is none) and the visual mask channel."""
+    T = len(feats)
+    if vis is None:
+        vis, ok = np.zeros((T, VISUAL_DIM), np.float32), np.zeros(T, bool)
+    v = np.where(ok[:, None], vis, 0.0).astype(np.float32)
+    return np.concatenate([feats.astype(np.float32), v, ok[:, None].astype(np.float32)], axis=1)
 
 
 def predict(model, feats: np.ndarray, device: str = "cpu") -> np.ndarray:
@@ -304,6 +322,7 @@ def run_probability(manifest: dict, run_root: Path, cfg, model_path: Path) -> di
     prob = np.zeros(n, np.float32)
     emb, emb_ok = None, np.zeros(n, bool)
     scored = 0
+    vis_frames = None
     for tr in manifest.get("tracking", {}).get("tracks", []):
         if not tr.get("is_subject"):
             continue
@@ -316,7 +335,13 @@ def run_probability(manifest: dict, run_root: Path, cfg, model_path: Path) -> di
         conf = np.where(series.present[:T, None], np.nan_to_num(series.body_conf[:T]), 0.0)
         idx = sample_index(T, fps, s["model_fps"])
         pres = np.asarray(series.present[:T], bool)
-        fp, fe = to_frames(predict_all(model, features(xy[idx], conf[idx], image_h)), idx, T, fps, s["model_fps"], pres)
+        x = features(xy[idx], conf[idx], image_h)
+        if s.get("visual"):                         # v3: the run's visual.npz (none: masked, as HA4M in training)
+            if vis_frames is None:
+                vis_frames = _run_visual(run_root, n, fps)
+            vx, vok = vis_frames
+            x = with_visual(x, vx[f0 + idx], vok[f0 + idx]) if vx is not None else with_visual(x, None, None)
+        fp, fe = to_frames(predict_all(model, x), idx, T, fps, s["model_fps"], pres)
         prob[f0:f0 + T] = fp
         if emb is None:
             emb = np.zeros((n, fe.shape[1]), np.float32)
@@ -326,6 +351,14 @@ def run_probability(manifest: dict, run_root: Path, cfg, model_path: Path) -> di
     return {"prob": prob, "embedding": emb, "embedding_valid": emb_ok, "n_actions": s.get("n_actions", 0),
             "model": model_path.name, "model_sha256": hashlib.sha256(model_path.read_bytes()).hexdigest(),
             "frames_scored": scored}
+
+
+def _run_visual(run_root: Path, n: int, fps: float) -> tuple:
+    from .. import visual
+    path = run_root / "visual.npz"
+    if not path.is_file():
+        return None, None
+    return visual.to_frames(visual.load(path), n, fps)
 
 
 def describe(path: Path) -> dict:
