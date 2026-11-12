@@ -24,6 +24,10 @@ ENGINE_PRESETS: dict[str, dict[str, Any]] = {
     "A": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 0.0},
     "B v1": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 0.2, "seg_a.embed_window_s": 30.0,
                "engine_b.model": "engine_b/w10-engine-b-v1.pt", "engine_b.candidates": "dense"},
+    # v2 selected by the rule experiments/w10-engine-b-v2/rule.md (CV grid w10-engine-b-v2-cv, test w10-phase-bench-v2-test)
+    "B v2": {"seg_a.engine_b_weight": 0.0, "seg_a.embed_weight": 1.0, "seg_a.embed_window_s": 10.0,
+             "seg_a.engine_a_scale": 0.0, "seg_a.refine_window_s": 0.0, "engine_b.video_norm": False,
+             "engine_b.model": "engine_b/w10-engine-b-v2.pt", "engine_b.candidates": "dense"},
 }
 ENGINES = (*ENGINE_PRESETS, "custom")
 # Engine B = the learned model with the DP decoder; "A+B v1" was the name of "B v1" from 2026-11-11 to 11-12
@@ -298,7 +302,7 @@ class Config:
 
     @staticmethod
     def _apply_engine(d: dict, shipped: dict) -> None:
-        """seg_a.engine "A" or "B v1" sets its preset keys (ENGINE_PRESETS). A preset key
+        """seg_a.engine "A", "B v1" or "B v2" sets its preset keys (ENGINE_PRESETS). A preset key
         given with another value than the preset's and the shipped default's is a conflict
         (AV-CFG-002): change it with seg_a.engine = "custom"."""
         d["seg_a"]["engine"] = ENGINE_ALIASES.get(d["seg_a"]["engine"], d["seg_a"]["engine"])

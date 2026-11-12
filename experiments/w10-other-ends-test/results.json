@@ -1,0 +1,117 @@
+{
+ "id": "w10-other-ends-test",
+ "kind": "other_ends_cv",
+ "source": "public",
+ "reference": "",
+ "split": "test",
+ "title": "Item 8: optional intro and outro on synthetic intros (test split; rule w10-engine-b-v2, amendment 3)",
+ "rule": "experiments/w10-engine-b-v2/rule.md",
+ "decoder": {
+  "embed_weight": 1.0,
+  "engine_a_scale": 0.0,
+  "embed_window_s": 10.0,
+  "refine_window_s": 0.0,
+  "video_norm": false
+ },
+ "model": "w10-engine-b-v2",
+ "intro_s": [
+  5.0,
+  30.0
+ ],
+ "seed": 42,
+ "rows": [
+  {
+   "other_min_strength": "off",
+   "plain": {
+    "videos": 65,
+    "frame_accuracy": 88.53,
+    "edit": 99.13,
+    "f1_10": 96.17,
+    "f1_25": 94.94,
+    "f1_50": 92.17,
+    "boundary_mae_s": 6.16,
+    "frame_accuracy_median": 93.0,
+    "videos_at_85": 54
+   },
+   "intro": {
+    "videos": 65,
+    "frame_accuracy": 72.77,
+    "edit": 99.13,
+    "f1_10": 95.86,
+    "f1_25": 93.71,
+    "f1_50": 82.66,
+    "boundary_mae_s": 6.23,
+    "frame_accuracy_median": 76.38,
+    "videos_at_85": 11
+   },
+   "all": {
+    "videos": 130,
+    "frame_accuracy": 80.65,
+    "edit": 99.13,
+    "f1_10": 96.01,
+    "f1_25": 94.32,
+    "f1_50": 87.41,
+    "boundary_mae_s": 6.19,
+    "frame_accuracy_median": 85.06,
+    "videos_at_85": 65
+   }
+  },
+  {
+   "other_min_strength": "1",
+   "plain": {
+    "videos": 65,
+    "frame_accuracy": 88.53,
+    "edit": 99.13,
+    "f1_10": 96.17,
+    "f1_25": 94.94,
+    "f1_50": 92.17,
+    "boundary_mae_s": 6.16,
+    "frame_accuracy_median": 93.0,
+    "videos_at_85": 54
+   },
+   "intro": {
+    "videos": 65,
+    "frame_accuracy": 72.76,
+    "edit": 99.13,
+    "f1_10": 95.86,
+    "f1_25": 93.71,
+    "f1_50": 82.66,
+    "boundary_mae_s": 6.23,
+    "frame_accuracy_median": 76.38,
+    "videos_at_85": 11
+   },
+   "all": {
+    "videos": 130,
+    "frame_accuracy": 80.65,
+    "edit": 99.13,
+    "f1_10": 96.01,
+    "f1_25": 94.32,
+    "f1_50": 87.41,
+    "boundary_mae_s": 6.19,
+    "frame_accuracy_median": 85.06,
+    "videos_at_85": 65
+   }
+  }
+ ],
+ "chosen": "1",
+ "provenance": {
+  "git": {
+   "commit": "87c41913fabe7fff920024a80ebe0efa9edb871d",
+   "branch": "feat/w10-data",
+   "dirty": [],
+   "outputs_changed": [
+    "experiments/INDEX.md"
+   ]
+  },
+  "date_utc": "2026-11-12T01:55:11Z",
+  "command": "/home/qisens/AssemblyVision/code/assemblyvision/tools/other_ends_cv.py --id w10-other-ends-test --split test --strength 1.0"
+ },
+ "finished_utc": "2026-11-12T01:55:11Z",
+ "index": {
+  "cells": [
+   "off: all 80.65, plain 88.53, intro 72.77",
+   "1: all 80.65, plain 88.53, intro 72.76"
+  ],
+  "verdict": "measurement"
+ }
+}

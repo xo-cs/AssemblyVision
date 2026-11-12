@@ -103,6 +103,12 @@ class DecoderTest(unittest.TestCase):
         cut = [x for x in e.report["evidence"] if x["kind"] == "cut"][0]
         self.assertAlmostEqual(cut["strength"], 0.4 * cut["embed_change"], places=3)
 
+    def test_b_v2_preset(self):
+        c = Config.load(overrides={"seg_a": {"engine": "B v2"}})
+        self.assertEqual((c["engine_b"]["model"], c["seg_a"]["engine_a_scale"], c["seg_a"]["embed_weight"]),
+                         ("engine_b/w10-engine-b-v2.pt", 0.0, 1.0))
+        self.assertEqual(Config.load()["seg_a"]["engine"], "B v1")            # the default stays B v1
+
     def test_video_norm(self):
         rng = np.random.default_rng(1)
         e = rng.normal(size=(50, 4)) + np.array([5.0, 0, 0, 0])
