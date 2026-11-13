@@ -87,7 +87,7 @@ sg_window_s = 0.33           # Savitzky Golay window, made odd in frames (s)
 sg_order = 2                 # Savitzky Golay polynomial order
 
 [seg_a]
-engine = "B v1"              # step engine: "A" (the frozen Engine A rules, baseline), "B v1" (Engine B v1 with the DP decoder: embed_weight 0.2, embed_window_s 30, engine_b.model v1; w10-engine-b-embed), "custom" (the keys below as set)
+engine = "B zero shot"       # step engine: "B zero shot" (B v1 plus the zero shot phase likelihood of SigLIP 2 and Qwen3 VL, equal weights 1; w11-qisens-zero-shot), "B v1" (Engine B v1 with the DP decoder: embed_weight 0.2, embed_window_s 30, engine_b.model v1; w10-engine-b-embed), "A" (the frozen Engine A rules, baseline), "custom" (the keys below as set)
 phase_solver = "dp"          # "dp" = best global boundary choice, "forward" = LLD forward walk
 min_factor = 0.25            # phase min_s = min_factor * T / K (T = first to last frame with a person)
 max_factor = 2.5             # phase max_s = max_factor * T / K
@@ -221,6 +221,23 @@ fps = 2.0                    # sampled frames per second
 input_px = 224               # short side scaled to this, centre crop to a square
 batch = 64
 half = false                 # true: FP16 on the GPU
+
+[zero_shot]
+# Zero shot phase scores (Week 11, analysis/zero_shot.py): a full run makes siglip.npz and vlm.npz when the
+# step engine uses them (seg_a.siglip_weight, siglip_crop_weight or vlm_weight > 0, e.g. "B zero shot")
+phases = "qisens"            # phase descriptions: "qisens" (docs_team/phase_descriptions.md) or "ikea_asm:<furniture>"
+in_pipeline = true           # false: the run reads the files made by tools/siglip_scores.py and vlm_scores.py
+siglip_fps = 2.0             # SigLIP 2 samples per second (full frame and subject crop)
+siglip_max_px = 1280         # long side of the sampled frames (px)
+siglip_pad = 0.2             # padding of the subject crop on every side (share of the box)
+vlm_gpu = 1                  # GPU of llama-server (RTX A4000, bus 03:00), under .locks/gpu<N>.lock
+vlm_port = 8090              # llama-server port on 127.0.0.1
+vlm_slots = 2                # parallel llama-server slots and requests
+vlm_window_s = 2.0           # one VLM request every window_s seconds
+vlm_frames = 4               # frames per request, evenly over the window
+vlm_px = 448                 # long side of the frames sent to the VLM (px)
+vlm_parallel = true          # true: the VLM runs during the pose pass, false: after tracking
+vlm_file = "vlm.npz"         # the VLM scores file the decoder reads (benchmarks of other settings use other names)
 
 [motion]
 # MotionAnalyzer (LLD 3.7). Add "gaze" to enabled for the rough gaze direction (FR-MOTION-08, Want).

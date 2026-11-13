@@ -166,9 +166,10 @@ class IkeaBench:
         if any(cfg["seg_a"][k] > 0 for k in ("siglip_weight", "siglip_crop_weight", "vlm_weight")):
             from ..analysis.siglip import run_phase_scores
             key = (rid, cfg["seg_a"]["siglip_weight"] > 0, cfg["seg_a"]["siglip_crop_weight"] > 0,
-                   cfg["seg_a"]["vlm_weight"] > 0)
+                   cfg["seg_a"]["vlm_weight"] > 0, cfg["zero_shot"]["vlm_file"])
             if getattr(self, "_ps_key", None) != key:
-                self._ps_key, self._ps = key, run_phase_scores(root, tl.n_frames, tl.fps, cfg["seg_a"])[0]
+                self._ps_key, self._ps = key, run_phase_scores(root, tl.n_frames, tl.fps, cfg["seg_a"],
+                                                               cfg["zero_shot"]["vlm_file"])[0]
             tl.phase_scores = self._ps
         pred = engine.segment_run(tl)
         dur = float(manifest["ingest"]["cfr"]["duration_s"])

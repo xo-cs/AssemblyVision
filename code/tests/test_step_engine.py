@@ -1,4 +1,5 @@
-"""TC-ENG: the step engine choice seg_a.engine ("B v1" default, "A", "custom"; "A+B v1" is an alias) (Week 10)."""
+"""TC-ENG: the step engine choice seg_a.engine ("B zero shot" default from 2026-11-13, "B v1", "A", "custom";
+"A+B v1" is an alias) (Week 10, 11)."""
 import unittest
 
 from assemblyvision.config import ENGINE_PRESETS, Config, engine_label
@@ -7,8 +8,20 @@ from assemblyvision.tools.run_pose import stored_config
 
 
 class StepEngineTest(unittest.TestCase):
-    def test_default_is_b_v1(self):
+    def test_default_is_b_zero_shot(self):
         c = Config.load()
+        self.assertEqual(c["seg_a"]["engine"], "B zero shot")
+        self.assertEqual(engine_label(c), "B zero shot")
+        # the Z2 row of w11-qisens-zero-shot (93.20): equal weights, B v1 boundary evidence, dense candidates
+        self.assertEqual([c["seg_a"][k] for k in ("siglip_weight", "siglip_crop_weight", "vlm_weight", "siglip_temp",
+                                                  "shot_smooth", "engine_a_scale", "visual_weight", "intro_detect")],
+                         [1.0, 1.0, 1.0, 0.01, False, 1.0, 0.0, False])
+        self.assertEqual(c["engine_b"]["candidates"], "dense")
+        self.assertTrue(c["zero_shot"]["in_pipeline"])
+        self.assertEqual((c["zero_shot"]["vlm_window_s"], c["zero_shot"]["vlm_frames"]), (2.0, 4))
+
+    def test_b_v1_preset(self):
+        c = Config.load(overrides={"seg_a": {"engine": "B v1"}})
         self.assertEqual(c["seg_a"]["engine"], "B v1")
         self.assertEqual((c["seg_a"]["embed_weight"], c["seg_a"]["embed_window_s"], c["engine_b"]["model"]),
                          (0.2, 30.0, "engine_b/w10-engine-b-v1.pt"))

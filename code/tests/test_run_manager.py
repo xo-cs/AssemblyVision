@@ -47,7 +47,7 @@ class RunManagerTest(unittest.TestCase):
         run_id, notices = self.rm.create_run(self.video, "public", "s")
         self.assertEqual(notices, [])
         m = self.store.get_run(run_id)
-        self.assertEqual((m["status"], m["variant"], m["engine"], m["source"]), ("queued", "s", "B v1", "public"))
+        self.assertEqual((m["status"], m["variant"], m["engine"], m["source"]), ("queued", "s", "B zero shot", "public"))
         t0 = time.monotonic()
         pid = self.rm.start(run_id)
         self.assertLess(time.monotonic() - t0, 1.0)              # returns at once (NFR-PERF-04)
@@ -59,7 +59,7 @@ class RunManagerTest(unittest.TestCase):
         self.assertEqual(seen[-1], 1.0)
         argv = self.store.get_run(run_id)["argv"]
         self.assertEqual(argv[argv.index("--run-id") + 1], run_id)
-        self.assertIn('seg_a.engine="B v1"', argv)                    # the step engine reaches the worker
+        self.assertIn('seg_a.engine="B zero shot"', argv)                    # the step engine reaches the worker
         self.assertEqual(argv[argv.index("--gpu") + 1], str(self.cfg["gpu"]["pose"]))
         self.assertTrue(self.store.paths(run_id).worker_out.is_file())
 
@@ -69,7 +69,7 @@ class RunManagerTest(unittest.TestCase):
         self.assertEqual(self.store.get_run(run_id)["overrides"]["seg_a"]["engine"], "A")
         run_id, notices = self.rm.create_run(self.video, "public", "s", "B only")
         self.assertEqual([n.code for n in notices], ["AV-APP-006"])
-        self.assertEqual(self.store.get_run(run_id)["engine"], "B v1")
+        self.assertEqual(self.store.get_run(run_id)["engine"], "B zero shot")
 
     def test_second_start_refused(self):   # AV-RUN-007
         os.environ["AV_TEST_STEP_S"] = "0.3"

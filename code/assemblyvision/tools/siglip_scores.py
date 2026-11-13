@@ -6,7 +6,7 @@
 
 A QiSens run is scored with docs_team/phase_descriptions.md, an IKEA ASM run (from
 data/public/datasets/ikea_asm/derived/runs.json) with the descriptions of its furniture
-type. Full frame and subject crop views at 2 fps (analysis/siglip.py). Output: siglip.npz
+type. Full frame and subject crop views at zero_shot.siglip_fps (analysis/siglip.py, zero_shot.py). Output: siglip.npz
 in the run folder (a QiSens run's stays under data/qisens); only counts and timings are
 printed. On a GPU the job takes .locks/gpu<N>.lock first.
 """
@@ -19,9 +19,7 @@ import sys
 import time
 from pathlib import Path
 
-from ..storage.files import REPO_ROOT, run_source, utc_now
-
-FPS, MAX_PX, PAD = 2.0, 1280, 0.2
+from ..storage.files import REPO_ROOT, run_source
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -36,32 +34,30 @@ def main(argv: list[str] | None = None) -> int:
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu) if args.gpu >= 0 else ""
     os.environ["XDG_CONFIG_HOME"] = str(REPO_ROOT / ".config")
-    from ..analysis import phase_text as pt
-    from ..analysis import siglip as S
+    from ..analysis import zero_shot as Z
     from ..config import Config
     from .visual_embed import take_lock
     cfg = Config.load()
-    jobs = []                                   # (run root, phases, label)
+    zs = cfg["zero_shot"]
+    jobs = []                                   # (run root, phase set)
+    ikea_runs = REPO_ROOT / "data/public/datasets/ikea_asm/derived/runs.json"
     if args.run is not None:
         source, root = run_source(args.run, cfg["paths"])
         if source == "qisens":
-            jobs.append((root, pt.phases("qisens"), "qisens"))
+            jobs.append((root, "qisens"))
         else:
-            ikea = {v: k for k, v in json.loads((REPO_ROOT / "data/public/datasets/ikea_asm/derived/runs.json")
-                                                .read_text()).items()}
+            ikea = {v: k for k, v in json.loads(ikea_runs.read_text()).items()}
             if root.name not in ikea:
                 p.error("a public run must be an IKEA ASM run (derived/runs.json)")
-            furn = ikea[root.name].split("/")[0]
-            jobs.append((root, pt.phases("ikea_asm", furn), furn))
+            jobs.append((root, "ikea_asm:" + ikea[root.name].split("/")[0]))
     else:
-        runs = json.loads((REPO_ROOT / "data/public/datasets/ikea_asm/derived/runs.json").read_text())
-        for vid, rid in sorted(runs.items()):
+        for vid, rid in sorted(json.loads(ikea_runs.read_text()).items()):
             furn = vid.split("/")[0]
             if args.furniture and furn != args.furniture:
                 continue
             root = REPO_ROOT / "data/public/runs" / rid
             if (root / "manifest.json").is_file():
-                jobs.append((root, pt.phases("ikea_asm", furn), furn))
+                jobs.append((root, "ikea_asm:" + furn))
     todo = [j for j in jobs if args.force or not (j[0] / "siglip.npz").is_file()]
     print(f"siglip_scores: {len(jobs)} runs, {len(todo)} to score")
     if not todo:
@@ -73,23 +69,16 @@ def main(argv: list[str] | None = None) -> int:
         print("refused: no CUDA device", file=sys.stderr)
         return 2
     t0 = time.monotonic()
-    model, proc = S.load(REPO_ROOT / "models", device, half=device == "cuda")
-    banks: dict[str, tuple] = {}
+    from ..analysis import siglip as S
+    loaded = S.load(REPO_ROOT / "models", device, half=device == "cuda")
     n = 0
-    for i, (root, phases, label) in enumerate(todo):
-        if label not in banks:
-            banks[label] = (S.text_bank(model, proc, phases, device), S.text_sha(phases))
-        bank, sha = banks[label]
+    for i, (root, pset) in enumerate(todo):
+        phases, _, label = Z.phase_set(pset)
         manifest = json.loads((root / "manifest.json").read_text())
-        cfr = manifest["ingest"]["cfr"]
         t = time.monotonic()
-        res = S.score_video(model, proc, bank, root / cfr["path"], S.subject_boxes(manifest, root), float(cfr["fps"]),
-                            FPS, MAX_PX, PAD, device=device, half=device == "cuda")
-        S.save(root / "siglip.npz", res, {"model": S.MODEL_DIR, "revision": S.REVISION, "fps": FPS, "max_px": MAX_PX,
-                                          "pad": PAD, "phases": [ph["name"] for ph in phases], "descriptions_sha": sha,
-                                          "set": label, "date_utc": utc_now()})
-        n += len(res["time_s"])
-        print(f"  {i + 1}/{len(todo)}: {len(res['time_s'])} samples ({int(res['crop_ok'].sum())} crops), "
+        rec = Z.siglip_run(root, manifest, phases, label, zs, device, loaded)
+        n += rec["samples"]
+        print(f"  {i + 1}/{len(todo)}: {rec['samples']} samples ({rec['crops']} crops), "
               f"{time.monotonic() - t:.1f} s", flush=True)
     peak = torch.cuda.max_memory_allocated() / 1e6 if device == "cuda" else 0.0
     print(f"siglip_scores: {n} samples in {time.monotonic() - t0:.1f} s, torch peak {peak:.0f} MB")

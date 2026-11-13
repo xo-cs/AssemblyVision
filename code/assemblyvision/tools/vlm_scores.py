@@ -3,10 +3,11 @@
     source ~/AssemblyVision/av.sh && cd ~/AssemblyVision/code
     python -m assemblyvision.tools.vlm_scores --run RUN_DIR --gpu 1          # writes RUN_DIR/vlm.npz
     python -m assemblyvision.tools.vlm_scores --dataset ikea_asm --gpu 1 [--videos FILE]
+        [--window-s 2 --frames 4 --slots 2 --out vlm.npz]
 
 Starts its own llama-server on 127.0.0.1:--port on the GPU (default GPU1) under
-.locks/gpu<N>.lock, scores every 2 s window of 4 full frames (analysis/vlm.py) and stops
-the server. A QiSens run uses docs_team/phase_descriptions.md, an IKEA ASM run the
+.locks/gpu<N>.lock, scores every --window-s window of --frames full frames (analysis/vlm.py,
+analysis/zero_shot.py; defaults from [zero_shot]) and stops the server. A QiSens run uses docs_team/phase_descriptions.md, an IKEA ASM run the
 descriptions of its furniture type. Output: vlm.npz in the run folder (window start
 times, probabilities [N, K], reasons, parse failures); only counts and timings are printed.
 """
@@ -17,18 +18,9 @@ import json
 import os
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-import numpy as np
-
-from ..storage.files import REPO_ROOT, run_source, utc_now
-
-WINDOW_S, N_FRAMES, PX = 2.0, 4, 448
-PROCESS = {"qisens": "a video of a worker maintaining a railway vehicle (bogie maintenance) in a workshop",
-           "ikea": "a top view video of a person assembling an IKEA {name}"}
-IKEA_NAMES = {"Kallax_Shelf_Drawer": "Kallax shelf drawer", "Lack_TV_Bench": "Lack TV bench",
-              "Lack_Coffee_Table": "Lack coffee table", "Lack_Side_Table": "Lack side table"}
+from ..storage.files import REPO_ROOT, run_source
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -39,37 +31,45 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--videos", type=Path, help="ikea_asm: a JSON list of video ids to score (default: all runs)")
     p.add_argument("--gpu", type=int, default=1)
     p.add_argument("--port", type=int, default=8090)
-    p.add_argument("--workers", type=int, default=2, help="parallel requests (llama-server slots)")
+    p.add_argument("--slots", "--workers", type=int, dest="slots", help="parallel llama-server slots and requests")
+    p.add_argument("--window-s", type=float, help="seconds per request (default zero_shot.vlm_window_s)")
+    p.add_argument("--frames", type=int, help="frames per request (default zero_shot.vlm_frames)")
+    p.add_argument("--out", default="vlm.npz", help="file name in the run folder")
     p.add_argument("--force", action="store_true")
     args = p.parse_args(argv)
+    if not args.out.endswith(".npz") or "/" in args.out:
+        p.error("--out is a file name *.npz")
     os.environ["XDG_CONFIG_HOME"] = str(REPO_ROOT / ".config")
-    from ..analysis import phase_text as pt
     from ..analysis import vlm as V
+    from ..analysis import zero_shot as Z
     from ..config import Config
     from .visual_embed import take_lock
     cfg = Config.load()
+    zs = dict(cfg["zero_shot"])
+    for k, v in (("vlm_slots", args.slots), ("vlm_window_s", args.window_s), ("vlm_frames", args.frames)):
+        if v is not None:
+            zs[k] = v
     jobs = []
+    ikea_runs = REPO_ROOT / "data/public/datasets/ikea_asm/derived/runs.json"
     if args.run is not None:
         source, root = run_source(args.run, cfg["paths"])
         if source == "qisens":
-            jobs.append((root, pt.phases("qisens"), PROCESS["qisens"]))
+            jobs.append((root, "qisens"))
         else:
-            ikea = {v: k for k, v in json.loads((REPO_ROOT / "data/public/datasets/ikea_asm/derived/runs.json")
-                                                .read_text()).items()}
+            ikea = {v: k for k, v in json.loads(ikea_runs.read_text()).items()}
             if root.name not in ikea:
                 p.error("a public run must be an IKEA ASM run (derived/runs.json)")
-            f = ikea[root.name].split("/")[0]
-            jobs.append((root, pt.phases("ikea_asm", f), PROCESS["ikea"].format(name=IKEA_NAMES[f])))
+            jobs.append((root, "ikea_asm:" + ikea[root.name].split("/")[0]))
     else:
-        runs = json.loads((REPO_ROOT / "data/public/datasets/ikea_asm/derived/runs.json").read_text())
+        runs = json.loads(ikea_runs.read_text())
         want = set(json.loads(args.videos.read_text())) if args.videos else set(runs)
         for vid, rid in sorted(runs.items()):
             root = REPO_ROOT / "data/public/runs" / rid
-            f = vid.split("/")[0]
             if vid in want and (root / "manifest.json").is_file():
-                jobs.append((root, pt.phases("ikea_asm", f), PROCESS["ikea"].format(name=IKEA_NAMES[f])))
-    todo = [j for j in jobs if args.force or not (j[0] / "vlm.npz").is_file()]
-    print(f"vlm_scores: {len(jobs)} runs, {len(todo)} to score")
+                jobs.append((root, "ikea_asm:" + vid.split("/")[0]))
+    todo = [j for j in jobs if args.force or not (j[0] / args.out).is_file()]
+    print(f"vlm_scores: {len(jobs)} runs, {len(todo)} to score; window {zs['vlm_window_s']} s, "
+          f"{zs['vlm_frames']} frames, {zs['vlm_slots']} slots -> {args.out}")
     if not todo:
         return 0
     lock = take_lock(args.gpu)
@@ -78,40 +78,26 @@ def main(argv: list[str] | None = None) -> int:
         REPO_ROOT / "logs/vlm_scores_server.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     t0 = time.monotonic()
-    server = V.start_server(args.gpu, args.port, log, parallel=args.workers)
+    server = V.start_server(args.gpu, args.port, log, ctx=V.context_size(zs), parallel=zs["vlm_slots"])
     print(f"vlm_scores: server ready in {time.monotonic() - t0:.0f} s")
-    total = 0
+    total, t_score = 0, 0.0
     try:
-        for i, (root, phases, process) in enumerate(todo):
-            names = [ph["name"] for ph in phases]
-            text = V.prompt(phases, process)
+        for i, (root, pset) in enumerate(todo):
+            phases, process, _ = Z.phase_set(pset)
             manifest = json.loads((root / "manifest.json").read_text())
             t = time.monotonic()
-            wins = list(V.windows(root / manifest["ingest"]["cfr"]["path"], WINDOW_S, N_FRAMES, 1280))
-
-            def one(w):
-                try:
-                    return V.parse(V.ask(args.port, text, w[1], PX), names)
-                except Exception as e:                 # a failed request counts as unparsed
-                    return np.full(len(names), 1.0 / len(names), np.float32), f"request failed: {e}"[:200], False
-            with ThreadPoolExecutor(args.workers) as ex:
-                res = list(ex.map(one, wins))
-            probs = np.stack([r[0] for r in res]) if res else np.zeros((0, len(names)), np.float32)
-            tmp = root / "vlm.part.npz"
-            np.savez_compressed(tmp, time_s=np.array([w[0] for w in wins], np.float32), probs=probs,
-                                reasons=np.array([r[1] for r in res]), parsed=np.array([r[2] for r in res]),
-                                meta=json.dumps({"model": V.MODEL, "mmproj": V.MMPROJ, "llama_cpp": "b12005",
-                                                 "window_s": WINDOW_S, "n_frames": N_FRAMES, "px": PX,
-                                                 "phases": names, "prompt": text, "date_utc": utc_now()}))
-            tmp.replace(root / "vlm.npz")
-            total += len(wins)
-            print(f"  {i + 1}/{len(todo)}: {len(wins)} windows, {sum(not r[2] for r in res)} unparsed, "
+            rec = Z.vlm_score_video(root / manifest["ingest"]["cfr"]["path"], root / args.out, phases, process, zs,
+                                    args.port)
+            t_score += time.monotonic() - t
+            total += rec["windows"]
+            print(f"  {i + 1}/{len(todo)}: {rec['windows']} windows, {rec['unparsed']} unparsed, "
                   f"{time.monotonic() - t:.1f} s", flush=True)
     finally:
         server.terminate()
         server.wait(timeout=60)
         lock.close()
-    print(f"vlm_scores: {total} windows in {time.monotonic() - t0:.1f} s")
+    print(f"vlm_scores: {total} windows in {time.monotonic() - t0:.1f} s (scoring {t_score:.1f} s, "
+          f"{t_score / max(total, 1):.3f} s per window)")
     return 0
 
 

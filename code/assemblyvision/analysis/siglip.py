@@ -181,10 +181,11 @@ def _on_frames(times: np.ndarray, rows: np.ndarray, n_frames: int, fps: float, s
     return out
 
 
-def run_phase_scores(root: Path, n_frames: int, fps: float, seg: dict) -> tuple[dict, list[str]]:
+def run_phase_scores(root: Path, n_frames: int, fps: float, seg: dict,
+                     vlm_file: str = "vlm.npz") -> tuple[dict, list[str]]:
     """{"siglip_full", "siglip_crop", "vlm": [n_frames, K]} from the run's siglip.npz and
-    vlm.npz for the sources whose weight in seg (seg_a settings) is above 0; and the
-    sources whose file is missing."""
+    vlm_file for the sources whose weight in seg (seg_a settings) is above 0; and the
+    files that are missing."""
     out, missing = {}, []
     if seg["siglip_weight"] > 0 or seg["siglip_crop_weight"] > 0:
         path = root / "siglip.npz"
@@ -198,10 +199,10 @@ def run_phase_scores(root: Path, n_frames: int, fps: float, seg: dict) -> tuple[
         else:
             missing.append("siglip.npz")
     if seg["vlm_weight"] > 0:
-        path = root / "vlm.npz"
+        path = root / vlm_file
         if path.is_file():
             z = load_scores(path)
             out["vlm"] = _on_frames(z["time_s"], z["probs"], n_frames, fps, float(z["meta"]["window_s"]))
         else:
-            missing.append("vlm.npz")
+            missing.append(vlm_file)
     return out, missing

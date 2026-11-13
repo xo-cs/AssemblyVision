@@ -63,7 +63,8 @@ from ..errors import AvError
 from ..storage.files import (REPO_ROOT, SOURCE_TYPE, SOURCES, RunContext, RunPaths, check_video_source,
                              RUN_ID_RE, data_area, new_run_id, run_source, utc_now, write_atomic)
 
-STAGES = ("ingest", "shots", "reference", "pose_body", "tracking", "segmentation", "metrics", "overlay", "eval")
+STAGES = ("ingest", "shots", "reference", "pose_body", "tracking", "vlm_scores", "siglip_scores", "segmentation", "metrics",
+          "overlay", "eval")
 RERUN_STAGES = ("segmentation", "metrics", "overlay", "eval")
 _ALIASES = {"engine": "segmentation"}
 
@@ -290,6 +291,11 @@ def boundary_probability(manifest: dict, root: Path, cfg: Config, ctx) -> dict |
     return run_probability(manifest, root, cfg, path)
 
 
+def fallback_config(cfg: Config) -> Config:
+    """The settings of cfg with the step engine "B v1" instead of "B zero shot"."""
+    return Config.load(overrides=stored_with({"config": cfg.snapshot()}, {"seg_a": {"engine": "B v1"}}))
+
+
 def engine_b_needed(cfg: Config) -> bool:
     return cfg["seg_a"]["engine_b_weight"] > 0 or cfg["seg_a"]["embed_weight"] > 0
 
@@ -302,7 +308,10 @@ def segment_stored(manifest: dict, root: Path, cfg: Config, ctx, bprob: dict | N
     tl = build_timeline(manifest, root, engine.cleaner, cfg["motion"] if cfg["seg_a"]["activity_change"] else None)
     if any(cfg["seg_a"][k] > 0 for k in ("siglip_weight", "siglip_crop_weight", "vlm_weight")):
         from ..analysis.siglip import run_phase_scores
-        tl.phase_scores, missing = run_phase_scores(root, tl.n_frames, tl.fps, cfg["seg_a"])
+        tl.phase_scores, missing = run_phase_scores(root, tl.n_frames, tl.fps, cfg["seg_a"], cfg["zero_shot"]["vlm_file"])
+        if missing and cfg["seg_a"]["engine"] == "B zero shot":       # the preset falls back to B v1
+            ctx.notice(AvError("AV-SEG-006", detail="this run has no " + ", ".join(missing)), "segmentation")
+            return segment_stored(manifest, root, fallback_config(cfg), ctx, bprob)
         for f in missing:
             ctx.notice(AvError("AV-SEG-005", file=f), "segmentation")
     if cfg["seg_a"]["visual_weight"] > 0:
@@ -661,6 +670,60 @@ def track_shot_job(job: dict) -> dict:
             "seconds": time.monotonic() - t0}
 
 
+def zero_shot_needs(cfg: Config) -> tuple[bool, bool]:
+    """(SigLIP needed, VLM needed) in a full run: by the phase likelihood weights, when
+    zero_shot.in_pipeline is on."""
+    seg = cfg["seg_a"]
+    if not cfg["zero_shot"]["in_pipeline"]:
+        return False, False
+    return seg["siglip_weight"] > 0 or seg["siglip_crop_weight"] > 0, seg["vlm_weight"] > 0
+
+
+def start_vlm(ctx: RunContext, cfg: Config):
+    """The VLM job of a full run (analysis/zero_shot.VlmJob), its server log in the run's
+    log folder, or None when the phase set is not valid (noticed)."""
+    from ..analysis import zero_shot as Z
+    try:
+        phases, process, _ = Z.phase_set(cfg["zero_shot"]["phases"])
+    except ValueError as e:
+        ctx.notice(AvError("AV-SEG-006", detail=str(e)), "vlm_scores")
+        return None
+    rec = ctx.manifest["stages"]["vlm_scores"]
+    rec.update(status="running", started_utc=utc_now(), progress=0.0)
+    ctx.write_manifest()
+    return Z.VlmJob(ctx.paths.root, ctx.paths.root / ctx.manifest["ingest"]["cfr"]["path"], phases, process,
+                    cfg["zero_shot"], ctx.paths.stage_log("vlm_server")).start()
+
+
+def finish_vlm(ctx: RunContext, job) -> None:
+    """Waits for the VLM job and records it as the vlm_scores stage; busy or failed is a
+    notice (the segmentation then falls back to B v1)."""
+    rec = ctx.manifest["stages"]["vlm_scores"]
+    if job is None:
+        rec["status"] = "skipped"
+        return
+    r = job.result()
+    rec.update(status="done" if r["status"] == "done" else "skipped", progress=1.0, seconds=r.get("seconds"),
+               **{k: v for k, v in r.items() if k not in ("status", "seconds")})
+    if r["status"] != "done":
+        ctx.notice(AvError("AV-SEG-006", detail=f"vlm_scores {r['status']}: {r.get('detail', '')}"), "vlm_scores")
+    ctx.log.info("vlm_scores: %s", {k: v for k, v in r.items()})
+    ctx.write_manifest()
+
+
+def stage_siglip(ctx: RunContext, cfg: Config, device: str) -> dict:
+    from ..analysis import zero_shot as Z
+    phases, _, label = Z.phase_set(cfg["zero_shot"]["phases"])
+    rec = Z.siglip_run(ctx.paths.root, ctx.manifest, phases, label, cfg["zero_shot"], device)
+    if device.startswith("cuda"):
+        import torch
+        rec["torch_peak_mb"] = round(torch.cuda.max_memory_allocated() / 1e6)
+        torch.cuda.empty_cache()
+    ctx.manifest["stages"]["siglip_scores"].update(rec)
+    ctx.log.info("siglip_scores: %s", rec)
+    return rec
+
+
 def _take_gpu_lock(gpu: int, ctx: RunContext):
     """Exclusive flock on .locks/gpu<index>.lock (one job per GPU, LLD 3.1); waits
     with status queued while another run holds it. The system frees the lock
@@ -771,6 +834,7 @@ def main(argv: list[str] | None = None) -> int:
         return _run_stage(ctx, name, fn, prof)
 
     track_pool = None
+    vlm_job = None
     status, code = "done", 0
     try:
         if args.gpu >= 0 and not torch.cuda.is_available():
@@ -778,6 +842,9 @@ def main(argv: list[str] | None = None) -> int:
                           detail=f"CUDA is not available for GPU {args.gpu}")
         info, _split = stage("ingest", lambda: VideoIngestor(cfg, ctx).ingest(
             run_id, video, SOURCE_TYPE[args.source], strict_split=False))
+        need_siglip, need_vlm = zero_shot_needs(cfg)
+        if need_vlm and cfg["zero_shot"]["vlm_parallel"]:      # on its own GPU during the pose pass
+            vlm_job = start_vlm(ctx, cfg)
 
         parallel = cfg["shots"]["parallel"]
         if parallel:        # shots.parallel: the shot table is made in a thread during the pose pass
@@ -846,6 +913,23 @@ def main(argv: list[str] | None = None) -> int:
             return summarize(ctx)
         stage("tracking", track_all)
 
+        if need_vlm and not cfg["zero_shot"]["vlm_parallel"]:
+            vlm_job = start_vlm(ctx, cfg)
+        if need_siglip and cfg["seg_a"]["engine"] == "B zero shot" and vlm_job is not None and vlm_job.busy():
+            need_siglip = False             # the run falls back to B v1, so SigLIP is not needed
+        if need_siglip:
+            try:
+                stage("siglip_scores", lambda: stage_siglip(ctx, cfg, "cuda" if args.gpu >= 0 else "cpu"))
+            except AvError as e:            # noticed; the segmentation falls back without siglip.npz
+                ctx.notice(AvError("AV-SEG-006", detail=f"siglip_scores failed: {e.code}"), "siglip_scores")
+        else:
+            ctx.manifest["stages"]["siglip_scores"]["status"] = "skipped"
+        if need_vlm:
+            finish_vlm(ctx, vlm_job)
+            vlm_job = None
+        else:
+            ctx.manifest["stages"]["vlm_scores"]["status"] = "skipped"
+
         steps = None
         try:
             steps = stage("segmentation", lambda: stage_segmentation(ctx, cfg))
@@ -882,6 +966,9 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         if track_pool is not None:
             track_pool.shutdown(wait=True, cancel_futures=True)
+        if vlm_job is not None:              # a failed run stops the VLM and frees its GPU
+            vlm_job.stop.set()
+            vlm_job.result()
         prof.stop()
         if prof.enabled:
             ctx.manifest["profile"] = prof.summary(ctx.manifest)

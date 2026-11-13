@@ -25,6 +25,7 @@ MESSAGES: dict[str, tuple[str, str]] = {
     "AV-SEG-001": ("Notice", "Engine B is not available because no trained weights were found. Engine A is used."),
     "AV-SEG-004": ("Notice", "The visual evidence is not available: this run has no visual.npz (run tools/visual_embed.py first). The steps are found without it."),
     "AV-SEG-005": ("Notice", "The zero shot phase scores are not available: this run has no {file} (run tools/siglip_scores.py or tools/vlm_scores.py first). The steps are found without them."),
+    "AV-SEG-006": ("Notice", "The zero shot phase scores are not available. The step engine B v1 is used instead of B zero shot."),
     "AV-SEG-002": ("Stage", "Engine {engine} returned steps that are not valid for shot {shot}: {detail}. No steps were stored for this shot."),
     "AV-SEG-003": ("Notice", "No step definitions are set. The footage is cut at pauses and the pieces are named segment_1, segment_2 and so on."),
     "AV-MOT-001": ("Item", "{metric} of step {step} is not reported: only {cov} percent of frames had the keypoints it needs."),

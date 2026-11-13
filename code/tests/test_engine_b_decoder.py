@@ -90,7 +90,7 @@ class DecoderTest(unittest.TestCase):
         self.assertEqual(kinds, ["cut"])                                      # no grid point on top of the cut
 
     def test_b_v1_preset_uses_engine_a_candidates(self):
-        self.assertEqual(Config.load()["engine_b"]["candidates"], "engine_a")
+        self.assertEqual(Config.load(overrides={"seg_a": {"engine": "B v1"}})["engine_b"]["candidates"], "engine_a")
         self.assertEqual(Config.load(overrides={"seg_a": {"engine": "B v1 dense"}})["engine_b"]["candidates"], "dense")
         self.assertEqual(Config.load(overrides={"seg_a": {"engine": "A"}})["engine_b"]["candidates"], "engine_a")
 
@@ -108,7 +108,7 @@ class DecoderTest(unittest.TestCase):
         c = Config.load(overrides={"seg_a": {"engine": "B v2"}})
         self.assertEqual((c["engine_b"]["model"], c["seg_a"]["engine_a_scale"], c["seg_a"]["embed_weight"]),
                          ("engine_b/w10-engine-b-v2.pt", 0.0, 1.0))
-        self.assertEqual(Config.load()["seg_a"]["engine"], "B v1")            # the default stays B v1
+        self.assertEqual(Config.load()["seg_a"]["engine"], "B zero shot")     # the default stays B zero shot
 
     def test_visual_alone_places_the_boundary(self):
         tl = timeline()

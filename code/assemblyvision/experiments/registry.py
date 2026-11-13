@@ -38,7 +38,8 @@ from ..storage.files import REPO_ROOT, RUN_ID_RE, RunPaths, check_video_source, 
 
 ID_RE = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
 KINDS = ("full_run",)
-STAGE_ORDER = ("ingest", "shots", "reference", "pose_body", "tracking", "segmentation", "metrics", "overlay", "eval")
+STAGE_ORDER = ("ingest", "shots", "reference", "pose_body", "tracking", "vlm_scores", "siglip_scores", "segmentation",
+               "metrics", "overlay", "eval")
 NOISE_FLOOR_FILE = "noise_floor.json"      # experiments/noise_floor.json (tracked, public measurement)
 INDEX_HEAD = ("# Experiments\n\nOne line per experiment (public data only; QiSens rows only as approved summaries).\n"
               "Regenerate any table with `python -m assemblyvision.tools.exp table <id> ...`.\n\n"
@@ -517,7 +518,10 @@ DEFAULT_NOTE = ("Default profile (decision of 2026-11-08): the w10-best-b8 setti
                 "seg_a.engine = \"B v1\" (Engine B = the learned model with the DP decoder: the Engine B v1 "
                 "embedding, weight 0.2, window 30 s; \"A\", the frozen Engine A rules, stays selectable as the "
                 "baseline). Headline QiSens result: Engine B v1 on YOLO26 x, 67.26 frame accuracy "
-                "(w10-qisens-engine-b-v1); Engine A alone on x gives 50.00.")
+                "(w10-qisens-engine-b-v1); Engine A alone on x gives 50.00. From 2026-11-13 the step engine is "
+                "seg_a.engine = \"B zero shot\" (B v1 plus the zero shot phase likelihood of SigLIP 2 and Qwen3 VL 8B, "
+                "equal weights 1, made in the full run, VLM on GPU1; falls back to B v1 with a notice): 93.20 frame "
+                "accuracy on QiSens blind (w11-qisens-zero-shot).")
 
 
 POSE_RULE = ("Pose model choice rule (written 2026-11-09): the pose model (YOLO26 variant) is chosen only by public "

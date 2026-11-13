@@ -112,7 +112,7 @@ DECLARATIONS: dict[str, dict] = {
         **_all(NO, "phase_solver min_factor max_factor pause_energy pause_min_s long_pause_s cut_pause_window_s "
                    "no_person_min_s fallback_pause_min_s other_min_s strength_no_person strength_cut_pause "
                    "strength_pause strength_cut activity_change ac_weight ac_window_s"),
-        "engine": Legacy("custom"),          # added 2026-11-11 (default "B v1"); custom = the stored keys
+        "engine": Legacy("custom"),          # added 2026-11-11 (default "B v1", "B zero shot" from 11-13); custom = the stored keys
         "engine_b_weight": OFF,
         "engine_b_window_s": engine_b_off,
         "engine_b_norm": engine_b_off,
@@ -165,6 +165,9 @@ DECLARATIONS: dict[str, dict] = {
                        "rep_hop_s rep_acf_min idle_energy idle_min_s foreshort_ratio view_limited_share hand_active "
                        "gaze_conf_min gaze_yaw gaze_down_torso stream_rep_every_s stream_torso_s"),
     "visual": _all(RUN_FREE, "fps input_px batch half"),   # read by tools/visual_embed.py, not by a batch run
+    # read by a full run only while a phase likelihood weight is above 0
+    "zero_shot": _all(likelihood_off, "phases in_pipeline siglip_fps siglip_max_px siglip_pad vlm_gpu vlm_port vlm_slots "
+                                      "vlm_window_s vlm_frames vlm_px vlm_parallel vlm_file"),
     "heatmap": _all(NO, "cell_m cell_px min_samples"),
     "gpu": _all(NO, "pose"),
     "overlay": _all(NO, "kp_conf_min max_width crf enabled encoder workers"),

@@ -31,8 +31,8 @@ VIDEO_DIRS = ("videos", "input")          # data/<source>/videos (stored), data/
 VIDEO_EXT = (".mp4", ".avi")
 FINISHED = ("done", "partial", "failed")
 # share of a typical run's time per stage, for the progress bar
-STAGE_WEIGHTS = {"ingest": 2, "shots": 6, "reference": 5, "pose_body": 60, "tracking": 3, "segmentation": 1,
-                 "metrics": 1, "overlay": 20, "eval": 1}
+STAGE_WEIGHTS = {"ingest": 2, "shots": 6, "reference": 5, "pose_body": 60, "tracking": 3, "vlm_scores": 0, "siglip_scores": 8,
+                 "segmentation": 1, "metrics": 1, "overlay": 20, "eval": 1}
 
 
 @dataclass
@@ -250,7 +250,7 @@ class RunStore:
             s = rec.get("status", "pending")
             frac = 1.0 if s in ("done", "skipped", "failed") else float(rec.get("progress", 0.0)) \
                 if s == "running" else 0.0
-            if s == "running":
+            if s == "running" and (running is None or w > 0):     # vlm_scores runs beside the pose pass
                 running = name
             done_w += w * frac
             rows.append((name, s, rec.get("seconds"), frac))

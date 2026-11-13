@@ -711,12 +711,13 @@ class GradioApp:
                                 gr.HTML("<div class='av-hint' style='margin-top:-6px'>n, s, m, l, x: smaller is faster, "
                                         "larger is more accurate.</div>")
                                 engine = gr.Radio([(f"{k} ({BENCHMARK_ONLY_NOTE})" if k in BENCHMARK_ONLY else k, k)
-                                                   for k in ("B v1", "A", *sorted(BENCHMARK_ONLY))],
+                                                   for k in ("B zero shot", "B v1", "A", *sorted(BENCHMARK_ONLY))],
                                                   value=engine0, label="Step engine",
                                                   elem_classes=["av-seg"])
-                                gr.HTML("<div class='av-hint' style='margin-top:-6px'>B v1: the Engine B v1 model with the DP decoder "
-                                        "with the Engine B v1 phase evidence (default). A: the rules alone. The others reproduce rows of the "
-                                        "public benchmark and are not better on QiSens.</div>")
+                                gr.HTML("<div class='av-hint' style='margin-top:-6px'>B zero shot (default): B v1 plus phase scores "
+                                        "from SigLIP 2 and the Qwen3 VL model on GPU 1; when GPU 1 is busy the run uses B v1 and says so. "
+                                        "B v1: the Engine B v1 model with the DP decoder. A: the rules alone. The others reproduce rows "
+                                        "of the public benchmark and are not better on QiSens.</div>")
                             with gr.Row(elem_classes=["av-actions"]):
                                 start_btn = gr.Button("Start analysis", variant="primary", elem_classes=["av-fit"])
                                 msg = gr.HTML()
