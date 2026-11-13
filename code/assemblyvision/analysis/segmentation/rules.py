@@ -584,12 +584,20 @@ class RuleBasedEngine(SegmentationEngine):
         else:
             lim = self.limits(T_s, tl.fps)
             names = list(self.vocabulary)
-            if self.s["other_ends"]:                       # Engine B decoder: optional intro and outro
-                lim, names = self.with_other_ends(tl, ev, a, b, lim)
+            zero_shot = any(self.s[k] > 0 for k in ("siglip_weight", "siglip_crop_weight", "vlm_weight"))
+            other_class = self.s["other_class"] and zero_shot
+            if self.s["other_ends"] or other_class:        # Engine B decoder: optional intro and outro
+                max_s = self.s["other_class_max_share"] * T_s if other_class else self.s["other_max_s"]
+                lim, names = self.with_other_ends(tl, ev, a, b, lim, max_s)
             solver = self.s["phase_solver"]
             ll = None
-            if not self.s["other_ends"] and any(self.s[k] > 0 for k in ("siglip_weight", "siglip_crop_weight",
-                                                                          "vlm_weight")):
+            if other_class:                                # [other, phases, other] from K + 1 score columns
+                K1 = len(self.vocabulary) + 1
+                ll, rep["phase_likelihood"] = self.phase_likelihood(tl, K1)
+                if ll is not None:
+                    ll = ll[[K1 - 1, *range(K1 - 1), K1 - 1]]
+                rep["phase_likelihood"]["other_class"] = True
+            elif not self.s["other_ends"] and zero_shot:
                 ll, rep["phase_likelihood"] = self.phase_likelihood(tl, len(lim))
             phases = self.solve_dp(ev, a, b, lim, ll) if solver == "dp" else None
             used = solver
@@ -636,18 +644,21 @@ class RuleBasedEngine(SegmentationEngine):
                                             *(("engine_b",) if self.s["engine_b_weight"] > 0 else ()),
                                             *(("embed",) if self.s["embed_candidates"] else ()),
                                             *(("dense",) if self.cfg["engine_b"]["candidates"] == "dense" else ()),
-                                            *(("edge",) if self.s["other_ends"] else ()), "forced")}
+                                            *(("edge",) if self.s["other_ends"] or self.s["other_class"] else ()),
+                                            "forced")}
         check_contract(steps, tl, self.vocabulary)
         return steps
 
     def with_other_ends(self, tl: RunTimeline, ev: list[Evidence], a: int, b: int,
-                        lim: list[dict]) -> tuple[list[dict], list[str]]:
-        """seg_a.other_ends: an other phase before the first and after the last (at most
-        other_max_s each). Two edge candidates one frame inside the span, of strength
-        other_min_strength, stand for "no intro" and "no outro", so a real candidate
-        ends an intro only if it is stronger than that."""
-        mx = max(2, int(round(self.s["other_max_s"] * tl.fps)))
-        edge = {"phase": OTHER, "min_s": 0.0, "max_s": self.s["other_max_s"], "source": "other_ends",
+                        lim: list[dict], max_s: float | None = None) -> tuple[list[dict], list[str]]:
+        """seg_a.other_ends (and other_class): an other phase before the first and after the
+        last (at most max_s each, default other_max_s). Two edge candidates one frame inside
+        the span, of strength other_min_strength, stand for "no intro" and "no outro", so a
+        real candidate ends an intro only if it is stronger than that (or, with other_class,
+        if the phase likelihood of the other class makes up the difference)."""
+        max_s = self.s["other_max_s"] if max_s is None else max_s
+        mx = max(2, int(round(max_s * tl.fps)))
+        edge = {"phase": OTHER, "min_s": 0.0, "max_s": round(max_s, 3), "source": "other_ends",
                 "min_f": 1, "max_f": mx}
         for f in (a + 1, b - 1):
             if a < f < b:

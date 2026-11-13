@@ -149,6 +149,27 @@ class DecoderTest(unittest.TestCase):
         np.testing.assert_allclose(step[:, :1200], step[:, :1][:, [0] * 1200], rtol=1e-9)   # constant within a shot
         np.testing.assert_allclose(step[:, 1200:], step[:, 1200:1201][:, [0] * (N - 1200)], rtol=1e-9)
 
+    def test_other_class_intro(self):
+        tl = timeline()
+        tl.embedding = None
+        intro = 600                                                            # 20 s of no work, then A, then B
+        cos = np.zeros((N, 3), np.float32)
+        cos[:intro, 2], cos[intro:CUT, 0], cos[CUT:, 1] = 0.1, 0.1, 0.1
+        tl.phase_scores = {"siglip_full": cos}
+        e = RuleBasedEngine(cfg(candidates="dense", embed_weight=0.0, siglip_weight=1.0, other_class=True))
+        steps = e.segment_run(tl)
+        self.assertTrue(e.report["phase_likelihood"]["other_class"])
+        self.assertEqual([s.label for s in steps], ["other", "A", "B"])
+        self.assertAlmostEqual(steps[1].start_s, intro / FPS, delta=1.0)
+        self.assertAlmostEqual(steps[2].start_s, CUT / FPS, delta=1.0)
+        cos[:intro, 2], cos[:intro, 0] = 0.0, 0.1                              # no intro: the other class never wins
+        steps = e.segment_run(tl)
+        self.assertEqual([s.label for s in steps], ["A", "B"])
+        tl.phase_scores = {"siglip_full": cos[:, :2]}                          # scores without the other column
+        e.segment_run(tl)
+        self.assertEqual(e.report["phase_likelihood"]["used"], ["siglip_full"])
+        self.assertIn("skipped", e.report["phase_likelihood"])
+
     def test_phase_likelihood_off_changes_nothing(self):
         tl = timeline()
         a = RuleBasedEngine(cfg(candidates="dense")).segment_run(tl)

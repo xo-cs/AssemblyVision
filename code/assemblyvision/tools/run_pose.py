@@ -691,8 +691,9 @@ def start_vlm(ctx: RunContext, cfg: Config):
     rec = ctx.manifest["stages"]["vlm_scores"]
     rec.update(status="running", started_utc=utc_now(), progress=0.0)
     ctx.write_manifest()
+    other = Z.other_class(cfg["zero_shot"]["phases"]) if cfg["seg_a"]["other_class"] else None
     return Z.VlmJob(ctx.paths.root, ctx.paths.root / ctx.manifest["ingest"]["cfr"]["path"], phases, process,
-                    cfg["zero_shot"], ctx.paths.stage_log("vlm_server")).start()
+                    cfg["zero_shot"], ctx.paths.stage_log("vlm_server"), other).start()
 
 
 def finish_vlm(ctx: RunContext, job) -> None:
@@ -714,7 +715,8 @@ def finish_vlm(ctx: RunContext, job) -> None:
 def stage_siglip(ctx: RunContext, cfg: Config, device: str) -> dict:
     from ..analysis import zero_shot as Z
     phases, _, label = Z.phase_set(cfg["zero_shot"]["phases"])
-    rec = Z.siglip_run(ctx.paths.root, ctx.manifest, phases, label, cfg["zero_shot"], device)
+    rec = Z.siglip_run(ctx.paths.root, ctx.manifest, phases, label, cfg["zero_shot"], device,
+                       other=Z.other_class(cfg["zero_shot"]["phases"]))
     if device.startswith("cuda"):
         import torch
         rec["torch_peak_mb"] = round(torch.cuda.max_memory_allocated() / 1e6)

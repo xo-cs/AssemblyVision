@@ -181,23 +181,44 @@ def _on_frames(times: np.ndarray, rows: np.ndarray, n_frames: int, fps: float, s
     return out
 
 
+def add_other(path: Path, other_bank: np.ndarray, sha: str) -> None:
+    """Adds the cosines of the stored embeddings with the "other" class (seg_a.other_class)
+    to a siglip.npz: other_full_cos and other_crop_cos [N, 1]. No image is encoded again."""
+    z = load_scores(path)
+    meta = z.pop("meta")
+    ok = z["crop_ok"]
+    z["other_full_cos"] = (z["full_emb"].astype(np.float32) @ other_bank.T).astype(np.float32)
+    z["other_crop_cos"] = np.where(ok[:, None], z["crop_emb"].astype(np.float32) @ other_bank.T, np.nan).astype(np.float32)
+    save(path, z, {**meta, "other_sha": sha})
+
+
+def other_file(vlm_file: str) -> str:
+    """The VLM scores file with the "other" class: vlm.npz -> vlm_other.npz."""
+    return vlm_file[:-4] + "_other.npz"
+
+
 def run_phase_scores(root: Path, n_frames: int, fps: float, seg: dict,
                      vlm_file: str = "vlm.npz") -> tuple[dict, list[str]]:
     """{"siglip_full", "siglip_crop", "vlm": [n_frames, K]} from the run's siglip.npz and
     vlm_file for the sources whose weight in seg (seg_a settings) is above 0; and the
-    files that are missing."""
+    files that are missing. With seg_a.other_class the scores have K + 1 columns, the
+    last the "other" class (other_*_cos of siglip.npz, the VLM file other_file(vlm_file))."""
     out, missing = {}, []
+    oc = seg.get("other_class", False)
     if seg["siglip_weight"] > 0 or seg["siglip_crop_weight"] > 0:
         path = root / "siglip.npz"
-        if path.is_file():
-            z = load_scores(path)
+        z = load_scores(path) if path.is_file() else None
+        if z is not None and (not oc or "other_full_cos" in z):
             span = 1.0 / float(z["meta"]["fps"])
-            if seg["siglip_weight"] > 0:
-                out["siglip_full"] = _on_frames(z["time_s"], z["full_cos"], n_frames, fps, span)
-            if seg["siglip_crop_weight"] > 0:
-                out["siglip_crop"] = _on_frames(z["time_s"], z["crop_cos"], n_frames, fps, span)
+            for w, key, src in (("siglip_weight", "siglip_full", "full_cos"), ("siglip_crop_weight", "siglip_crop",
+                                                                             "crop_cos")):
+                if seg[w] > 0:
+                    rows = np.concatenate([z[src], z["other_" + src]], axis=1) if oc else z[src]
+                    out[key] = _on_frames(z["time_s"], rows, n_frames, fps, span)
         else:
-            missing.append("siglip.npz")
+            missing.append("siglip.npz" if z is None else "siglip.npz other class")
+    if oc:
+        vlm_file = other_file(vlm_file)
     if seg["vlm_weight"] > 0:
         path = root / vlm_file
         if path.is_file():

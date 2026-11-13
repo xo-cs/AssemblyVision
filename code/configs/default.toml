@@ -140,7 +140,10 @@ embed_peak_gap_s = 5.0       # change score peaks at least this far apart (s)
 refine_window_s = 0.0        # > 0: each phase boundary moves to the strongest boundary head peak within this many s (0 = off)
 other_ends = false           # true: an optional other segment before the first and after the last phase (intro, outro)
 other_max_s = 30.0           # the longest intro or outro (s)
-other_min_strength = 0.15    # an intro or outro boundary needs a candidate at least this strong
+other_min_strength = 0.15    # an intro or outro boundary needs a candidate at least this strong (also with other_class)
+other_class = false          # true: the zero shot scorers get an extra class "no work in progress" (docs_team/
+                             # phase_descriptions_other.md), allowed only as an intro before the first and an outro after the last phase
+other_class_max_share = 0.3  # the longest intro or outro of other_class (share of the span with a person)
 
 [steps]
 # The vocabulary lives in configs/steps.toml (LLD 3.0.5); this is the empty default.

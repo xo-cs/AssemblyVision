@@ -3,7 +3,7 @@
     source ~/AssemblyVision/av.sh && cd ~/AssemblyVision/code
     python -m assemblyvision.tools.vlm_scores --run RUN_DIR --gpu 1          # writes RUN_DIR/vlm.npz
     python -m assemblyvision.tools.vlm_scores --dataset ikea_asm --gpu 1 [--videos FILE]
-        [--window-s 2 --frames 4 --slots 2 --out vlm.npz]
+        [--window-s 2 --frames 4 --slots 2 --out vlm.npz] [--other]
 
 Starts its own llama-server on 127.0.0.1:--port on the GPU (default GPU1) under
 .locks/gpu<N>.lock, scores every --window-s window of --frames full frames (analysis/vlm.py,
@@ -35,10 +35,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--window-s", type=float, help="seconds per request (default zero_shot.vlm_window_s)")
     p.add_argument("--frames", type=int, help="frames per request (default zero_shot.vlm_frames)")
     p.add_argument("--out", default="vlm.npz", help="file name in the run folder")
+    p.add_argument("--other", action="store_true", help="add the \"other\" class (seg_a.other_class); writes the "
+                                                       "_other name of --out (vlm_other.npz)")
     p.add_argument("--force", action="store_true")
     args = p.parse_args(argv)
     if not args.out.endswith(".npz") or "/" in args.out:
         p.error("--out is a file name *.npz")
+    if args.other:
+        from ..analysis.siglip import other_file
+        args.out = other_file(args.out)
     os.environ["XDG_CONFIG_HOME"] = str(REPO_ROOT / ".config")
     from ..analysis import vlm as V
     from ..analysis import zero_shot as Z
@@ -84,10 +89,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         for i, (root, pset) in enumerate(todo):
             phases, process, _ = Z.phase_set(pset)
+            other = Z.other_class(pset) if args.other else None
             manifest = json.loads((root / "manifest.json").read_text())
             t = time.monotonic()
             rec = Z.vlm_score_video(root / manifest["ingest"]["cfr"]["path"], root / args.out, phases, process, zs,
-                                    args.port)
+                                    args.port, other=other)
             t_score += time.monotonic() - t
             total += rec["windows"]
             print(f"  {i + 1}/{len(todo)}: {rec['windows']} windows, {rec['unparsed']} unparsed, "

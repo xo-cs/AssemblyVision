@@ -13,6 +13,7 @@ from ..storage.files import REPO_ROOT
 
 QISENS = REPO_ROOT / "docs_team/phase_descriptions.md"
 IKEA = REPO_ROOT / "docs_team/phase_descriptions_ikea_asm.md"
+OTHER = REPO_ROOT / "docs_team/phase_descriptions_other.md"
 IKEA_GROUP = {"Lack_TV_Bench": "Lack", "Lack_Coffee_Table": "Lack", "Lack_Side_Table": "Lack",
               "Kallax_Shelf_Drawer": "Kallax_Shelf_Drawer"}
 
@@ -48,3 +49,8 @@ def phases(dataset: str, furniture: str | None = None) -> list[dict]:
     groups = parse(IKEA)[IKEA_GROUP[furniture]]
     want = ip.names(furniture)
     return [p for p in groups if p["name"] in want]
+
+
+def other(dataset: str) -> dict:
+    """The "other" class (no work in progress) of seg_a.other_class for "qisens" or "ikea_asm"."""
+    return parse(OTHER)[{"qisens": "QiSens", "ikea_asm": "IKEA ASM"}[dataset]][0]

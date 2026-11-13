@@ -31,7 +31,9 @@ MMPROJ = "mmproj-Qwen3VL-8B-Instruct-F16.gguf"
 SPAN_WORDS = {1.0: "one second", 2.0: "two seconds", 3.0: "three seconds", 4.0: "four seconds", 6.0: "six seconds"}
 
 
-def prompt(phases: list[dict], process: str, window_s: float = 2.0) -> str:
+def prompt(phases: list[dict], process: str, window_s: float = 2.0, other: dict | None = None) -> str:
+    """other: the "other" class of seg_a.other_class, offered as one more answer after the
+    phases (before the work starts or after it ends); None = the frozen prompt."""
     # The first line names len(phases), not the frame count: the text of the frozen 2 s prompt
     # (w11-zero-shot, the QiSens rows) is kept as it was, only the span follows window_s.
     span = SPAN_WORDS.get(float(window_s), f"{window_s:g} seconds")
@@ -39,6 +41,10 @@ def prompt(phases: list[dict], process: str, window_s: float = 2.0) -> str:
              "The work goes through these phases, always in this order:", ""]
     for i, p in enumerate(phases):
         lines.append(f"{i + 1}. {p['name']}: " + " ".join(p["short"]))
+    if other is not None:
+        lines += ["", "Before the work starts or after it has ended, the frames can also show:",
+                  f"{len(phases) + 1}. {other['name']}: " + " ".join(other["short"])]
+        phases = [*phases, other]
     names = ", ".join(f'"{p["name"]}"' for p in phases)
     lines += ["", "Which phase is shown? Answer with JSON only, in this form:",
               '{"probabilities": {' + names.replace('", "', '": p, "') + '": p}, "reason": "one short line"}',

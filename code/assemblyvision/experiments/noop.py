@@ -82,7 +82,11 @@ def dense_off(v, st) -> bool:
 
 
 def other_off(v, st) -> bool:
-    return _seg(st, "other_ends", False) is False
+    return _seg(st, "other_ends", False) is False and _seg(st, "other_class", False) is False
+
+
+def other_class_off(v, st) -> bool:
+    return _seg(st, "other_class", False) is False
 
 
 def candidates_off(v, st) -> bool:
@@ -142,6 +146,8 @@ DECLARATIONS: dict[str, dict] = {
         "other_ends": OFF,
         "other_max_s": other_off,
         "other_min_strength": other_off,
+        "other_class": OFF,
+        "other_class_max_share": other_class_off,
     },
     "steps": _all(NO, "use mode step"),
     "eval": _all(NO, "seg_fps kappa_fps overlaps label"),

@@ -115,6 +115,37 @@ class ZeroShotPipelineTest(unittest.TestCase):
             self.assertEqual(json.loads(str(z["meta"]))["slots"], 3)
             self.assertFalse((Path(d) / "vlm_w2f4.part.npz").exists())
 
+    def test_other_class_scores(self):
+        from assemblyvision.analysis import siglip as S
+        seg = dict(Config.load()["seg_a"], other_class=True)
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            emb = np.eye(4, 8, dtype=np.float16)
+            S.save(root / "siglip.npz", {"time_s": np.arange(4, dtype=np.float32) / 2, "full_emb": emb, "crop_emb": emb,
+                                         "crop_ok": np.array([1, 1, 0, 1], bool), "full_cos": np.zeros((4, 5), np.float32),
+                                         "crop_cos": np.zeros((4, 5), np.float32)}, {"fps": 2.0})
+            out, missing = S.run_phase_scores(root, 20, 10.0, seg)
+            self.assertIn("siglip.npz other class", missing)           # not added yet
+            bank = np.zeros((1, 8), np.float32)
+            bank[0, 1] = 1.0
+            S.add_other(root / "siglip.npz", bank, "x")
+            np.savez(root / "vlm_other.npz", time_s=np.array([0.0], np.float32), probs=np.full((1, 6), 1 / 6, np.float32),
+                     meta=json.dumps({"window_s": 2.0}))
+            out, missing = S.run_phase_scores(root, 20, 10.0, seg)
+            self.assertEqual(missing, [])
+            self.assertEqual({k: v.shape for k, v in out.items()},
+                             {"siglip_full": (20, 6), "siglip_crop": (20, 6), "vlm": (20, 6)})
+            self.assertEqual(float(out["siglip_full"][5, 5]), 1.0)         # sample 1 (0.5 s) matches the other bank
+            self.assertTrue(np.isnan(out["siglip_crop"][10, 5]))           # sample 2 has no crop
+
+    def test_prompt_with_other(self):
+        ph = pt.phases("ikea_asm", "Lack_Coffee_Table")
+        text = V.prompt(ph, "p", 2.0, pt.other("ikea_asm"))
+        self.assertTrue(text.startswith(V.prompt(ph, "p", 2.0).split("\n\nWhich")[0]))
+        self.assertIn("4. No assembly work:", text)
+        names = [p["name"] for p in ph] + ["No assembly work"]
+        self.assertTrue(V.parse(json.dumps({"probabilities": {"No assembly work": 1}}), names)[0][3] == 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()

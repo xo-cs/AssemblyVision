@@ -27,6 +27,12 @@ IKEA_NAMES = {"Kallax_Shelf_Drawer": "Kallax shelf drawer", "Lack_TV_Bench": "La
               "Lack_Coffee_Table": "Lack coffee table", "Lack_Side_Table": "Lack side table"}
 
 
+def other_class(name: str) -> dict:
+    """The "other" class (docs_team/phase_descriptions_other.md) of a phase set name."""
+    from . import phase_text as pt
+    return pt.other("qisens" if name == "qisens" else "ikea_asm")
+
+
 def phase_set(name: str) -> tuple[list[dict], str, str]:
     """(phases, process text of the VLM prompt, label) of "qisens" or "ikea_asm:<furniture>"."""
     from . import phase_text as pt
@@ -39,9 +45,10 @@ def phase_set(name: str) -> tuple[list[dict], str, str]:
 
 
 def siglip_run(root: Path, manifest: dict, phases: list[dict], label: str, zs: dict, device: str,
-               loaded: tuple | None = None) -> dict:
-    """Scores the run's CFR video with SigLIP 2 and writes root/siglip.npz. zs: the
-    [zero_shot] settings; loaded: (model, processor) to reuse. Returns counts."""
+               loaded: tuple | None = None, other: dict | None = None) -> dict:
+    """Scores the run's CFR video with SigLIP 2 and writes root/siglip.npz (with the
+    cosines of the "other" class when other is given). zs: the [zero_shot] settings;
+    loaded: (model, processor) to reuse. Returns counts."""
     from . import siglip as S
     half = device == "cuda"
     model, proc = loaded if loaded is not None else S.load(REPO_ROOT / "models", device, half=half)
@@ -53,17 +60,19 @@ def siglip_run(root: Path, manifest: dict, phases: list[dict], label: str, zs: d
                                       "max_px": zs["siglip_max_px"], "pad": zs["siglip_pad"],
                                       "phases": [ph["name"] for ph in phases], "descriptions_sha": S.text_sha(phases),
                                       "set": label, "date_utc": utc_now()})
+    if other is not None:
+        S.add_other(root / "siglip.npz", S.text_bank(model, proc, [other], device), S.text_sha([other]))
     return {"samples": len(res["time_s"]), "crops": int(res["crop_ok"].sum())}
 
 
 def vlm_score_video(video: Path, out: Path, phases: list[dict], process: str, zs: dict, port: int,
-                    stop: threading.Event | None = None) -> dict:
+                    stop: threading.Event | None = None, other: dict | None = None) -> dict:
     """Every zs vlm_window_s seconds a clip of vlm_frames frames goes to the running
     llama-server on port (vlm_slots requests at a time); writes out (vlm.npz or another
-    name). Returns counts."""
+    name). other: the "other" class as one more answer (K + 1 columns). Returns counts."""
     from . import vlm as V
-    names = [ph["name"] for ph in phases]
-    text = V.prompt(phases, process, zs["vlm_window_s"])
+    names = [ph["name"] for ph in phases] + ([other["name"]] if other is not None else [])
+    text = V.prompt(phases, process, zs["vlm_window_s"], other)
     wins = V.windows(video, zs["vlm_window_s"], zs["vlm_frames"], 1280)
 
     def one(w):
@@ -89,7 +98,8 @@ def vlm_score_video(video: Path, out: Path, phases: list[dict], process: str, zs
                         meta=json.dumps({"model": V.MODEL, "mmproj": V.MMPROJ, "llama_cpp": "b12005",
                                          "window_s": zs["vlm_window_s"], "n_frames": zs["vlm_frames"],
                                          "px": zs["vlm_px"], "slots": zs["vlm_slots"], "phases": names,
-                                         "prompt": text, "date_utc": utc_now()}))
+                                         "prompt": text, "other_class": other is not None,
+                                         "date_utc": utc_now()}))
     tmp.replace(out)
     return {"windows": len(res), "unparsed": sum(not r[2] for r in res)}
 
@@ -110,12 +120,15 @@ def try_lock(gpu: int):
 class VlmJob:
     """The vlm_scores stage of a full run, in a thread: takes the VLM GPU's lock without
     waiting (busy -> error "busy"), starts llama-server with its log in log_path (the run
-    folder), scores the video into root/vlm.npz and stops the server. result() gives
+    folder), scores the video into root/<zero_shot.vlm_file> (its _other name with the "other"
+    class) and stops the server. result() gives
     {"status": "done"|"busy"|"failed", "seconds", ...}."""
 
-    def __init__(self, root: Path, video: Path, phases: list[dict], process: str, zs: dict, log_path: Path):
+    def __init__(self, root: Path, video: Path, phases: list[dict], process: str, zs: dict, log_path: Path,
+                 other: dict | None = None):
         self.root, self.video, self.phases, self.process, self.zs, self.log_path = \
             root, video, phases, process, zs, log_path
+        self.other = other
         self.stop = threading.Event()
         self._out: dict = {}
         self._thread = threading.Thread(target=self._run, name="vlm_scores", daemon=True)
@@ -136,8 +149,10 @@ class VlmJob:
             server = V.start_server(self.zs["vlm_gpu"], self.zs["vlm_port"], self.log_path,
                                     ctx=V.context_size(self.zs), parallel=self.zs["vlm_slots"])
             ready = time.monotonic() - t0
-            rec = vlm_score_video(self.video, self.root / "vlm.npz", self.phases, self.process, self.zs,
-                                  self.zs["vlm_port"], self.stop)
+            from .siglip import other_file
+            name = other_file(self.zs["vlm_file"]) if self.other is not None else self.zs["vlm_file"]
+            rec = vlm_score_video(self.video, self.root / name, self.phases, self.process, self.zs,
+                                  self.zs["vlm_port"], self.stop, self.other)
             self._out = {"status": "done", "server_ready_s": round(ready, 1), **rec}
         except Exception as e:
             self._out = {"status": "failed", "detail": f"{type(e).__name__}: {e}"[:300]}

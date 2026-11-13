@@ -1,0 +1,26 @@
+{
+ "slots": {
+  "1": {
+   "windows": 127,
+   "scoring_s": 208.8,
+   "s_per_window": 1.644,
+   "wall_s": 214.9,
+   "date_utc": "2026-11-13T07:32:50Z"
+  },
+  "2": {
+   "windows": 127,
+   "scoring_s": 155.7,
+   "s_per_window": 1.226,
+   "wall_s": 160.8,
+   "date_utc": "2026-11-13T07:35:30Z"
+  },
+  "4": {
+   "windows": 127,
+   "scoring_s": 139.4,
+   "s_per_window": 1.097,
+   "wall_s": 144.4,
+   "date_utc": "2026-11-13T07:37:55Z"
+  }
+ },
+ "grid": {}
+}

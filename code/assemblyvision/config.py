@@ -198,6 +198,8 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "seg_a.other_ends": (lambda v: isinstance(v, bool), "true or false"),
     "seg_a.other_max_s": (lambda v: v > 0, "> 0"),
     "seg_a.other_min_strength": (lambda v: v >= 0, ">= 0"),
+    "seg_a.other_class": (lambda v: isinstance(v, bool), "true or false"),
+    "seg_a.other_class_max_share": (lambda v: 0 < v < 1, "above 0, below 1"),
     "engine_b.video_norm": (lambda v: isinstance(v, bool), "true or false"),
     "engine_b.candidates": (lambda v: v in ("engine_a", "dense"), "engine_a or dense"),
     "engine_b.candidate_step_s": (lambda v: 0.1 <= v <= 60, "0.1 to 60 s"),

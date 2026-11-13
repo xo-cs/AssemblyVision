@@ -132,10 +132,19 @@ class IkeaBench:
 
     def video(self, vid: str, over: dict, cuts_p: float | None = None) -> dict:
         """cuts_p: with the synthetic cuts of share p (CUTS); None = the run's own shots."""
+        from ..evaluation.steps_eval import evaluate
+        cfg, engine, tl, manifest = self.timeline(vid, over, cuts_p)
+        pred = engine.segment_run(tl)
+        dur = float(manifest["ingest"]["cfr"]["duration_s"])
+        gt = gt_steps(vid, dur)
+        res, _ = evaluate(pred, gt, dur, cfg["eval"]["seg_fps"], cfg["eval"]["overlaps"])
+        return {"video": vid, "metrics": res}
+
+    def timeline(self, vid: str, over: dict, cuts_p: float | None = None) -> tuple:
+        """(cfg, engine, timeline with every evidence the settings use, manifest) of a video."""
         from ..analysis import visual
         from ..analysis.segmentation import build_timeline, create_engine
         from ..analysis.segmentation.base import RunTimeline
-        from ..evaluation.steps_eval import evaluate
         from .run_pose import _MemoryCtx, boundary_probability, engine_b_needed
         cfg = self.cfg(vid, over)
         rid = self.r[vid]
@@ -166,16 +175,12 @@ class IkeaBench:
         if any(cfg["seg_a"][k] > 0 for k in ("siglip_weight", "siglip_crop_weight", "vlm_weight")):
             from ..analysis.siglip import run_phase_scores
             key = (rid, cfg["seg_a"]["siglip_weight"] > 0, cfg["seg_a"]["siglip_crop_weight"] > 0,
-                   cfg["seg_a"]["vlm_weight"] > 0, cfg["zero_shot"]["vlm_file"])
+                   cfg["seg_a"]["vlm_weight"] > 0, cfg["zero_shot"]["vlm_file"], cfg["seg_a"]["other_class"])
             if getattr(self, "_ps_key", None) != key:
                 self._ps_key, self._ps = key, run_phase_scores(root, tl.n_frames, tl.fps, cfg["seg_a"],
                                                                cfg["zero_shot"]["vlm_file"])[0]
             tl.phase_scores = self._ps
-        pred = engine.segment_run(tl)
-        dur = float(manifest["ingest"]["cfr"]["duration_s"])
-        gt = gt_steps(vid, dur)
-        res, _ = evaluate(pred, gt, dur, cfg["eval"]["seg_fps"], cfg["eval"]["overlaps"])
-        return {"video": vid, "metrics": res}
+        return cfg, engine, tl, manifest
 
 
 def main(argv: list[str] | None = None) -> int:
