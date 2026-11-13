@@ -22,5 +22,66 @@
    "date_utc": "2026-11-13T07:37:55Z"
   }
  },
- "grid": {}
+ "grid": {
+  "vlm_w2f4s4.npz": {
+   "window_s": 2.0,
+   "frames": 4,
+   "slots": 4,
+   "windows": 2079,
+   "scoring_s": 2178.4,
+   "s_per_window": 1.048,
+   "wall_s": 2183.7,
+   "date_utc": "2026-11-13T08:15:20Z"
+  },
+  "vlm_w2f2s4.npz": {
+   "window_s": 2.0,
+   "frames": 2,
+   "slots": 4,
+   "windows": 2074,
+   "scoring_s": 1674.1,
+   "s_per_window": 0.807,
+   "wall_s": 1679.4,
+   "date_utc": "2026-11-13T08:43:19Z"
+  },
+  "vlm_w3f4s4.npz": {
+   "window_s": 3.0,
+   "frames": 4,
+   "slots": 4,
+   "windows": 1393,
+   "scoring_s": 1469.4,
+   "s_per_window": 1.055,
+   "wall_s": 1474.5,
+   "date_utc": "2026-11-13T09:07:54Z"
+  },
+  "vlm_w3f2s4.npz": {
+   "window_s": 3.0,
+   "frames": 2,
+   "slots": 4,
+   "windows": 1386,
+   "scoring_s": 1129.0,
+   "s_per_window": 0.815,
+   "wall_s": 1134.2,
+   "date_utc": "2026-11-13T09:26:48Z"
+  },
+  "vlm_w4f4s4.npz": {
+   "window_s": 4.0,
+   "frames": 4,
+   "slots": 4,
+   "windows": 1047,
+   "scoring_s": 1107.8,
+   "s_per_window": 1.058,
+   "wall_s": 1112.7,
+   "date_utc": "2026-11-13T09:45:21Z"
+  },
+  "vlm_w4f2s4.npz": {
+   "window_s": 4.0,
+   "frames": 2,
+   "slots": 4,
+   "windows": 1043,
+   "scoring_s": 849.9,
+   "s_per_window": 0.815,
+   "wall_s": 854.8,
+   "date_utc": "2026-11-13T09:59:35Z"
+  }
+ }
 }

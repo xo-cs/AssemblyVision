@@ -1,0 +1,292 @@
+{
+ "id": "w11-vlm-speed",
+ "kind": "vlm_speed",
+ "source": "public",
+ "reference": "",
+ "title": "VLM speed: window and frames per request on IKEA ASM training videos (rule w11-vlm-speed)",
+ "rule": "experiments/w11-vlm-speed/rule.md",
+ "videos": {
+  "seed": 42,
+  "rule": "rule.md",
+  "sets": {
+   "Kallax_Shelf_Drawer": [
+    "Kallax_Shelf_Drawer/0002_white_floor_01_01_2019_08_14_15_38",
+    "Kallax_Shelf_Drawer/0002_white_table_07_03_2019_08_21_18_02",
+    "Kallax_Shelf_Drawer/0004_oak_floor_01_01_2019_08_14_16_24",
+    "Kallax_Shelf_Drawer/0005_black_table_07_03_2019_08_21_16_06",
+    "Kallax_Shelf_Drawer/0007_oak_table_10_04_2019_08_28_15_46",
+    "Kallax_Shelf_Drawer/0012_oak_table_02_01_2019_08_16_11_34",
+    "Kallax_Shelf_Drawer/0013_black_floor_06_03_2019_08_21_14_14",
+    "Kallax_Shelf_Drawer/0013_white_table_02_01_2019_08_16_11_49",
+    "Kallax_Shelf_Drawer/0016_black_table_10_04_2019_08_28_14_55",
+    "Kallax_Shelf_Drawer/0016_oak_table_07_03_2019_08_21_17_11",
+    "Kallax_Shelf_Drawer/0027_oak_floor_06_03_2019_08_21_13_22",
+    "Kallax_Shelf_Drawer/0030_black_table_10_04_2019_08_28_14_54",
+    "Kallax_Shelf_Drawer/0030_oak_floor_09_04_2019_08_28_14_17",
+    "Kallax_Shelf_Drawer/0033_black_floor_06_03_2019_08_21_11_17",
+    "Kallax_Shelf_Drawer/0033_oak_floor_09_04_2019_08_28_14_09",
+    "Kallax_Shelf_Drawer/0036_white_floor_09_04_2019_08_28_13_31",
+    "Kallax_Shelf_Drawer/0037_oak_table_07_03_2019_08_21_17_30",
+    "Kallax_Shelf_Drawer/0041_white_floor_09_04_2019_08_28_12_59",
+    "Kallax_Shelf_Drawer/0044_oak_table_10_04_2019_08_28_15_25",
+    "Kallax_Shelf_Drawer/0044_white_floor_11_04_2019_08_28_17_08"
+   ],
+   "Lack_Coffee_Table": [
+    "Lack_Coffee_Table/0001_oak_table_07_03_2019_08_21_18_09",
+    "Lack_Coffee_Table/0003_oak_table_02_01_2019_08_16_10_55",
+    "Lack_Coffee_Table/0004_black_floor_06_03_2019_08_21_11_46",
+    "Lack_Coffee_Table/0004_oak_floor_09_04_2019_08_28_13_49",
+    "Lack_Coffee_Table/0007_oak_floor_01_01_2019_08_14_17_37",
+    "Lack_Coffee_Table/0007_white_table_07_03_2019_08_21_16_52",
+    "Lack_Coffee_Table/0009_white_floor_01_01_2019_08_15_11_40",
+    "Lack_Coffee_Table/0011_black_table_02_01_2019_08_16_11_12",
+    "Lack_Coffee_Table/0013_black_floor_06_03_2019_08_21_14_10",
+    "Lack_Coffee_Table/0014_white_table_10_04_2019_08_28_14_30",
+    "Lack_Coffee_Table/0015_black_table_02_01_2019_08_16_13_50",
+    "Lack_Coffee_Table/0016_black_floor_09_04_2019_08_28_13_58",
+    "Lack_Coffee_Table/0016_black_table_10_04_2019_08_28_14_58",
+    "Lack_Coffee_Table/0026_black_floor_06_03_2019_08_21_13_45",
+    "Lack_Coffee_Table/0027_white_floor_06_03_2019_08_21_13_16",
+    "Lack_Coffee_Table/0031_white_floor_06_03_2019_08_21_10_32",
+    "Lack_Coffee_Table/0032_black_floor_06_03_2019_08_21_10_56",
+    "Lack_Coffee_Table/0038_white_table_07_03_2019_08_21_17_42",
+    "Lack_Coffee_Table/0040_black_floor_09_04_2019_08_28_13_19",
+    "Lack_Coffee_Table/0043_white_floor_11_04_2019_08_28_16_35"
+   ]
+  },
+  "slots_videos": [
+   "Kallax_Shelf_Drawer/0002_white_floor_01_01_2019_08_14_15_38",
+   "Lack_Coffee_Table/0001_oak_table_07_03_2019_08_21_18_09",
+   "Kallax_Shelf_Drawer/0002_white_table_07_03_2019_08_21_18_02"
+  ]
+ },
+ "video_minutes": 68.8,
+ "slots": {
+  "1": {
+   "windows": 127,
+   "scoring_s": 208.8,
+   "s_per_window": 1.644,
+   "wall_s": 214.9,
+   "date_utc": "2026-11-13T07:32:50Z"
+  },
+  "2": {
+   "windows": 127,
+   "scoring_s": 155.7,
+   "s_per_window": 1.226,
+   "wall_s": 160.8,
+   "date_utc": "2026-11-13T07:35:30Z"
+  },
+  "4": {
+   "windows": 127,
+   "scoring_s": 139.4,
+   "s_per_window": 1.097,
+   "wall_s": 144.4,
+   "date_utc": "2026-11-13T07:37:55Z"
+  }
+ },
+ "rows": [
+  {
+   "file": "vlm.npz",
+   "setting": null,
+   "sets": {
+    "Kallax_Shelf_Drawer": {
+     "frame_accuracy": 54.92,
+     "f1_50": 37.76,
+     "boundary_mae_s": 11.68,
+     "videos": 20
+    },
+    "Lack_Coffee_Table": {
+     "frame_accuracy": 75.63,
+     "f1_50": 52.54,
+     "boundary_mae_s": 26.28,
+     "videos": 20
+    }
+   },
+   "worst": 54.92,
+   "s_per_video_min": null,
+   "s_per_window": null
+  },
+  {
+   "file": "vlm_w2f4s4.npz",
+   "setting": {
+    "window_s": 2.0,
+    "frames": 4,
+    "slots": 4
+   },
+   "sets": {
+    "Kallax_Shelf_Drawer": {
+     "frame_accuracy": 56.1,
+     "f1_50": 40.26,
+     "boundary_mae_s": 11.1,
+     "videos": 20
+    },
+    "Lack_Coffee_Table": {
+     "frame_accuracy": 73.99,
+     "f1_50": 50.87,
+     "boundary_mae_s": 25.72,
+     "videos": 20
+    }
+   },
+   "worst": 56.1,
+   "s_per_video_min": 31.67,
+   "s_per_window": 1.048
+  },
+  {
+   "file": "vlm_w2f2s4.npz",
+   "setting": {
+    "window_s": 2.0,
+    "frames": 2,
+    "slots": 4
+   },
+   "sets": {
+    "Kallax_Shelf_Drawer": {
+     "frame_accuracy": 50.33,
+     "f1_50": 33.98,
+     "boundary_mae_s": 12.68,
+     "videos": 20
+    },
+    "Lack_Coffee_Table": {
+     "frame_accuracy": 73.1,
+     "f1_50": 49.21,
+     "boundary_mae_s": 25.4,
+     "videos": 20
+    }
+   },
+   "worst": 50.33,
+   "s_per_video_min": 24.34,
+   "s_per_window": 0.807
+  },
+  {
+   "file": "vlm_w3f4s4.npz",
+   "setting": {
+    "window_s": 3.0,
+    "frames": 4,
+    "slots": 4
+   },
+   "sets": {
+    "Kallax_Shelf_Drawer": {
+     "frame_accuracy": 53.93,
+     "f1_50": 36.48,
+     "boundary_mae_s": 10.74,
+     "videos": 20
+    },
+    "Lack_Coffee_Table": {
+     "frame_accuracy": 74.14,
+     "f1_50": 50.87,
+     "boundary_mae_s": 25.68,
+     "videos": 20
+    }
+   },
+   "worst": 53.93,
+   "s_per_video_min": 21.36,
+   "s_per_window": 1.055
+  },
+  {
+   "file": "vlm_w3f2s4.npz",
+   "setting": {
+    "window_s": 3.0,
+    "frames": 2,
+    "slots": 4
+   },
+   "sets": {
+    "Kallax_Shelf_Drawer": {
+     "frame_accuracy": 55.13,
+     "f1_50": 38.73,
+     "boundary_mae_s": 10.92,
+     "videos": 20
+    },
+    "Lack_Coffee_Table": {
+     "frame_accuracy": 74.14,
+     "f1_50": 50.87,
+     "boundary_mae_s": 25.68,
+     "videos": 20
+    }
+   },
+   "worst": 55.13,
+   "s_per_video_min": 16.41,
+   "s_per_window": 0.815
+  },
+  {
+   "file": "vlm_w4f4s4.npz",
+   "setting": {
+    "window_s": 4.0,
+    "frames": 4,
+    "slots": 4
+   },
+   "sets": {
+    "Kallax_Shelf_Drawer": {
+     "frame_accuracy": 51.74,
+     "f1_50": 33.73,
+     "boundary_mae_s": 12.2,
+     "videos": 20
+    },
+    "Lack_Coffee_Table": {
+     "frame_accuracy": 80.4,
+     "f1_50": 53.97,
+     "boundary_mae_s": 25.99,
+     "videos": 20
+    }
+   },
+   "worst": 51.74,
+   "s_per_video_min": 16.11,
+   "s_per_window": 1.058
+  },
+  {
+   "file": "vlm_w4f2s4.npz",
+   "setting": {
+    "window_s": 4.0,
+    "frames": 2,
+    "slots": 4
+   },
+   "sets": {
+    "Kallax_Shelf_Drawer": {
+     "frame_accuracy": 50.47,
+     "f1_50": 33.01,
+     "boundary_mae_s": 10.93,
+     "videos": 20
+    },
+    "Lack_Coffee_Table": {
+     "frame_accuracy": 74.14,
+     "f1_50": 50.87,
+     "boundary_mae_s": 25.68,
+     "videos": 20
+    }
+   },
+   "worst": 50.47,
+   "s_per_video_min": 12.36,
+   "s_per_window": 0.815
+  }
+ ],
+ "selected": {
+  "window_s": 3.0,
+  "frames": 2,
+  "slots": 4
+ },
+ "provenance": {
+  "git": {
+   "commit": "000e8f74536ea373f3e31bc36d6bafb3bc79689a",
+   "branch": "feat/w10-data",
+   "dirty": [
+    "code/assemblyvision/tools/vlm_speed.py"
+   ],
+   "outputs_changed": [
+    "experiments/w11-vlm-speed/.videos_vlm_w2f4s4.npz.json",
+    "experiments/w11-vlm-speed/timing.json"
+   ]
+  },
+  "date_utc": "2026-11-13T09:59:59Z",
+  "command": "/home/qisens/AssemblyVision/code/assemblyvision/tools/vlm_speed.py eval"
+ },
+ "finished_utc": "2026-11-13T09:59:59Z",
+ "index": {
+  "cells": [
+   "selected {'window_s': 3.0, 'frames': 2, 'slots': 4}: worst 55.13 (reference 54.92), 16.41 s per video min"
+  ],
+  "verdict": "measurement"
+ },
+ "notes": [
+  "Batching changes the VLM outputs: the current setting with 4 slots instead of 2 moves the worst case from 54.92 to 56.10 (Kallax +1.18, Lack Coffee -1.64). The 1 point margin of the rule is at that noise level, so the selected setting is as accurate as the current one within noise, not shown to be better.",
+  "Speed: 3 s windows with 2 frames need 16.41 s of VLM per minute of video, against 31.67 s (current setting, 4 slots) and about 36.8 s (current setting, 2 slots, 1.226 s per window): 1.9x and 2.2x faster.",
+  "Expected QiSens full run (9.9 min of video, estimate, not measured): VLM about 162 s plus 6 s server start, running on GPU1 during the pose pass (ingest to tracking about 265 s in w10-qisens-best), so it adds no time; SigLIP on GPU0 after tracking about 70 s (1190 samples, from 79 samples in 8.5 s on IKEA); the rest as in w10-qisens-best (340.7 s). Total about 410 s (6.8 min), against about 340 s for B v1. The pose pass ran about 10 % slower beside the VLM on one IKEA video (70.9 against 79.0 fps)."
+ ]
+}

@@ -53,7 +53,8 @@ def _duration_s(vids: list[str]) -> float:
 
 def score(vids: list[str], w: float, f: int, s: int, gpu: int, out: str) -> dict:
     """Runs tools/vlm_scores.py on vids; {"windows", "scoring_s", "s_per_window", "wall_s"}."""
-    lst = EXP / f".videos_{out}.json"
+    lst = REPO_ROOT / "tmp" / f"vlm_speed_videos_{out}.json"
+    lst.parent.mkdir(exist_ok=True)
     lst.write_text(json.dumps(vids))
     cmd = [sys.executable, "-m", "assemblyvision.tools.vlm_scores", "--dataset", "ikea_asm", "--videos", str(lst),
            "--gpu", str(gpu), "--slots", str(s), "--window-s", str(w), "--frames", str(f), "--out", out, "--force"]

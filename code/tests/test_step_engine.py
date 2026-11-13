@@ -18,7 +18,7 @@ class StepEngineTest(unittest.TestCase):
                          [1.0, 1.0, 1.0, 0.01, False, 1.0, 0.0, False])
         self.assertEqual(c["engine_b"]["candidates"], "dense")
         self.assertTrue(c["zero_shot"]["in_pipeline"])
-        self.assertEqual((c["zero_shot"]["vlm_window_s"], c["zero_shot"]["vlm_frames"]), (2.0, 4))
+        self.assertEqual((c["zero_shot"]["vlm_window_s"], c["zero_shot"]["vlm_frames"], c["zero_shot"]["vlm_slots"]), (3.0, 2, 4))
 
     def test_b_v1_preset(self):
         c = Config.load(overrides={"seg_a": {"engine": "B v1"}})
