@@ -653,6 +653,7 @@ def rerun(args: argparse.Namespace) -> int:
     ctx.write_manifest()
     log.info(summary)
     print(summary)
+    index_run(ctx, cfg)
     return code
 
 
@@ -688,6 +689,19 @@ def track_shot_job(job: dict) -> dict:
                                    size=job["size"], meta=job["meta"])
     return {"tracking": ctx.manifest["tracking"], "notices": ctx.manifest["notices"], "log": keep.lines,
             "seconds": time.monotonic() - t0}
+
+
+def index_run(ctx: RunContext, cfg: Config) -> None:
+    """Indexes the finished run into its area's Repository (SQLite); a failure is logged
+    only, the run folder stays the record (the interface indexes it again on read)."""
+    import sqlite3
+    from ..storage.repository import Repository
+    try:
+        repo = Repository(ctx.source, None, area=ctx.paths.root.parent.parent)    # <area>/runs/<run_id>
+        repo.index_run(ctx.paths.root)
+        repo.close()
+    except (sqlite3.Error, OSError, ValueError, KeyError) as e:
+        ctx.log.warning("repository: the run was not indexed (%s: %s)", type(e).__name__, e)
 
 
 def zero_shot_needs(cfg: Config) -> tuple[bool, bool]:
@@ -1013,6 +1027,7 @@ def main(argv: list[str] | None = None) -> int:
     ctx.write_manifest()
     log.info(summary)
     print(summary)
+    index_run(ctx, cfg)
     if gpu_lock is not None:
         gpu_lock.close()
     return code

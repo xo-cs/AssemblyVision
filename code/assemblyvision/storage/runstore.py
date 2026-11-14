@@ -1,10 +1,10 @@
-"""Read access to stored runs for the interface, until Repository exists.
+"""Read access to stored runs for the interface (LLD 3.2).
 
-LLD deviation: LLD 3.2 has the interface read everything through Repository
-(SQLite plus the File Store). There is no database yet, so RunStore reads the
-run folders (manifest.json, steps.csv, metrics.csv, eval.json, reference
-frames, overlay) and offers the read methods Repository will have, with the
-same names, so the interface does not change when Repository arrives.
+The run list, steps, metrics and evaluations come from the Repository (SQLite,
+storage/repository.py: data/<source>/av.db or av_dev.db), which indexes the run folders
+and is brought up to date on every read (only runs whose files changed are indexed
+again). Everything else (manifest, reference frames, overlay) is read from the File
+Store. If the database cannot be used, RunStore reads the run folders as before.
 
 RunStore only ever looks inside the data areas named in `sources`. A source
 that is not listed is never opened, listed or resolved (CLAUDE.md rule 1): a
@@ -76,6 +76,18 @@ class RunStore:
         self.cfg = cfg
         self.repo_root = repo_root
         self.roots = {s: source_root(s, cfg["paths"], repo_root) for s in self.sources}
+        from .repository import Repository
+        self.repos = {s: Repository(s, cfg["paths"], repo_root) for s in self.sources}
+
+    def _repo(self, run_id: str | None = None, source: str | None = None):
+        """The synced Repository of a run's (or a source's) area, or None if the database fails."""
+        import sqlite3
+        s = source or self._locate(run_id)[0]
+        try:
+            self.repos[s].sync(run_id)
+            return self.repos[s]
+        except (sqlite3.Error, OSError):
+            return None
 
     # runs ------------------------------------------------------------------------
 
@@ -95,6 +107,10 @@ class RunStore:
         """Every run of the allowed sources, newest first."""
         out = []
         for s, root in self.roots.items():
+            repo = self._repo(source=s)
+            if repo is not None:
+                out += repo.list_runs()
+                continue
             runs = root / "runs"
             if not runs.is_dir():
                 continue
@@ -129,6 +145,11 @@ class RunStore:
         p = self.paths(run_id).steps_csv
         if not p.is_file():
             return []
+        repo = self._repo(run_id)
+        if repo is not None:
+            from ..types import Step
+            return [Step(r["label"], r["start_s"], r["end_s"], r["source"] or "gt", r["score"])
+                    for r in repo.get_steps(run_id)]
         from ..evaluation.steps_io import read_steps_csv
         return read_steps_csv(p)
 
@@ -160,12 +181,18 @@ class RunStore:
         p = self.paths(run_id).metrics_csv
         if not p.is_file():
             return []
-        with open(p, newline="", encoding="utf-8") as f:
-            rows = list(csv.DictReader(f))
-        for r in rows:
-            for k in ("value", "coverage", "start_s", "end_s"):
-                r[k] = float(r[k]) if r.get(k) not in (None, "") else None
-            r["step"] = int(r["step"])
+        repo = self._repo(run_id)
+        if repo is not None:
+            rows = repo.get_metrics(run_id)
+            for r in rows:
+                r["flags"] = r["flags"] or ""
+        else:
+            with open(p, newline="", encoding="utf-8") as f:
+                rows = list(csv.DictReader(f))
+            for r in rows:
+                for k in ("value", "coverage", "start_s", "end_s"):
+                    r[k] = float(r[k]) if r.get(k) not in (None, "") else None
+                r["step"] = int(r["step"])
         names = self.label_map(run_id)
         for r in rows:
             r["label"] = names.get(r.get("label"), r.get("label"))
@@ -180,6 +207,9 @@ class RunStore:
         p = self.paths(run_id).eval_json
         if not p.is_file():
             return None
+        repo = self._repo(run_id)
+        if repo is not None:
+            return repo.get_eval(run_id)
         try:
             return json.loads(p.read_text())
         except (OSError, ValueError):
