@@ -565,6 +565,8 @@ class RuleBasedEngine(SegmentationEngine):
         if len(idx) == 0:
             rep.update(mode="phases" if self.vocabulary else "fallback", phases_expected=len(self.vocabulary),
                        phases_found=0, note="no person in the whole run", evidence=[])
+            if self.ctx is not None:
+                self.ctx.notice(AvError("AV-SEG-007"), "segmentation")
             steps = [Step(OTHER, tl.t(0), tl.t(tl.n_frames), SOURCE, None)]
             check_contract(steps, tl, self.vocabulary)
             return steps

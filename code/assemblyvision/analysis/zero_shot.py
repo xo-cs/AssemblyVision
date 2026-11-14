@@ -92,6 +92,8 @@ def vlm_score_video(video: Path, out: Path, phases: list[dict], process: str, zs
             if len(pending) >= 4 * zs["vlm_slots"]:
                 res.append(pending.pop(0).result())
         res += [f.result() for f in pending]
+    if stop is not None and stop.is_set():          # never store a file with the stopped windows as scores
+        raise RuntimeError("stopped before the end of the video")
     probs = np.stack([r[0] for r in res]) if res else np.zeros((0, len(names)), np.float32)
     tmp = out.with_name(out.stem + ".part.npz")
     np.savez_compressed(tmp, time_s=np.array(times, np.float32), probs=probs,
