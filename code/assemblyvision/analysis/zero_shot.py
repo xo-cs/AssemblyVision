@@ -79,7 +79,8 @@ def vlm_score_video(video: Path, out: Path, phases: list[dict], process: str, zs
         if stop is not None and stop.is_set():
             return np.full(len(names), 1.0 / len(names), np.float32), "stopped", False
         try:
-            return V.parse(V.ask(port, text, w[1], zs["vlm_px"]), names)
+            return V.parse(V.ask(port, text, w[1], zs["vlm_px"], seed=zs["vlm_seed"],
+                                 cache_prompt=zs["vlm_cache_prompt"]), names)
         except Exception as e:                 # a failed request counts as unparsed
             return np.full(len(names), 1.0 / len(names), np.float32), f"request failed: {e}"[:200], False
     times, res = [], []
@@ -97,7 +98,8 @@ def vlm_score_video(video: Path, out: Path, phases: list[dict], process: str, zs
                         reasons=np.array([r[1] for r in res]), parsed=np.array([r[2] for r in res]),
                         meta=json.dumps({"model": V.MODEL, "mmproj": V.MMPROJ, "llama_cpp": "b12005",
                                          "window_s": zs["vlm_window_s"], "n_frames": zs["vlm_frames"],
-                                         "px": zs["vlm_px"], "slots": zs["vlm_slots"], "phases": names,
+                                         "px": zs["vlm_px"], "slots": zs["vlm_slots"], "seed": zs["vlm_seed"],
+                                         "cache_prompt": zs["vlm_cache_prompt"], "phases": names,
                                          "prompt": text, "other_class": other is not None,
                                          "date_utc": utc_now()}))
     tmp.replace(out)
@@ -147,7 +149,8 @@ class VlmJob:
         server = None
         try:
             server = V.start_server(self.zs["vlm_gpu"], self.zs["vlm_port"], self.log_path,
-                                    ctx=V.context_size(self.zs), parallel=self.zs["vlm_slots"])
+                                    ctx=V.context_size(self.zs), parallel=self.zs["vlm_slots"],
+                                    seed=self.zs["vlm_seed"], cache_prompt=self.zs["vlm_cache_prompt"])
             ready = time.monotonic() - t0
             from .siglip import other_file
             name = other_file(self.zs["vlm_file"]) if self.other is not None else self.zs["vlm_file"]

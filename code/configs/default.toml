@@ -239,6 +239,8 @@ vlm_slots = 4                # parallel llama-server slots and requests (w11-vlm
 vlm_window_s = 3.0           # one VLM request every window_s seconds (w11-vlm-speed; 2.0 in the 93.20 QiSens run)
 vlm_frames = 2               # frames per request, evenly over the window (w11-vlm-speed; 4 in the 93.20 QiSens run)
 vlm_px = 448                 # long side of the frames sent to the VLM (px)
+vlm_seed = 42                # llama-server and request seed (decoding is greedy, temperature 0)
+vlm_cache_prompt = true      # false: no reuse of a cached prompt prefix between requests
 vlm_parallel = true          # true: the VLM runs during the pose pass, false: after tracking
 vlm_file = "vlm.npz"         # the VLM scores file the decoder reads (benchmarks of other settings use other names)
 

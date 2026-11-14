@@ -37,6 +37,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", default="vlm.npz", help="file name in the run folder")
     p.add_argument("--other", action="store_true", help="add the \"other\" class (seg_a.other_class); writes the "
                                                        "_other name of --out (vlm_other.npz)")
+    p.add_argument("--cache-prompt", choices=("on", "off"), help="prompt caching (default zero_shot.vlm_cache_prompt)")
     p.add_argument("--force", action="store_true")
     args = p.parse_args(argv)
     if not args.out.endswith(".npz") or "/" in args.out:
@@ -51,6 +52,8 @@ def main(argv: list[str] | None = None) -> int:
     from .visual_embed import take_lock
     cfg = Config.load()
     zs = dict(cfg["zero_shot"])
+    if args.cache_prompt is not None:
+        zs["vlm_cache_prompt"] = args.cache_prompt == "on"
     for k, v in (("vlm_slots", args.slots), ("vlm_window_s", args.window_s), ("vlm_frames", args.frames)):
         if v is not None:
             zs[k] = v
@@ -83,7 +86,8 @@ def main(argv: list[str] | None = None) -> int:
         REPO_ROOT / "logs/vlm_scores_server.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     t0 = time.monotonic()
-    server = V.start_server(args.gpu, args.port, log, ctx=V.context_size(zs), parallel=zs["vlm_slots"])
+    server = V.start_server(args.gpu, args.port, log, ctx=V.context_size(zs), parallel=zs["vlm_slots"],
+                            seed=zs["vlm_seed"], cache_prompt=zs["vlm_cache_prompt"])
     print(f"vlm_scores: server ready in {time.monotonic() - t0:.0f} s")
     total, t_score = 0, 0.0
     try:

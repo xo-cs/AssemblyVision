@@ -177,6 +177,8 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "zero_shot.vlm_window_s": (lambda v: 0.5 <= v <= 30, "0.5 to 30"),
     "zero_shot.vlm_frames": (lambda v: 1 <= v <= 8, "1 to 8"),
     "zero_shot.vlm_px": (lambda v: 224 <= v <= 1280, "224 to 1280"),
+    "zero_shot.vlm_seed": (lambda v: isinstance(v, int) and v >= 0, "an integer >= 0"),
+    "zero_shot.vlm_cache_prompt": (lambda v: isinstance(v, bool), "true or false"),
     "zero_shot.vlm_parallel": (lambda v: isinstance(v, bool), "true or false"),
     "zero_shot.vlm_file": (lambda v: isinstance(v, str) and v.endswith(".npz") and "/" not in v, "a file name *.npz"),
     "visual.input_px": (lambda v: v % 14 == 0 and 112 <= v <= 518, "a multiple of 14 from 112 to 518"),

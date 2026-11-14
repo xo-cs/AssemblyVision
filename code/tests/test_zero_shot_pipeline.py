@@ -102,7 +102,7 @@ class ZeroShotPipelineTest(unittest.TestCase):
         names = [p["name"] for p in phases]
         wins = [(2.0 * i, [np.zeros((4, 4, 3), np.uint8)]) for i in range(9)]
 
-        def ask(port, text, frames, px):
+        def ask(port, text, frames, px, **kw):
             return json.dumps({"probabilities": {names[0]: 1.0}, "reason": "r"})
         zs = dict(Config.load()["zero_shot"], vlm_slots=3)
         with tempfile.TemporaryDirectory() as d, mock.patch.object(V, "windows", return_value=iter(wins)), \

@@ -52,12 +52,16 @@ def prompt(phases: list[dict], process: str, window_s: float = 2.0, other: dict 
     return "\n".join(lines)
 
 
-def start_server(gpu: int, port: int, log: Path, ctx: int = 8192, parallel: int = 2) -> subprocess.Popen:
+def start_server(gpu: int, port: int, log: Path, ctx: int = 8192, parallel: int = 2, seed: int = 42,
+                 cache_prompt: bool = True) -> subprocess.Popen:
+    """llama-server on 127.0.0.1:port, greedy (temperature 0) with a fixed seed. cache_prompt
+    false: no reuse of a cached prompt prefix (whose values may come from another batch)."""
     import os
     env = dict(os.environ, CUDA_DEVICE_ORDER="PCI_BUS_ID", CUDA_VISIBLE_DEVICES=str(gpu))
     cmd = [str(SERVER), "-m", str(REPO_ROOT / "models" / MODEL), "--mmproj", str(REPO_ROOT / "models" / MMPROJ),
            "--host", "127.0.0.1", "--port", str(port), "-ngl", "99", "-c", str(ctx), "--parallel", str(parallel),
-           "--no-webui", "--temp", "0"]
+           "--no-webui", "--temp", "0", "--seed", str(seed),
+           *([] if cache_prompt else ["--no-cache-prompt"])]
     f = open(log, "a")
     proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, env=env)
     for _ in range(600):
@@ -89,11 +93,12 @@ def jpeg(frame: np.ndarray, px: int) -> str:
     return base64.b64encode(buf.tobytes()).decode()
 
 
-def ask(port: int, text: str, frames: list[np.ndarray], px: int, timeout: float = 120.0) -> str:
+def ask(port: int, text: str, frames: list[np.ndarray], px: int, timeout: float = 120.0, seed: int = 42,
+        cache_prompt: bool = True) -> str:
     content = [{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + jpeg(f, px)}} for f in frames]
     content.append({"type": "text", "text": text})
     body = {"messages": [{"role": "user", "content": content}], "temperature": 0, "max_tokens": 160,
-            "response_format": {"type": "json_object"}}
+            "response_format": {"type": "json_object"}, "seed": seed, "cache_prompt": cache_prompt}
     req = urllib.request.Request(f"http://127.0.0.1:{port}/v1/chat/completions", data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as r:

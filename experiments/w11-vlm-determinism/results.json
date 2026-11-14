@@ -1,0 +1,34 @@
+{
+ "id": "w11-vlm-determinism",
+ "kind": "vlm_determinism",
+ "source": "public",
+ "reference": "",
+ "title": "VLM repeat determinism: slots and prompt cache (2 IKEA videos, 2 repeats)",
+ "finished_utc": "2026-11-14",
+ "rows": [
+  {
+   "mode": "4 slots, cache on",
+   "identical": "66/70",
+   "max_diff": 0.01,
+   "s_per_window": 0.79
+  },
+  {
+   "mode": "4 slots, cache off",
+   "identical": "63/70",
+   "max_diff": 0.01,
+   "s_per_window": 0.82
+  },
+  {
+   "mode": "1 slot, cache off",
+   "identical": "70/70",
+   "max_diff": 0.0,
+   "s_per_window": 1.39
+  }
+ ],
+ "index": {
+  "cells": [
+   "1 slot: 70/70 identical; 4 slots: 63 to 66/70, max diff 0.01, argmax same"
+  ],
+  "verdict": "measurement"
+ }
+}
