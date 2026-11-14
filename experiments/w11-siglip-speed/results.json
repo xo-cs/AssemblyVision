@@ -102,5 +102,8 @@
    "1 fps -0.01 worst case: 1 fps"
   ],
   "verdict": "measurement"
- }
+ },
+ "notes": [
+  "Timing (GPU0, one public 148 s 1920x1080 video, model already loaded, two repeats each): 14.3 s at 2 fps, 9.4 s at 1 fps; the video decode alone is about 5 s of either. Scaled to the 9.9 min QiSens video (if it is 1080p, which was not checked): about 57 s at 2 fps and 38 s at 1 fps, so about 20 s less. Expected QiSens full run: about 251 s instead of 270.62 s, still above the 240 s milestone (estimate, not measured)."
+ ]
 }
