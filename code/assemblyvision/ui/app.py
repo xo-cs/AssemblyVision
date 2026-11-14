@@ -549,6 +549,81 @@ class GradioApp:
             if notes else ""
         return v.section_title("Notices", sub) + "<div class='av-scroll'>" + v.notices_html(notes) + "</div>"
 
+    # boundary correction and export (output/corrections.py, output/report.py) -------------
+
+    def correction_rows(self, run_id: str | None) -> list[list]:
+        if not run_id:
+            return []
+        from ..output import corrections as C
+        steps, _ = C.latest_steps(self.store.paths(run_id).root)
+        return [[b["after_step"], b["between"], round(b["time_s"], 1)] for b in C.boundaries(steps)]
+
+    def _moved(self, run_id: str, rows) -> list[dict]:
+        from ..output import corrections as C
+        steps, _ = C.latest_steps(self.store.paths(run_id).root)
+        data = rows.values.tolist() if hasattr(rows, "values") else list(rows or [])
+        moved = {int(r[0]): float(r[2]) for r in data if r and str(r[0]).strip() != ""}
+        return C.apply(steps, moved)
+
+    def correction_preview(self, run_id: str | None, rows) -> str:
+        """The recomputed duration per step of the corrected boundaries (nothing written)."""
+        if not run_id:
+            return ""
+        from ..output import corrections as C
+        try:
+            steps = self._moved(run_id, rows)
+            recs = C.preview(self.store.paths(run_id).root, steps)
+        except (ValueError, AvError) as e:
+            return v.note(str(e))
+        n = {}
+        for r in recs:
+            n.setdefault(r["step"], []).append(r)
+        out = [[s["step"], v.esc(s["label"]), v.clock(s["start_s"]), v.clock(s["end_s"]),
+                f"{s['end_s'] - s['start_s']:.1f} s", len(n.get(str(s["step"]), []))] for s in steps if s["label"] != "other"]
+        return v.section_title("Preview", "Recomputed from the stored keypoints; nothing is saved until you approve.") + \
+            v.table(["Step", "Phase", "Start", "End", "Duration", "Metric values"], out, num={0, 2, 3, 4, 5}, raw={1})
+
+    def correction_approve(self, run_id: str | None, rows, note: str, user: str = "interface") -> tuple[str, list]:
+        if not run_id:
+            return "", []
+        from ..output import corrections as C
+        try:
+            steps = self._moved(run_id, rows)
+            out = C.approve(self.store.paths(run_id).root, steps, user, note or "")
+        except (ValueError, AvError, FileExistsError) as e:
+            return v.note(str(e)), self.export_files(run_id)
+        self.audit(user, "approve_revision", run_id, out.name)
+        return f"<span class='av-hint'>Saved as revision {v.esc(out.name[3:])}; the original stays as revision 0.</span>", \
+            self.export_files(run_id)
+
+    def export_report(self, run_id: str | None, user: str = "interface") -> tuple[str, list]:
+        """Exports revision 0 (the run as computed) when it is missing; the files of every revision."""
+        if not run_id:
+            return "", []
+        from ..output import report as R
+        root = self.store.paths(run_id).root
+        made = False
+        if not (root / "export" / "rev0").exists():
+            try:
+                R.export_run(root, 0)
+                made = True
+            except (OSError, AvError, KeyError) as e:
+                return v.note(f"The report could not be made: {e}"), []
+        self.audit(user, "export_report", run_id, "rev0" if made else "download")
+        return "<span class='av-hint'>Report files of every revision (PDF, JSON, CSV).</span>", self.export_files(run_id)
+
+    def export_files(self, run_id: str | None) -> list:
+        if not run_id:
+            return []
+        d = self.store.paths(run_id).root / "export"
+        return [str(p) for p in sorted(d.glob("rev*/*")) if p.suffix in (".pdf", ".json", ".csv")] if d.is_dir() else []
+
+    def audit(self, user: str, action: str, run_id: str, detail: str = "") -> None:
+        """Hook for the audit log (set up by the login, ui/auth.py); nothing without it."""
+        log = getattr(self, "audit_log", None)
+        if log is not None:
+            log(user, action, run_id, detail)
+
     def results_kpis(self, run_id: str) -> str:
         m = self.store.get_run(run_id)
         segs = [s for s in self.store.get_segments(run_id) if s["label"] != "other"]
@@ -757,6 +832,23 @@ class GradioApp:
                             timeline_img = gr.HTML(label="Process timeline (Engine A)", elem_classes=["av-card"])
                             steps_html = gr.HTML(elem_classes=["av-card"])
                             with gr.Column(elem_classes=["av-card"]):
+                                gr.HTML(v.section_title("Boundary correction", "Move a boundary (time in seconds), "
+                                                        "recompute the metrics, then approve: the corrected version "
+                                                        "is saved as a new revision and the original stays."))
+                                corr_df = gr.Dataframe(headers=["After step", "Between", "Time (s)"],
+                                                       datatype=["number", "str", "number"], col_count=(3, "fixed"),
+                                                       interactive=True, elem_classes=["av-plain"])
+                                corr_note = gr.Textbox(label="Note for the revision", max_lines=1,
+                                                       elem_classes=["av-plain"])
+                                with gr.Row(elem_classes=["av-actions"]):
+                                    corr_prev = gr.Button("Recompute metrics", variant="secondary",
+                                                          elem_classes=["av-fit"])
+                                    corr_ok = gr.Button("Approve and save revision", variant="primary",
+                                                        elem_classes=["av-fit"])
+                                    exp_btn = gr.Button("Export report", variant="secondary", elem_classes=["av-fit"])
+                                corr_msg = gr.HTML()
+                                exp_files = gr.File(label="Report files", file_count="multiple", interactive=False)
+                            with gr.Column(elem_classes=["av-card"]):
                                 gr.HTML(v.section_title("Motion metrics per step", "Every value with its coverage, "
                                                         "the share of frames that had the keypoints it needs."))
                                 with gr.Row():
@@ -897,6 +989,18 @@ class GradioApp:
             open_box.input(on_open_box, open_box, [run_dd, *nav_out])
             step_dd.change(self.metrics_html, [run_dd, step_dd], metrics_html, show_progress="hidden")
             reach_dd.input(self.reach_html, [run_dd, reach_dd], reach_html, show_progress="hidden")
+            run_dd.change(lambda r: [self.correction_rows(r), "", self.export_files(r)], run_dd,
+                          [corr_df, corr_msg, exp_files])
+            corr_prev.click(self.correction_preview, [run_dd, corr_df], corr_msg)
+            def on_approve(run_id, rows, note_text, request):
+                return (*self.correction_approve(run_id, rows, note_text, _user(request)), self.correction_rows(run_id))
+
+            def on_export(run_id, request):
+                return self.export_report(run_id, _user(request))
+            on_approve.__annotations__["request"] = gr.Request
+            on_export.__annotations__["request"] = gr.Request
+            corr_ok.click(on_approve, [run_dd, corr_df, corr_note], [corr_msg, exp_files, corr_df])
+            exp_btn.click(on_export, run_dd, [corr_msg, exp_files])
         self.demo = demo
         return demo
 
@@ -916,6 +1020,11 @@ class GradioApp:
         demo.launch(server_name=host, server_port=port, share=False, inbrowser=False, show_api=False,
                     allowed_paths=[str(r) for r in self.store.roots.values()],
                     max_file_size=f"{self.cfg['ui']['max_upload_mb']}mb")
+
+
+def _user(request) -> str:
+    """The logged in user of a request (ui/auth.py), else "interface"."""
+    return getattr(request, "username", None) or "interface"
 
 
 def parse_sources(text: str) -> list[str]:
