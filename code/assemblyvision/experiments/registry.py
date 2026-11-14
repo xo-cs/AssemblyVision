@@ -523,8 +523,8 @@ DEFAULT_NOTE = ("Default profile (decision of 2026-11-08): the w10-best-b8 setti
                 "equal weights 1, made in the full run, VLM on GPU1; falls back to B v1 with a notice): 93.20 frame "
                 "accuracy on QiSens blind (w11-qisens-zero-shot). **Current headline (2026-11-14):** the full default "
                 "pipeline with B zero shot (VLM 3 s windows, 2 frames, 4 slots; w11-vlm-speed) runs the 9.9 min QiSens "
-                "video in 270.62 s median of 3 (270.28 to 270.96), under the 300 s gate, with 92.97 frame accuracy, "
-                "F1 100,100,100, MAE 8.37 s (w11-qisens-zero-shot-timing; the eval differs between repeats).")
+                "video in 270.62 s median of 3 (270.28 to 270.96), under the 300 s gate, with frame accuracy median "
+                "93.40 (92.97 to 93.40) over the 3 repeats (w11-qisens-zero-shot-timing).")
 
 
 POSE_RULE = ("Pose model choice rule (written 2026-11-09): the pose model (YOLO26 variant) is chosen only by public "

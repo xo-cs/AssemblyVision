@@ -28,33 +28,29 @@
    "max": 270.96
   },
   {
-   "setting": "eval (median repeat as reported)",
-   "frame_acc": 92.97,
-   "edit": 100,
-   "f1": [
-    100,
-    100,
-    100
-   ],
-   "mae_s": 8.37,
-   "note": "differs between repeats; min and max to follow"
+   "setting": "eval frame accuracy over the 3 repeats",
+   "median": 93.4,
+   "min": 92.97,
+   "max": 93.4,
+   "runs": 3,
+   "note": "the first reported repeat: 92.97 / 100 / 100,100,100 / MAE 8.37 s (F1 and MAE of the other repeats not reported)"
   }
  ],
  "gates": {
   "full run initial 300 s": "met",
   "milestone 240 s": "not met (270.62)",
   "stretch 180 s": "not met",
-  "accuracy 85 %": "met (92.97)"
+  "accuracy 85 %": "met (median 93.40, 92.97 to 93.40)"
  },
  "findings": [
-  "Headline: the full default pipeline runs in 270.62 s median (270.28 to 270.96) on the 9.9 min QiSens video, under the 300 s gate, with 92.97 / 100 / 100,100,100 / MAE 8.37 s frame accuracy (target 85).",
-  "The eval differs between the repeats (VLM outputs are not fully deterministic with parallel slots); min, median and max are to be added.",
+  "Headline: the full default pipeline runs in 270.62 s median (270.28 to 270.96) on the 9.9 min QiSens video, under the 300 s gate, with frame accuracy median 93.40 over 3 repeats (92.97 to 93.40; target 85). The repeat with 92.97 had edit 100, F1 100,100,100 and MAE 8.37 s.",
+  "The eval differs between the repeats (92.97 to 93.40) because the VLM outputs are not bit identical with parallel slots (w11-vlm-determinism); with 1 slot they are, at 1.7x the VLM time.",
   "The VLM setting chosen on public data (3 s, 2 frames, 4 slots) keeps the accuracy of the 2 s, 4 frame run (93.20, w11-qisens-zero-shot)."
  ],
- "conclusion": "B zero shot meets both critical gates on QiSens: 92.97 frame accuracy and 270.62 s for the full run.",
+ "conclusion": "B zero shot meets both critical gates on QiSens: frame accuracy median 93.40 (92.97 to 93.40) and 270.62 s for the full run.",
  "index": {
   "cells": [
-   "full run 270.62 s median (270.28 to 270.96); eval 92.97, F1 100,100,100, MAE 8.37 s"
+   "full run 270.62 s median (270.28 to 270.96); frame accuracy median 93.40 (92.97 to 93.40), 3 repeats"
   ],
   "verdict": "measurement"
  }
