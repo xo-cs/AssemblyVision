@@ -153,6 +153,9 @@ class GradioApp:
         self._reach: dict[tuple, tuple] = {}         # (run_id, phase, manifest and steps mtime) -> (png, coverage)
         # live sessions are filmed with consent and kept in the public area (data/public/live/)
         self.live = live or LiveManager(cfg, source_root("public", cfg["paths"], repo_root) / "live", port=port)
+        from .auth import AuditLog
+        self.audit_log = AuditLog(self.store)
+        self.users = None                          # ui/auth.Users when the page asks for a login
 
     # names shown on the page (a QiSens file name never is) ----------------------------
 
@@ -615,14 +618,19 @@ class GradioApp:
     def export_files(self, run_id: str | None) -> list:
         if not run_id:
             return []
+        from .auth import safe_media
         d = self.store.paths(run_id).root / "export"
-        return [str(p) for p in sorted(d.glob("rev*/*")) if p.suffix in (".pdf", ".json", ".csv")] if d.is_dir() else []
+        files = [str(p) for p in sorted(d.glob("rev*/*")) if p.suffix in (".pdf", ".json", ".csv")] if d.is_dir() else []
+        return [f for f in files if safe_media(f, self.store.roots)]
 
     def audit(self, user: str, action: str, run_id: str, detail: str = "") -> None:
-        """Hook for the audit log (set up by the login, ui/auth.py); nothing without it."""
+        """One line of the audit log in the run's data area (ui/auth.AuditLog)."""
         log = getattr(self, "audit_log", None)
         if log is not None:
-            log(user, action, run_id, detail)
+            try:
+                log(user, action, run_id, detail)
+            except (OSError, AvError):
+                pass
 
     def results_kpis(self, run_id: str) -> str:
         m = self.store.get_run(run_id)
@@ -667,7 +675,8 @@ class GradioApp:
         duration = float(m.get("ingest", {}).get("cfr", {}).get("duration_s") or (segs[-1]["end_s"] if segs else 0))
         bands = self._bands(run_id)
         bend = self.bending_rows(run_id)
-        ov = self.store.overlay_path(run_id)
+        from .auth import safe_media
+        ov = safe_media(self.store.overlay_path(run_id), self.store.roots)
         return {"note": self.availability(run_id), "overlay": str(ov) if ov else None,
                 "timeline": timeline(segs, duration) if segs else None, "steps": self.steps_table(run_id),
                 "steps_choices": self.step_choices(run_id), "metrics": self.metrics_table(run_id, ALL_STEPS),
@@ -704,7 +713,7 @@ class GradioApp:
     # actions --------------------------------------------------------------------
 
     def start(self, video: str | None, variant: str, source_hint: str | None = None,
-              engine: str | None = None) -> tuple[str | None, str]:
+              engine: str | None = None, user: str = "interface") -> tuple[str | None, str]:
         """Create and start a run; (run_id or None, message)."""
         if not video:
             return None, _err_text(AvError("AV-APP-002"))
@@ -717,6 +726,7 @@ class GradioApp:
         except AvError as e:
             return None, _err_text(e)
         eng = self.runs.store.get_run(run_id)["overrides"]["seg_a"]["engine"]
+        self.audit(user, "start_run", run_id, f"{self.video_name(video)}, model {variant}, engine {eng}")
         msg = f"Run {run_id} started on {self.video_name(video)} (model {variant}, step engine {eng})."
         msg += "".join(f"\n\n{_err_text(n)}" for n in notices)
         return run_id, msg
@@ -938,8 +948,8 @@ class GradioApp:
                 return gr.update(choices=self.run_choices(), value=run_id), \
                     gr.update(choices=self.video_choices()), self.runs_html(run_id)
 
-            def on_start(video, var, eng):
-                run_id, text = self.start(video, var, engine=eng)
+            def on_start(video, var, eng, request):
+                run_id, text = self.start(video, var, engine=eng, user=_user(request))
                 if run_id is None:
                     return [gr.skip(), v.note(text), *[gr.skip()] * len(job_out)]
                 return [run_id, f"<span class='av-hint'>{v.esc(text.split(chr(10))[0])}</span>", *job_values(run_id)]
@@ -982,6 +992,7 @@ class GradioApp:
                 return (gr.skip(), last) if h == last else (h, h)
             server_timer.tick(on_server, server_shown, [server, server_shown], show_progress="hidden")
             refresh.click(on_refresh, run_dd, [run_dd, video_dd, runs_html])
+            on_start.__annotations__["request"] = gr.Request
             start_btn.click(on_start, [video_dd, variant, engine], [job, msg, *job_out])
             mode.change(on_mode, mode, [video_dd, up_col])
             upload.upload(on_upload, [upload, up_src], [video_dd, msg, upload, mode, up_col])
@@ -1018,6 +1029,8 @@ class GradioApp:
         demo = self.build()
         demo.queue(default_concurrency_limit=4)
         demo.launch(server_name=host, server_port=port, share=False, inbrowser=False, show_api=False,
+                    auth=self.users.check if self.users is not None else None,
+                    auth_message="AssemblyVision: log in with your user name and password.",
                     allowed_paths=[str(r) for r in self.store.roots.values()],
                     max_file_size=f"{self.cfg['ui']['max_upload_mb']}mb")
 
@@ -1041,12 +1054,19 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--port", type=int, default=PORT, choices=list(PORTS), metavar="7860..7869",
                    help="port on 127.0.0.1 (7860 to 7869, default 7860)")
     p.add_argument("--config", action="append", type=Path, default=[], help="extra TOML layer")
+    p.add_argument("--no-login", action="store_true", help="start without a login (local tests only)")
     args = p.parse_args(argv)
     try:
         cfg = Config.load([*DEFAULT_LAYERS, *args.config])
         tmp = prepare_env(args.sources, cfg)
         check_bind(HOST, False, args.port)
         app = GradioApp(cfg, args.sources, port=args.port)
+        from .auth import Users
+        users = Users()
+        if not args.no_login:
+            if not users.names():
+                raise AvError("AV-APP-008", file=str(users.path))
+            app.users = users
         print(f"AssemblyVision page on http://{HOST}:{args.port} (sources {','.join(app.sources)}, temp {tmp})",
               flush=True)
         app.launch()

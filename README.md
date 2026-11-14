@@ -73,9 +73,13 @@ Rerun later stages of an existing run on the CPU, from its stored files:
 python -m assemblyvision.tools.run_pose --run <run_dir> --stages segmentation,metrics,overlay,eval [--gt <steps_gt.csv>]
 ```
 
-The interface (binds 127.0.0.1 only, default port 7860):
+The interface (binds 127.0.0.1 only, default port 7860). It asks for a login: add each user once
+(the user file .config/ui_users.json holds only scrypt hashes and is never in git). Every run
+start, export and approved correction goes to data/<source>/audit.jsonl, every login to
+logs/ui_audit.jsonl.
 
 ```bash
+python -m assemblyvision.tools.ui_users add khurshid      # asks for the password twice
 python -m assemblyvision.ui.app --sources public
 # on the laptop: ssh -L 7860:127.0.0.1:7860 <user>@<server>, then open http://127.0.0.1:7860
 ```

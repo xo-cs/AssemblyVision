@@ -52,6 +52,7 @@ MESSAGES: dict[str, tuple[str, str]] = {
     "AV-APP-004": ("Refused", "Click a worker in the picture, choose a box number, or skip the shot."),
     "AV-APP-005": ("Refused", "The interface was not started. It may only listen on this computer or on a private network address, and share links are not allowed."),
     "AV-APP-006": ("Notice", "{what} {value} is not supported. {default} is used instead."),
+    "AV-APP-008": ("Refused", "The interface needs a login, but no user is set up in {file}. Add one with python -m assemblyvision.tools.ui_users add NAME."),
     "AV-APP-007": ("Refused", "This page is read only. Start an analysis from the normal interface."),
     "AV-DAT-001": ("Item", "The dataset file {name} could not be fetched or failed its check: {detail}."),
     "AV-DAT-002": ("Refused", "This request transfers {gb} GB, more than the {limit} GB that may be downloaded without approval. Add --yes after approval."),
