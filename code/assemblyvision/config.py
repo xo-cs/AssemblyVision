@@ -181,6 +181,7 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "zero_shot.vlm_cache_prompt": (lambda v: isinstance(v, bool), "true or false"),
     "zero_shot.vlm_parallel": (lambda v: isinstance(v, bool), "true or false"),
     "zero_shot.vlm_file": (lambda v: isinstance(v, str) and v.endswith(".npz") and "/" not in v, "a file name *.npz"),
+    "zero_shot.siglip_file": (lambda v: isinstance(v, str) and v.endswith(".npz") and "/" not in v, "a file name *.npz"),
     "visual.input_px": (lambda v: v % 14 == 0 and 112 <= v <= 518, "a multiple of 14 from 112 to 518"),
     "visual.batch": (lambda v: 1 <= v <= 1024, "1 to 1024"),
     "visual.half": (lambda v: isinstance(v, bool), "true or false"),

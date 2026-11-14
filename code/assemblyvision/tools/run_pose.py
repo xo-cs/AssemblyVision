@@ -328,7 +328,8 @@ def segment_stored(manifest: dict, root: Path, cfg: Config, ctx, bprob: dict | N
     tl = build_timeline(manifest, root, engine.cleaner, cfg["motion"] if cfg["seg_a"]["activity_change"] else None)
     if any(cfg["seg_a"][k] > 0 for k in ("siglip_weight", "siglip_crop_weight", "vlm_weight")):
         from ..analysis.siglip import run_phase_scores
-        tl.phase_scores, missing = run_phase_scores(root, tl.n_frames, tl.fps, cfg["seg_a"], cfg["zero_shot"]["vlm_file"])
+        tl.phase_scores, missing = run_phase_scores(root, tl.n_frames, tl.fps, cfg["seg_a"], cfg["zero_shot"]["vlm_file"],
+                                                      cfg["zero_shot"]["siglip_file"])
         if missing and cfg["seg_a"]["engine"] == "B zero shot":       # the preset falls back to B v1
             ctx.notice(AvError("AV-SEG-006", detail="this run has no " + ", ".join(missing)), "segmentation")
             return segment_stored(manifest, root, fallback_config(cfg), ctx, bprob)

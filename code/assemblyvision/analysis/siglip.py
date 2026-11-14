@@ -198,7 +198,7 @@ def other_file(vlm_file: str) -> str:
 
 
 def run_phase_scores(root: Path, n_frames: int, fps: float, seg: dict,
-                     vlm_file: str = "vlm.npz") -> tuple[dict, list[str]]:
+                     vlm_file: str = "vlm.npz", siglip_file: str = "siglip.npz") -> tuple[dict, list[str]]:
     """{"siglip_full", "siglip_crop", "vlm": [n_frames, K]} from the run's siglip.npz and
     vlm_file for the sources whose weight in seg (seg_a settings) is above 0; and the
     files that are missing. With seg_a.other_class the scores have K + 1 columns, the
@@ -206,7 +206,7 @@ def run_phase_scores(root: Path, n_frames: int, fps: float, seg: dict,
     out, missing = {}, []
     oc = seg.get("other_class", False)
     if seg["siglip_weight"] > 0 or seg["siglip_crop_weight"] > 0:
-        path = root / "siglip.npz"
+        path = root / siglip_file
         z = load_scores(path) if path.is_file() else None
         if z is not None and (not oc or "other_full_cos" in z):
             span = 1.0 / float(z["meta"]["fps"])
@@ -216,7 +216,7 @@ def run_phase_scores(root: Path, n_frames: int, fps: float, seg: dict,
                     rows = np.concatenate([z[src], z["other_" + src]], axis=1) if oc else z[src]
                     out[key] = _on_frames(z["time_s"], rows, n_frames, fps, span)
         else:
-            missing.append("siglip.npz" if z is None else "siglip.npz other class")
+            missing.append(siglip_file if z is None else f"{siglip_file} other class")
     if oc:
         vlm_file = other_file(vlm_file)
     if seg["vlm_weight"] > 0:

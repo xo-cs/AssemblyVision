@@ -173,7 +173,7 @@ DECLARATIONS: dict[str, dict] = {
     "visual": _all(RUN_FREE, "fps input_px batch half"),   # read by tools/visual_embed.py, not by a batch run
     # read by a full run only while a phase likelihood weight is above 0
     "zero_shot": _all(likelihood_off, "phases in_pipeline siglip_fps siglip_max_px siglip_pad vlm_gpu vlm_port vlm_slots "
-                                      "vlm_window_s vlm_frames vlm_px vlm_parallel vlm_file vlm_seed vlm_cache_prompt"),
+                                      "vlm_window_s vlm_frames vlm_px vlm_parallel vlm_file vlm_seed vlm_cache_prompt siglip_file"),
     "heatmap": _all(NO, "cell_m cell_px min_samples"),
     "gpu": _all(NO, "pose"),
     "overlay": _all(NO, "kp_conf_min max_width crf enabled encoder workers"),

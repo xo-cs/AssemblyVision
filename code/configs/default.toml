@@ -243,6 +243,7 @@ vlm_seed = 42                # llama-server and request seed (decoding is greedy
 vlm_cache_prompt = true      # false: no reuse of a cached prompt prefix between requests
 vlm_parallel = true          # true: the VLM runs during the pose pass, false: after tracking
 vlm_file = "vlm.npz"         # the VLM scores file the decoder reads (benchmarks of other settings use other names)
+siglip_file = "siglip.npz"   # the SigLIP scores file the decoder reads (the same for benchmarks)
 
 [motion]
 # MotionAnalyzer (LLD 3.7). Add "gaze" to enabled for the rough gaze direction (FR-MOTION-08, Want).

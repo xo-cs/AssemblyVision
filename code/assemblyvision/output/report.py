@@ -90,7 +90,8 @@ def frame_posterior(manifest: dict, root: Path, K: int) -> np.ndarray | None:
     cfr = manifest["ingest"]["cfr"]
     n, fps = int(cfr["frame_count"]), float(cfr["fps"])
     seg_k = {**seg, "other_class": False}
-    scores, _ = run_phase_scores(root, n, fps, seg_k, cfg.get("zero_shot", {}).get("vlm_file", "vlm.npz"))
+    zs = cfg.get("zero_shot", {})
+    scores, _ = run_phase_scores(root, n, fps, seg_k, zs.get("vlm_file", "vlm.npz"), zs.get("siglip_file", "siglip.npz"))
     weights = {"siglip_full": seg["siglip_weight"], "siglip_crop": seg["siglip_crop_weight"], "vlm": seg["vlm_weight"]}
     total, any_src = np.zeros((n, K)), False
     for k, x in scores.items():
