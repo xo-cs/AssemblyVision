@@ -1,0 +1,106 @@
+{
+ "id": "w11-siglip-speed",
+ "kind": "siglip_speed",
+ "source": "public",
+ "reference": "",
+ "title": "SigLIP 2 at 1 fps against 2 fps (rule w11-siglip-speed)",
+ "rule": "experiments/w11-siglip-speed/rule.md",
+ "videos": {
+  "Kallax_Shelf_Drawer": [
+   "Kallax_Shelf_Drawer/0002_white_floor_01_01_2019_08_14_15_38",
+   "Kallax_Shelf_Drawer/0002_white_table_07_03_2019_08_21_18_02",
+   "Kallax_Shelf_Drawer/0004_oak_floor_01_01_2019_08_14_16_24",
+   "Kallax_Shelf_Drawer/0005_black_table_07_03_2019_08_21_16_06",
+   "Kallax_Shelf_Drawer/0007_oak_table_10_04_2019_08_28_15_46",
+   "Kallax_Shelf_Drawer/0012_oak_table_02_01_2019_08_16_11_34",
+   "Kallax_Shelf_Drawer/0013_black_floor_06_03_2019_08_21_14_14",
+   "Kallax_Shelf_Drawer/0013_white_table_02_01_2019_08_16_11_49",
+   "Kallax_Shelf_Drawer/0016_black_table_10_04_2019_08_28_14_55",
+   "Kallax_Shelf_Drawer/0016_oak_table_07_03_2019_08_21_17_11",
+   "Kallax_Shelf_Drawer/0027_oak_floor_06_03_2019_08_21_13_22",
+   "Kallax_Shelf_Drawer/0030_black_table_10_04_2019_08_28_14_54",
+   "Kallax_Shelf_Drawer/0030_oak_floor_09_04_2019_08_28_14_17",
+   "Kallax_Shelf_Drawer/0033_black_floor_06_03_2019_08_21_11_17",
+   "Kallax_Shelf_Drawer/0033_oak_floor_09_04_2019_08_28_14_09",
+   "Kallax_Shelf_Drawer/0036_white_floor_09_04_2019_08_28_13_31",
+   "Kallax_Shelf_Drawer/0037_oak_table_07_03_2019_08_21_17_30",
+   "Kallax_Shelf_Drawer/0041_white_floor_09_04_2019_08_28_12_59",
+   "Kallax_Shelf_Drawer/0044_oak_table_10_04_2019_08_28_15_25",
+   "Kallax_Shelf_Drawer/0044_white_floor_11_04_2019_08_28_17_08"
+  ],
+  "Lack_Coffee_Table": [
+   "Lack_Coffee_Table/0001_oak_table_07_03_2019_08_21_18_09",
+   "Lack_Coffee_Table/0003_oak_table_02_01_2019_08_16_10_55",
+   "Lack_Coffee_Table/0004_black_floor_06_03_2019_08_21_11_46",
+   "Lack_Coffee_Table/0004_oak_floor_09_04_2019_08_28_13_49",
+   "Lack_Coffee_Table/0007_oak_floor_01_01_2019_08_14_17_37",
+   "Lack_Coffee_Table/0007_white_table_07_03_2019_08_21_16_52",
+   "Lack_Coffee_Table/0009_white_floor_01_01_2019_08_15_11_40",
+   "Lack_Coffee_Table/0011_black_table_02_01_2019_08_16_11_12",
+   "Lack_Coffee_Table/0013_black_floor_06_03_2019_08_21_14_10",
+   "Lack_Coffee_Table/0014_white_table_10_04_2019_08_28_14_30",
+   "Lack_Coffee_Table/0015_black_table_02_01_2019_08_16_13_50",
+   "Lack_Coffee_Table/0016_black_floor_09_04_2019_08_28_13_58",
+   "Lack_Coffee_Table/0016_black_table_10_04_2019_08_28_14_58",
+   "Lack_Coffee_Table/0026_black_floor_06_03_2019_08_21_13_45",
+   "Lack_Coffee_Table/0027_white_floor_06_03_2019_08_21_13_16",
+   "Lack_Coffee_Table/0031_white_floor_06_03_2019_08_21_10_32",
+   "Lack_Coffee_Table/0032_black_floor_06_03_2019_08_21_10_56",
+   "Lack_Coffee_Table/0038_white_table_07_03_2019_08_21_17_42",
+   "Lack_Coffee_Table/0040_black_floor_09_04_2019_08_28_13_19",
+   "Lack_Coffee_Table/0043_white_floor_11_04_2019_08_28_16_35"
+  ]
+ },
+ "rows": {
+  "2 fps": {
+   "Kallax_Shelf_Drawer": {
+    "frame_accuracy": 55.13,
+    "f1_50": 38.73,
+    "boundary_mae_s": 10.92,
+    "videos": 20
+   },
+   "Lack_Coffee_Table": {
+    "frame_accuracy": 74.14,
+    "f1_50": 50.87,
+    "boundary_mae_s": 25.68,
+    "videos": 20
+   }
+  },
+  "1 fps": {
+   "Kallax_Shelf_Drawer": {
+    "frame_accuracy": 55.12,
+    "f1_50": 38.73,
+    "boundary_mae_s": 10.91,
+    "videos": 20
+   },
+   "Lack_Coffee_Table": {
+    "frame_accuracy": 73.79,
+    "f1_50": 50.87,
+    "boundary_mae_s": 25.97,
+    "videos": 20
+   }
+  }
+ },
+ "worst": [
+  55.13,
+  55.12
+ ],
+ "delta": -0.01,
+ "chosen_fps": 1.0,
+ "provenance": {
+  "git": {
+   "commit": "1476a1a776cb211937326cb98966ebd56057db2a",
+   "branch": "feat/w10-data",
+   "dirty": [],
+   "outputs_changed": []
+  },
+  "date_utc": "2026-11-14T06:01:01Z"
+ },
+ "finished_utc": "2026-11-14T06:01:01Z",
+ "index": {
+  "cells": [
+   "1 fps -0.01 worst case: 1 fps"
+  ],
+  "verdict": "measurement"
+ }
+}
