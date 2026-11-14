@@ -521,7 +521,10 @@ DEFAULT_NOTE = ("Default profile (decision of 2026-11-08): the w10-best-b8 setti
                 "(w10-qisens-engine-b-v1); Engine A alone on x gives 50.00. From 2026-11-13 the step engine is "
                 "seg_a.engine = \"B zero shot\" (B v1 plus the zero shot phase likelihood of SigLIP 2 and Qwen3 VL 8B, "
                 "equal weights 1, made in the full run, VLM on GPU1; falls back to B v1 with a notice): 93.20 frame "
-                "accuracy on QiSens blind (w11-qisens-zero-shot).")
+                "accuracy on QiSens blind (w11-qisens-zero-shot). **Current headline (2026-11-14):** the full default "
+                "pipeline with B zero shot (VLM 3 s windows, 2 frames, 4 slots; w11-vlm-speed) runs the 9.9 min QiSens "
+                "video in 270.62 s median of 3 (270.28 to 270.96), under the 300 s gate, with 92.97 frame accuracy, "
+                "F1 100,100,100, MAE 8.37 s (w11-qisens-zero-shot-timing; the eval differs between repeats).")
 
 
 POSE_RULE = ("Pose model choice rule (written 2026-11-09): the pose model (YOLO26 variant) is chosen only by public "

@@ -95,6 +95,26 @@ Findings:
 - Weights 0.4 and 0.8 give the same result as 0.2 on both runs, so the result does not hang on the exact weight.
 - Engine B v1's phase level embedding transfers to QiSens where v0's fine boundary scorer did not (w10-qisens-engine-b-v0).
 
+### w11-qisens-zero-shot-timing (current headline)
+
+QiSens, the full default pipeline with B zero shot (YOLO26 x on GPU0, Qwen3 VL 8B on GPU1, VLM 3 s windows, 2 frames, 4 slots), 3 repeats with the GT. Approved summary numbers only (2026-11-14); everything else stays under the QiSens data area.
+
+| measure | value |
+| --- | --- |
+| full run s, median of 3 (min, max) | 270.62 (270.28, 270.96) |
+| eval: frame acc / edit / F1@10,25,50 / MAE s | 92.97 / 100 / 100,100,100 / 8.37 (differs between repeats) |
+| gates | 300 s met; 240 s milestone not met; 180 s stretch not met; 85 % accuracy met |
+
+Runs: run_20261114_045653_5eff, run_20261114_050124_9d97, run_20261114_050555_2576.
+
+Findings:
+
+- Headline: the full default pipeline runs in 270.62 s median (270.28 to 270.96) on the 9.9 min QiSens video, under the 300 s gate, with 92.97 / 100 / 100,100,100 / MAE 8.37 s frame accuracy (target 85).
+- The eval differs between the repeats (VLM outputs are not fully deterministic with parallel slots); min, median and max are to be added.
+- The VLM setting chosen on public data (3 s, 2 frames, 4 slots) keeps the accuracy of the 2 s, 4 frame run (93.20, w11-qisens-zero-shot).
+
+Conclusion: B zero shot meets both critical gates on QiSens: 92.97 frame accuracy and 270.62 s for the full run.
+
 ### w11-qisens-zero-shot
 
 QiSens, zero shot phase scoring (SigLIP 2 and Qwen3 VL 8B, rule w11-zero-shot) and visual Engine B v3 (rule w11-visual-engine-b), blind. Approved summary numbers only (2026-11-13); everything else stays under the QiSens data area.
@@ -108,6 +128,7 @@ QiSens, zero shot phase scoring (SigLIP 2 and Qwen3 VL 8B, rule w11-zero-shot) a
 | w10-qisens-b8 (run_20261108_133251_1550) | YOLO26 x | Z2 with vlm off | ablation | 66.21 | 100 | 80 | 80 | 60 | 30.92 |
 | w10-qisens-b8 (run_20261108_133251_1550) | YOLO26 x | Z1 with shot_smooth on (Z3) | information | 67.86 | 100 | 80 | 80 | 60 | 28.95 |
 | w10-qisens-b8 (run_20261108_133251_1550) | YOLO26 x | Z2 with intro_detect on | information | 93.20 | - | - | - | - | - |
+| w10-qisens-b8 (run_20261108_133251_1550) | YOLO26 x | Z2 with other_class on (2026-11-14; rule w11-other-class: off) | information | 93.21 | - | - | - | - | - |
 | w10-qisens-b8 (run_20261108_133251_1550) | YOLO26 x | V1: v3, visual 0.5 (10 s), embed 1.0 (30 s), A scale 0.25 | pre chosen headline (rule w11-visual-engine-b) | 32.45 | 100 | 40 | 40 | 20 | 19.45 |
 | w10-qisens-b8 (run_20261108_133251_1550) | YOLO26 x | V1 with visual off | ablation | 47.43 | - | - | - | - | - |
 
@@ -117,6 +138,7 @@ Findings:
 - The untuned equal weights (Z2) give 93.20 / 100 / 100,100,100 / MAE 8.09 s, above the 85 target and the 90 aim. The untuned weights already beat the selected ones on the public IKEA test before any QiSens run (worst case 57.79 against 50.43, w11-zero-shot-test), so the IKEA tuning overfit.
 - The VLM carries most of the gain: without it Z1 drops to 58.83 and Z2 to 66.21 (about B v1).
 - Negative or no effect results: visual Engine B v3 (32.45, visual off 47.43, both below B v1), shot_smooth (83.14 to 67.86), intro_detect on Z2 (identical, 93.20).
+- seg_a.other_class on the Z2 setting (2026-11-14): 93.21 against 93.20, no effect; it stays off (rule w11-other-class decided off on public data).
 
 Conclusion: Zero shot phase scoring with equal weights reaches 93.20 on QiSens blind and becomes the default step engine ("B zero shot"); v3, shot_smooth and intro_detect are not used.
 

@@ -9,28 +9,178 @@
  "approved_utc": "2026-11-13",
  "model": "engine_b/w10-engine-b-v1.pt (zero shot rows), engine_b/w11-engine-b-v3.pt (V1); SigLIP 2 so400m patch14 384; Qwen3 VL 8B Instruct Q4_K_M",
  "settings": {
-  "common zero shot": {"engine_b.candidates": "dense", "seg_a.embed_weight": 0.2, "seg_a.embed_window_s": 30.0, "seg_a.engine_a_scale": 1.0, "seg_a.siglip_temp": 0.01},
-  "Z1 pre chosen": {"seg_a.siglip_weight": 1.0, "seg_a.siglip_crop_weight": 4.0, "seg_a.vlm_weight": 0.5, "seg_a.shot_smooth": false},
-  "Z2 untuned": {"seg_a.siglip_weight": 1.0, "seg_a.siglip_crop_weight": 1.0, "seg_a.vlm_weight": 1.0, "seg_a.shot_smooth": false},
-  "V1 pre chosen": {"engine_b.candidates": "dense", "seg_a.embed_weight": 1.0, "seg_a.embed_window_s": 30.0, "seg_a.engine_a_scale": 0.25, "seg_a.visual_weight": 0.5, "seg_a.visual_window_s": 10.0, "seg_a.intro_detect": false}
+  "common zero shot": {
+   "engine_b.candidates": "dense",
+   "seg_a.embed_weight": 0.2,
+   "seg_a.embed_window_s": 30.0,
+   "seg_a.engine_a_scale": 1.0,
+   "seg_a.siglip_temp": 0.01
+  },
+  "Z1 pre chosen": {
+   "seg_a.siglip_weight": 1.0,
+   "seg_a.siglip_crop_weight": 4.0,
+   "seg_a.vlm_weight": 0.5,
+   "seg_a.shot_smooth": false
+  },
+  "Z2 untuned": {
+   "seg_a.siglip_weight": 1.0,
+   "seg_a.siglip_crop_weight": 1.0,
+   "seg_a.vlm_weight": 1.0,
+   "seg_a.shot_smooth": false
+  },
+  "V1 pre chosen": {
+   "engine_b.candidates": "dense",
+   "seg_a.embed_weight": 1.0,
+   "seg_a.embed_window_s": 30.0,
+   "seg_a.engine_a_scale": 0.25,
+   "seg_a.visual_weight": 0.5,
+   "seg_a.visual_window_s": 10.0,
+   "seg_a.intro_detect": false
+  }
  },
  "rows": [
-  {"run": "w10-qisens-b8 (run_20261108_133251_1550)", "pose": "YOLO26 x", "setting": "B v1 (w10-qisens-engine-b-v1)", "role": "reference, the default until now", "frame_acc": 67.26, "edit": 100, "f1": [100, 100, 40], "mae_s": 39.06},
-  {"run": "w10-qisens-b8 (run_20261108_133251_1550)", "pose": "YOLO26 x", "setting": "Z1: siglip 1, crop 4, vlm 0.5", "role": "pre chosen headline (rule w11-zero-shot)", "frame_acc": 83.14, "edit": 100, "f1": [100, 100, 60], "mae_s": 20.09},
-  {"run": "w10-qisens-b8 (run_20261108_133251_1550)", "pose": "YOLO26 x", "setting": "Z1 with vlm off", "role": "ablation", "frame_acc": 58.83, "edit": 100, "f1": [80, 60, 40], "mae_s": 48.46},
-  {"run": "w10-qisens-b8 (run_20261108_133251_1550)", "pose": "YOLO26 x", "setting": "Z2: untuned equal weights 1, 1, 1", "role": "untuned row of the rule (never chosen); best", "frame_acc": 93.20, "edit": 100, "f1": [100, 100, 100], "mae_s": 8.09},
-  {"run": "w10-qisens-b8 (run_20261108_133251_1550)", "pose": "YOLO26 x", "setting": "Z2 with vlm off", "role": "ablation", "frame_acc": 66.21, "edit": 100, "f1": [80, 80, 60], "mae_s": 30.92},
-  {"run": "w10-qisens-b8 (run_20261108_133251_1550)", "pose": "YOLO26 x", "setting": "Z1 with shot_smooth on (Z3)", "role": "information", "frame_acc": 67.86, "edit": 100, "f1": [80, 80, 60], "mae_s": 28.95},
-  {"run": "w10-qisens-b8 (run_20261108_133251_1550)", "pose": "YOLO26 x", "setting": "Z2 with intro_detect on", "role": "information", "frame_acc": 93.20, "edit": null, "f1": null, "mae_s": null},
-  {"run": "w10-qisens-b8 (run_20261108_133251_1550)", "pose": "YOLO26 x", "setting": "V1: v3, visual 0.5 (10 s), embed 1.0 (30 s), A scale 0.25", "role": "pre chosen headline (rule w11-visual-engine-b)", "frame_acc": 32.45, "edit": 100, "f1": [40, 40, 20], "mae_s": 19.45},
-  {"run": "w10-qisens-b8 (run_20261108_133251_1550)", "pose": "YOLO26 x", "setting": "V1 with visual off", "role": "ablation", "frame_acc": 47.43, "edit": null, "f1": null, "mae_s": null}
+  {
+   "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+   "pose": "YOLO26 x",
+   "setting": "B v1 (w10-qisens-engine-b-v1)",
+   "role": "reference, the default until now",
+   "frame_acc": 67.26,
+   "edit": 100,
+   "f1": [
+    100,
+    100,
+    40
+   ],
+   "mae_s": 39.06
+  },
+  {
+   "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+   "pose": "YOLO26 x",
+   "setting": "Z1: siglip 1, crop 4, vlm 0.5",
+   "role": "pre chosen headline (rule w11-zero-shot)",
+   "frame_acc": 83.14,
+   "edit": 100,
+   "f1": [
+    100,
+    100,
+    60
+   ],
+   "mae_s": 20.09
+  },
+  {
+   "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+   "pose": "YOLO26 x",
+   "setting": "Z1 with vlm off",
+   "role": "ablation",
+   "frame_acc": 58.83,
+   "edit": 100,
+   "f1": [
+    80,
+    60,
+    40
+   ],
+   "mae_s": 48.46
+  },
+  {
+   "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+   "pose": "YOLO26 x",
+   "setting": "Z2: untuned equal weights 1, 1, 1",
+   "role": "untuned row of the rule (never chosen); best",
+   "frame_acc": 93.2,
+   "edit": 100,
+   "f1": [
+    100,
+    100,
+    100
+   ],
+   "mae_s": 8.09
+  },
+  {
+   "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+   "pose": "YOLO26 x",
+   "setting": "Z2 with vlm off",
+   "role": "ablation",
+   "frame_acc": 66.21,
+   "edit": 100,
+   "f1": [
+    80,
+    80,
+    60
+   ],
+   "mae_s": 30.92
+  },
+  {
+   "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+   "pose": "YOLO26 x",
+   "setting": "Z1 with shot_smooth on (Z3)",
+   "role": "information",
+   "frame_acc": 67.86,
+   "edit": 100,
+   "f1": [
+    80,
+    80,
+    60
+   ],
+   "mae_s": 28.95
+  },
+  {
+   "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+   "pose": "YOLO26 x",
+   "setting": "Z2 with intro_detect on",
+   "role": "information",
+   "frame_acc": 93.2,
+   "edit": null,
+   "f1": null,
+   "mae_s": null
+  },
+  {
+   "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+   "pose": "YOLO26 x",
+   "setting": "V1: v3, visual 0.5 (10 s), embed 1.0 (30 s), A scale 0.25",
+   "role": "pre chosen headline (rule w11-visual-engine-b)",
+   "frame_acc": 32.45,
+   "edit": 100,
+   "f1": [
+    40,
+    40,
+    20
+   ],
+   "mae_s": 19.45
+  },
+  {
+   "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+   "pose": "YOLO26 x",
+   "setting": "V1 with visual off",
+   "role": "ablation",
+   "frame_acc": 47.43,
+   "edit": null,
+   "f1": null,
+   "mae_s": null
+  },
+  {
+   "run": "w10-qisens-b8 (run_20261108_133251_1550)",
+   "pose": "YOLO26 x",
+   "setting": "Z2 with other_class on (2026-11-14; rule w11-other-class: off)",
+   "role": "information",
+   "frame_acc": 93.21,
+   "edit": null,
+   "f1": null,
+   "mae_s": null
+  }
  ],
  "findings": [
   "Zero shot headline (Z1, pre chosen by the rule): 83.14 / 100 / 100,100,60 / MAE 20.09 s, against B v1 67.26.",
   "The untuned equal weights (Z2) give 93.20 / 100 / 100,100,100 / MAE 8.09 s, above the 85 target and the 90 aim. The untuned weights already beat the selected ones on the public IKEA test before any QiSens run (worst case 57.79 against 50.43, w11-zero-shot-test), so the IKEA tuning overfit.",
   "The VLM carries most of the gain: without it Z1 drops to 58.83 and Z2 to 66.21 (about B v1).",
-  "Negative or no effect results: visual Engine B v3 (32.45, visual off 47.43, both below B v1), shot_smooth (83.14 to 67.86), intro_detect on Z2 (identical, 93.20)."
+  "Negative or no effect results: visual Engine B v3 (32.45, visual off 47.43, both below B v1), shot_smooth (83.14 to 67.86), intro_detect on Z2 (identical, 93.20).",
+  "seg_a.other_class on the Z2 setting (2026-11-14): 93.21 against 93.20, no effect; it stays off (rule w11-other-class decided off on public data)."
  ],
  "conclusion": "Zero shot phase scoring with equal weights reaches 93.20 on QiSens blind and becomes the default step engine (\"B zero shot\"); v3, shot_smooth and intro_detect are not used.",
- "index": {"cells": ["Z2 untuned equal weights: 93.20, F1 100,100,100, MAE 8.09 s (B v1: 67.26)", "Z1 pre chosen 83.14; v3 32.45; shot_smooth 67.86; intro_detect no effect"], "verdict": "measurement"}
+ "index": {
+  "cells": [
+   "Z2 untuned equal weights: 93.20, F1 100,100,100, MAE 8.09 s (B v1: 67.26)",
+   "Z1 pre chosen 83.14; v3 32.45; shot_smooth 67.86; intro_detect no effect"
+  ],
+  "verdict": "measurement"
+ }
 }

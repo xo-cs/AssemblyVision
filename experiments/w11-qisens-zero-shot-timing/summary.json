@@ -1,0 +1,61 @@
+{
+ "id": "w11-qisens-zero-shot-timing",
+ "kind": "qisens_summary",
+ "source": "qisens",
+ "reference": "",
+ "title": "QiSens, the full default pipeline with B zero shot (YOLO26 x on GPU0, Qwen3 VL 8B on GPU1, VLM 3 s windows, 2 frames, 4 slots), 3 repeats with the GT",
+ "finished_utc": "2026-11-14",
+ "approved_by": "Khurshid Ortikov",
+ "approved_utc": "2026-11-14",
+ "model": "YOLO26 x pose; engine_b/w10-engine-b-v1.pt; SigLIP 2 so400m patch14 384; Qwen3 VL 8B Instruct Q4_K_M",
+ "settings": {
+  "seg_a.engine": "B zero shot",
+  "zero_shot.vlm_window_s": 3.0,
+  "zero_shot.vlm_frames": 2,
+  "zero_shot.vlm_slots": 4,
+  "seg_a.other_class": false
+ },
+ "runs": [
+  "run_20261114_045653_5eff",
+  "run_20261114_050124_9d97",
+  "run_20261114_050555_2576"
+ ],
+ "rows": [
+  {
+   "setting": "full run s (median of 3)",
+   "median": 270.62,
+   "min": 270.28,
+   "max": 270.96
+  },
+  {
+   "setting": "eval (median repeat as reported)",
+   "frame_acc": 92.97,
+   "edit": 100,
+   "f1": [
+    100,
+    100,
+    100
+   ],
+   "mae_s": 8.37,
+   "note": "differs between repeats; min and max to follow"
+  }
+ ],
+ "gates": {
+  "full run initial 300 s": "met",
+  "milestone 240 s": "not met (270.62)",
+  "stretch 180 s": "not met",
+  "accuracy 85 %": "met (92.97)"
+ },
+ "findings": [
+  "Headline: the full default pipeline runs in 270.62 s median (270.28 to 270.96) on the 9.9 min QiSens video, under the 300 s gate, with 92.97 / 100 / 100,100,100 / MAE 8.37 s frame accuracy (target 85).",
+  "The eval differs between the repeats (VLM outputs are not fully deterministic with parallel slots); min, median and max are to be added.",
+  "The VLM setting chosen on public data (3 s, 2 frames, 4 slots) keeps the accuracy of the 2 s, 4 frame run (93.20, w11-qisens-zero-shot)."
+ ],
+ "conclusion": "B zero shot meets both critical gates on QiSens: 92.97 frame accuracy and 270.62 s for the full run.",
+ "index": {
+  "cells": [
+   "full run 270.62 s median (270.28 to 270.96); eval 92.97, F1 100,100,100, MAE 8.37 s"
+  ],
+  "verdict": "measurement"
+ }
+}
