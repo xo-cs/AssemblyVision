@@ -51,6 +51,7 @@ import logging
 import os
 import platform
 import random
+import subprocess
 import sys
 import tempfile
 import time
@@ -258,6 +259,25 @@ def _run_stage(ctx: RunContext, name: str, fn, prof=None):
         ctx.log.removeHandler(handler)
         handler.close()
         ctx.write_manifest()
+
+
+def run_provenance(gpu: int, cfg: Config) -> dict:
+    """The git state of the code and the GPU names of a run (for the report export)."""
+    from ..experiments.provenance import git_state
+    out = {"git": git_state(REPO_ROOT)}
+    try:
+        import torch
+        out["gpu_name"] = torch.cuda.get_device_name(0) if gpu >= 0 and torch.cuda.is_available() else "cpu"
+    except Exception:
+        out["gpu_name"] = None
+    if any(cfg["seg_a"][k] > 0 for k in ("vlm_weight",)):
+        try:
+            p = subprocess.run(["nvidia-smi", "-i", str(cfg["zero_shot"]["vlm_gpu"]), "--query-gpu=name",
+                                "--format=csv,noheader"], capture_output=True, text=True, timeout=10)
+            out["vlm_gpu_name"] = p.stdout.strip() or None
+        except Exception:
+            out["vlm_gpu_name"] = None
+    return out
 
 
 def _versions() -> dict:
@@ -827,6 +847,7 @@ def main(argv: list[str] | None = None) -> int:
     torch.manual_seed(seed)
     torch.use_deterministic_algorithms(True, warn_only=True)
     ctx.manifest["versions"] = _versions()
+    ctx.manifest["provenance"] = run_provenance(args.gpu, cfg)
     ctx.write_manifest()
 
     from ..runs.profiler import Profiler
