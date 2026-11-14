@@ -41,7 +41,7 @@ import sys
 from pathlib import Path
 from urllib.parse import quote
 
-from ..config import BENCHMARK_ONLY, BENCHMARK_ONLY_NOTE, DEFAULT_LAYERS, ENGINE_PRESETS, VARIANTS, Config
+from ..config import DEFAULT_LAYERS, VARIANTS, Config
 from ..errors import AvError
 from ..phases import PUBLIC_NOTE
 from ..storage.files import REPO_ROOT, SOURCES, source_root
@@ -748,7 +748,7 @@ class GradioApp:
         import gradio as gr
         poll_s = self.cfg["ui"]["poll_s"]
         variant0 = self.cfg["pose"]["variant"]
-        engine0 = self.cfg["seg_a"]["engine"] if self.cfg["seg_a"]["engine"] in ENGINE_PRESETS else "A"
+        engine0 = self.cfg["seg_a"]["engine"] if self.cfg["seg_a"]["engine"] in dict(UI_ENGINES).values() else "A"
         css = (UI_DIR / "style.css").read_text()
         js = (UI_DIR / "app.js").read_text().replace("/*COMPARE_SYNC*/", (UI_DIR / "compare_sync.js").read_text())
         keys = [k for k, _ in PAGES]
@@ -795,14 +795,10 @@ class GradioApp:
                                                    elem_classes=["av-seg"])
                                 gr.HTML("<div class='av-hint' style='margin-top:-6px'>n, s, m, l, x: smaller is faster, "
                                         "larger is more accurate.</div>")
-                                engine = gr.Radio([(f"{k} ({BENCHMARK_ONLY_NOTE})" if k in BENCHMARK_ONLY else k, k)
-                                                   for k in ("B zero shot", "B v1", "A", *sorted(BENCHMARK_ONLY))],
-                                                  value=engine0, label="Step engine",
-                                                  elem_classes=["av-seg"])
-                                gr.HTML("<div class='av-hint' style='margin-top:-6px'>B zero shot (default): B v1 plus phase scores "
-                                        "from SigLIP 2 and the Qwen3 VL model on GPU 1; when GPU 1 is busy the run uses B v1 and says so. "
-                                        "B v1: the Engine B v1 model with the DP decoder. A: the rules alone. The others reproduce rows "
-                                        "of the public benchmark and are not better on QiSens.</div>")
+                                engine = gr.Radio(UI_ENGINES, value=engine0, label="Step engine", elem_classes=["av-seg"])
+                                gr.HTML("<div class='av-hint' style='margin-top:-6px'>B (default): the phases scored by meaning "
+                                        "with SigLIP 2 and the Qwen3 VL model on GPU 1, with the pose evidence; when GPU 1 is busy "
+                                        "the run uses the pose evidence alone and says so. A: the rules alone.</div>")
                             with gr.Row(elem_classes=["av-actions"]):
                                 start_btn = gr.Button("Start analysis", variant="primary", elem_classes=["av-fit"])
                                 msg = gr.HTML()
@@ -1033,6 +1029,10 @@ class GradioApp:
                     auth_message="AssemblyVision: log in with your user name and password.",
                     allowed_paths=[str(r) for r in self.store.roots.values()],
                     max_file_size=f"{self.cfg['ui']['max_upload_mb']}mb")
+
+
+# the step engines the page offers (label, preset); the other presets of config.ENGINE_PRESETS stay usable in code
+UI_ENGINES = [("A (rules)", "A"), ("B", "B zero shot")]
 
 
 def _user(request) -> str:

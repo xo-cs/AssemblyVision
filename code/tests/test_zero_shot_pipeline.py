@@ -146,6 +146,13 @@ class ZeroShotPipelineTest(unittest.TestCase):
         names = [p["name"] for p in ph] + ["No assembly work"]
         self.assertTrue(V.parse(json.dumps({"probabilities": {"No assembly work": 1}}), names)[0][3] == 1.0)
 
+    def test_the_page_offers_a_and_b(self):
+        from assemblyvision.config import ENGINE_PRESETS
+        from assemblyvision.ui.app import UI_ENGINES
+        self.assertEqual(UI_ENGINES, [("A (rules)", "A"), ("B", "B zero shot")])
+        self.assertTrue(all(v in ENGINE_PRESETS for _, v in UI_ENGINES))
+        self.assertIn("B v2", ENGINE_PRESETS)                           # the others stay for the experiments
+
 
 if __name__ == "__main__":
     unittest.main()
