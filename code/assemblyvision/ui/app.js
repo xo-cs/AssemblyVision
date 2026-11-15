@@ -142,4 +142,13 @@
     if (type === "image/jpeg" && quality === undefined) return toDataURL.call(this, type, 0.75);
     return toDataURL.call(this, type, quality);
   };
+
+  // --- 3D and 4D player of the Heatmap page (static/player.js, three.js) -------------------------------
+  // The page renders <div class="av-player" data-module=URL data-cfg=JSON>; this mounts the player on it.
+  const mountPlayers = () => document.querySelectorAll(".av-player:not([data-started])").forEach((e) => {
+    e.dataset.started = "1";
+    import(e.dataset.module).then((m) => m.mount(e)).catch((err) => { e.textContent = "The player could not start: " + err; });
+  });
+  new MutationObserver(mountPlayers).observe(document.body, { childList: true, subtree: true });
+  mountPlayers();
 }

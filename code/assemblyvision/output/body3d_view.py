@@ -84,12 +84,16 @@ def floor_map(piece: dict, fps: float, cell_m: float = 0.1):
     bx, bz = edges(x), edges(z)
     h, _, _ = np.histogram2d(z, x, bins=[bz, bx])
     sec = np.where(h > 0, h / fps / 2, np.nan)            # cells never stepped on stay empty (not "0 s" black)
-    fig = go.Figure(go.Heatmap(z=sec, x=bx[:-1] + cell_m / 2, y=bz[:-1] + cell_m / 2, colorscale="YlOrRd",
-                               colorbar=dict(title="s"), hovertemplate="x %{x:.1f} m, z %{y:.1f} m: %{z:.1f} s<extra></extra>"))
+    xs, zs = bx[:-1] + cell_m / 2, bz[:-1] + cell_m / 2
+    # the hover text is made here: a %{z:.1f} template is shown literally by some plotly.js builds (Gradio's)
+    text = [[f"x {x:.1f} m, z {z:.1f} m: {v:.1f} s" if np.isfinite(v) else "" for x, v in zip(xs, row)]
+            for z, row in zip(zs, sec)]
+    fig = go.Figure(go.Heatmap(z=sec, x=xs, y=zs, colorscale="YlOrRd", text=text, hoverinfo="text",
+                               colorbar=dict(title="s", x=1.0, xpad=4, thickness=14)))
     fig.update_layout(title=f"Feet on the ground plane (y = {ground:.2f} m), {cell_m * 100:.0f} cm cells, "
                             f"seconds per cell", plot_bgcolor="#f4f5f7",
                       xaxis_title="x (m)", yaxis_title="z (m)", yaxis_scaleanchor="x", height=460,
-                      margin=dict(l=40, r=10, t=40, b=40))
+                      margin=dict(l=40, r=90, t=60, b=40), modebar=dict(orientation="v"))   # the toolbar clear of the colour bar
     return fig
 
 
@@ -132,3 +136,40 @@ def skeleton_4d(piece: dict, fps: float, anim_fps: float = 10.0, trail_s: float 
             dict(label=clock(frames[i] / fps), method="animate",
                  args=[[clock(frames[i] / fps)], dict(mode="immediate", frame=dict(duration=0, redraw=True))]) for i in idx])])
     return fig
+
+
+def player_data(piece: dict, fps: float, voxel_m: float = 0.1, cell_m: float = 0.1) -> dict:
+    """The 3D player's data of one part (ui/static/player.js): joints per frame, the voxels the hands
+    (kind 0) and feet (kind 1) visit and their ids per frame, the floor cells of the feet per frame."""
+    J = np.asarray(piece["joints"], np.float64)
+    L = len(J)
+    ok = np.isfinite(J).all(-1)
+    pts = J[:, HANDS + FEET]                                   # [L, 4, 3]
+    keys = np.floor(pts / voxel_m).astype(np.int64)
+    kinds = np.array([0, 0, 1, 1])
+    table: dict = {}
+    vox_ids = np.full((L, 4), -1, np.int64)
+    for f in range(L):
+        for j in range(4):
+            if ok[f, HANDS + FEET][j]:
+                k = (int(kinds[j]), *map(int, keys[f, j]))
+                vox_ids[f, j] = table.setdefault(k, len(table))
+    order = sorted(table, key=table.get)
+    centres = np.array([[(a + 0.5) * voxel_m for a in k[1:]] for k in order]) if order else np.zeros((0, 3))
+    feet = J[:, FEET]
+    fx, fz = feet[..., 0], feet[..., 2]
+    good = np.isfinite(fx) & np.isfinite(fz)
+    x0 = np.floor(np.nanmin(fx[good]) / cell_m) * cell_m if good.any() else 0.0
+    z0 = np.floor(np.nanmin(fz[good]) / cell_m) * cell_m if good.any() else 0.0
+    nx = int(np.floor((np.nanmax(fx[good]) - x0) / cell_m)) + 1 if good.any() else 1
+    nz = int(np.floor((np.nanmax(fz[good]) - z0) / cell_m)) + 1 if good.any() else 1
+    cx = np.floor((fx - x0) / cell_m).astype(np.int64)
+    cz = np.floor((fz - z0) / cell_m).astype(np.int64)
+    cell_ids = np.where(good, cz * nx + cx, -1)
+    flat = J[ok].reshape(-1, 3) if ok.any() else np.zeros((1, 3))
+    lo, hi = np.nanmin(J.reshape(-1, 3), 0), np.nanmax(J.reshape(-1, 3), 0)
+    return {"fps": fps, "frames": [int(x) for x in piece["frames"]], "joints": np.round(np.nan_to_num(J), 3).ravel().tolist(),
+            "voxel_m": voxel_m, "voxels": np.round(centres, 3).ravel().tolist(), "vox_kind": [k[0] for k in order],
+            "vox_ids": vox_ids.tolist(), "cell_m": cell_m, "cells_x": nx, "cells_z": nz, "cell_ids": cell_ids.tolist(),
+            "ground": round(ground_level(J), 3), "center": np.round((lo + hi) / 2, 3).tolist(),
+            "extent": round(float(max(hi[0] - lo[0], hi[2] - lo[2], 1.0)), 3), "n_points": int(len(flat))}

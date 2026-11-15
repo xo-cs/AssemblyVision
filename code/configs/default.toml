@@ -253,6 +253,16 @@ min_piece_s = 2.0            # shortest stretch of a shot with the subject that 
 max_gap_s = 1.0              # longer gaps without the subject split a shot into pieces (s)
 chunk = 128                  # frames read into memory at a time
 
+[scene4d]
+# The scene of each shot part as coloured points with Pi3 (Week 11, assemblyvision/scene4d; envs/scene4d; BSD-2-Clause)
+enabled = false              # true: a full run adds the scene4d stage after body3d (or run tools/scene4d.py later)
+gpu = 1                      # GPU of the Pi3 worker (GPU1 unless GPU0 is free), under .locks/gpu<N>.lock
+fps = 6.0                    # sampled frames per second
+chunk = 80                   # frames per Pi3 call (about 11 GB on the A4000); longer parts go in overlapping chunks
+overlap = 12                 # frames shared by two chunks, for the similarity transform between them
+max_bg_points = 150000       # the static background, voxel downsampled to at most this many points
+person_points = 2500         # points of the person per sampled frame
+
 [motion]
 # MotionAnalyzer (LLD 3.7). Add "gaze" to enabled for the rough gaze direction (FR-MOTION-08, Want).
 enabled = ["duration", "path", "back_bending", "repetition", "hand_travel", "two_hand", "idle"]

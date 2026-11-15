@@ -29,7 +29,7 @@ MESSAGES: dict[str, tuple[str, str]] = {
     "AV-SEG-007": ("Notice", "No worker was found anywhere in the video, so no steps and no motion metrics were found. Check the video and the camera view."),
     "AV-SEG-002": ("Stage", "Engine {engine} returned steps that are not valid for shot {shot}: {detail}. No steps were stored for this shot."),
     "AV-SEG-003": ("Notice", "No step definitions are set. The footage is cut at pauses and the pieces are named segment_1, segment_2 and so on."),
-    "AV-B3D-001": ("Notice", "The 3D body (body3d stage) could not be made: {detail}. The rest of the run is not affected."),
+    "AV-B3D-001": ("Notice", "The 3D body or scene (body3d or scene4d stage) could not be made: {detail}. The rest of the run is not affected."),
     "AV-MOT-001": ("Item", "{metric} of step {step} is not reported: only {cov} percent of frames had the keypoints it needs."),
     "AV-MOT-002": ("Item", "{metric} of step {step} is not reported: the step is too short ({dur} s)."),
     "AV-MOT-004": ("Item", "The metric {metric} failed for step {step}. The other metrics are not affected."),

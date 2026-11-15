@@ -1,0 +1,76 @@
+"""TC-S4D: the scene4d stage's geometry (Week 11): the similarity fit, chunk alignment, the GVHMR
+skeleton placed in the scene. CPU, synthetic data; Pi3 itself is not run here."""
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+import numpy as np
+
+from assemblyvision import scene4d as S4
+from assemblyvision.scene4d import pi3_worker as W
+from test_body3d import walking
+
+
+def rot(deg, axis=1):
+    c, s = np.cos(np.radians(deg)), np.sin(np.radians(deg))
+    R = np.eye(3)
+    i, j = [k for k in range(3) if k != axis]
+    R[i, i], R[i, j], R[j, i], R[j, j] = c, -s, s, c
+    return R
+
+
+class Scene4dTest(unittest.TestCase):
+    def test_similarity_fit_with_outliers(self):
+        rng = np.random.default_rng(0)
+        src = rng.normal(size=(400, 3))
+        dst = 2.5 * src @ rot(30).T + np.array([1, -2, 0.5])
+        dst[:40] += rng.normal(scale=3, size=(40, 3))                       # 10 % outliers
+        s, R, t = W.robust_sim3(src, dst)
+        self.assertAlmostEqual(s, 2.5, places=3)
+        np.testing.assert_allclose(R, rot(30), atol=1e-3)
+
+    def test_chunks_become_one_scene(self):
+        S, h, w = 30, 4, 5
+        rng = np.random.default_rng(1)
+        base = rng.normal(size=(h, w, 3)) + np.array([0, 0, 5.0])           # a static scene seen in every frame
+        truth = np.repeat(base[None], S, 0)
+
+        def fake(model, frames):                                            # each chunk in its own frame and scale
+            n = len(frames)
+            s, R, t = 0.5 + 0.1 * frames[0, 0, 0, 0], rot(10 * frames[0, 0, 0, 0]), np.array([frames[0, 0, 0, 0], 0, 0])
+            pts = s * truth[:n] @ R.T + t
+            c2w = np.repeat(np.eye(4)[None], n, 0)
+            return {"pts": pts.astype(np.float32), "conf": np.ones((n, h, w), np.float32), "c2w": c2w.astype(np.float32)}
+        frames = np.zeros((S, h, w, 3), np.uint8)
+        for k, a in enumerate(range(0, S, 8)):
+            frames[a:] = k                                                  # marks which chunk a frame starts in
+        with mock.patch.object(W, "run_model", side_effect=lambda m, f: fake(m, f.copy())):
+            r = W.chunked(None, frames, chunk=12, overlap=4)
+        self.assertEqual(len(r["fits"]), 3)
+        spread = np.linalg.norm(r["pts"] - r["pts"][0], axis=-1).max()      # every frame on the first chunk's scene
+        self.assertLess(spread, 1e-3)
+
+    def test_skeleton_alignment(self):
+        J = walking(60)
+        s, R, t = 3.0, rot(40), np.array([0.5, 1.0, 2.0])
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / "body3d").mkdir()
+            (root / "scene4d").mkdir()
+            np.savez(root / "body3d" / "p.npz", frames=np.arange(60), joints_world=J)
+            kp3d = (s * J @ R.T + t)[::5].astype(np.float32)
+            kp3d[:, 3] = np.nan                                             # an ear never seen
+            np.savez(root / "scene4d" / "p.npz", frames=np.arange(0, 60, 5), kp3d=kp3d)
+            a = S4.align(root, "p")
+            self.assertTrue(a["ok"])
+            self.assertAlmostEqual(a["scale"], 3.0, places=3)
+            np.testing.assert_allclose(a["up"], R @ [0, 1, 0], atol=1e-3)
+            np.savez(root / "scene4d" / "p.npz", frames=np.arange(0, 60, 5),
+                     kp3d=np.random.default_rng(0).normal(size=kp3d.shape).astype(np.float32))
+            self.assertFalse(S4.align(root, "p")["ok"])                     # unrelated points: not placed
+
+
+if __name__ == "__main__":
+    unittest.main()

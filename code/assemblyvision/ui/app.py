@@ -524,19 +524,72 @@ class GradioApp:
 
     # Heatmap page: 2D (hand reach, floor maps), 3D and 4D (body3d stage, output/body3d_view.py) --------
 
-    def body3d_pieces(self, run_id: str | None) -> list[tuple[str, str]]:
-        if not run_id:
-            return []
-        from .. import body3d as B
-        fps = float(self.store.get_run(run_id)["ingest"]["cfr"]["fps"])
-        return [(f"{p['shot_id'].rsplit('-', 1)[-1]} part {p['name'].rsplit('_p', 1)[-1]}, "
-                 f"{v.clock(p['frames'][0] / fps)} to {v.clock(p['frames'][-1] / fps)}", p["name"])
-                for p in B.load(self.store.paths(run_id).root)]
+    def heat_runs(self, mode: str, show_all: bool = False) -> list[tuple[str, str]]:
+        """Runs for the Heatmap page: 3D only with body3d output, 4D only with scene4d player data,
+        2D all. Without show_all, repeated runs of the same video (timing repeats, tests) are left out:
+        per video the newest finished run stays, and every run with 3D, 4D or export output."""
+        runs = self.listed_runs()
+        has = lambda r, sub, pat: any((self.store.paths(r["run_id"]).root / sub).glob(pat))
+        if mode == "3D":
+            runs = [r for r in runs if has(r, "body3d", "*_p*.npz")]
+        elif mode == "4D":
+            runs = [r for r in runs if has(r, "scene4d", "*.player.json")]
+        if not show_all:
+            seen, keep = set(), []
+            for r in runs:                                 # newest first
+                extra = has(r, "body3d", "*_p*.npz") or has(r, "scene4d", "*.player.json") or has(r, "export", "rev*")
+                if extra or r["video"] not in seen:
+                    keep.append(r)
+                seen.add(r["video"])
+            runs = keep
+        return [(v.run_option(self.run_label(r), r["created_utc"], r.get("variant"), r["status"]), r["run_id"])
+                for r in runs]
 
-    def heatmap_view(self, run_id: str | None, mode: str, piece: str | None) -> tuple:
-        """(html, figure 1, figure 2) of the Heatmap page."""
+    def _file_url(self, path) -> str | None:
+        from .auth import safe_media
+        ok = safe_media(path, self.store.roots)
+        return f"/gradio_api/file={ok}" if ok else None
+
+    def player_html(self, run_id: str, mode: str) -> str:
+        """The three.js player (static/player.js) for the 3D or 4D view of a run, every part in order."""
+        import html as H
+        import json as J
+        root = self.store.paths(run_id).root
+        fps = float(self.store.get_run(run_id)["ingest"]["cfr"]["fps"])
+        parts = []
+        if mode == "3D":
+            from .. import body3d as B
+            from ..output import body3d_view as BV
+            for p in B.load(root):
+                f = root / "body3d" / f"{p['name']}.player.json"
+                if not f.is_file() or f.stat().st_mtime < (root / "body3d" / f"{p['name']}.npz").stat().st_mtime:
+                    f.write_text(J.dumps(BV.player_data(p, fps)))
+                parts.append({"json": self._file_url(f), "t0": int(p["frames"][0]) / fps, "t1": int(p["frames"][-1]) / fps,
+                              "n": len(p["frames"]), "fps": fps,
+                              "label": f"{p['shot_id'].rsplit('-', 1)[-1]} part {p['name'].rsplit('_p', 1)[-1]}"})
+        else:
+            from .. import scene4d as S4
+            for p in S4.load_parts(root):
+                d = root / "scene4d"
+                parts.append({"json": self._file_url(d / f"{p['name']}.player.json"),
+                              "bin": self._file_url(d / f"{p['name']}.player.bin"), "t0": p["start"] / fps,
+                              "t1": p["end"] / fps, "n": p["end"] - p["start"] + 1, "fps": fps,
+                              "label": f"{p['name'].rsplit('-', 1)[-1].replace('_p', ' part ')}"})
+        if not parts:
+            return v.note("No 3D or 4D output in this run.")
+        ov = self.store.overlay_path(run_id)
+        cfg = {"mode": mode.lower(), "parts": parts, "video": self._file_url(ov) if ov else None}
+        module = f"/gradio_api/file={UI_DIR / 'static' / 'player.js'}"
+        return (f"<div class='av-player' data-module='{H.escape(module, quote=True)}' "
+                f"data-cfg='{H.escape(J.dumps(cfg), quote=True)}'>Loading the player ...</div>")
+
+    def heatmap_view(self, run_id: str | None, mode: str) -> str:
+        """The Heatmap page for one run: 2D maps, or the 3D or 4D player."""
         if not run_id:
-            return v.note("Choose a run."), None, None
+            return v.note({"3D": "No run has 3D body output yet (the body3d stage: python -m assemblyvision.tools.body3d "
+                                  "--run RUN_FOLDER).",
+                           "4D": "No run has a 3D scene yet (the scene4d stage: python -m assemblyvision.tools.scene4d "
+                                  "--run RUN_FOLDER)."}.get(mode, "Choose a run."))
         if mode == "2D":
             from .auth import safe_media
             m = self.store.get_run(run_id)
@@ -546,22 +599,13 @@ class GradioApp:
             html += v.section_title("Floor map per fixed shot", "Where the worker's hips were, on the floor of each "
                                     "fixed camera shot.")
             html += "".join(v.img_html(f, "Floor heatmap") for f in floors if f) or v.note("No floor map in this run.")
-            return html, None, None
-        from .. import body3d as B
-        from ..output import body3d_view as BV
-        pieces = {p["name"]: p for p in B.load(self.store.paths(run_id).root)}
-        if not pieces:
-            return v.note("This run has no 3D body data yet. It is made by the optional body3d stage: "
-                          f"python -m assemblyvision.tools.body3d --run RUN_FOLDER (GVHMR; needs "
-                          f"{'; '.join(B.missing()) or 'nothing more'})."), None, None
-        p = pieces.get(piece) or next(iter(pieces.values()))
-        fps = float(self.store.get_run(run_id)["ingest"]["cfr"]["fps"])
-        head = (f"<p class='av-hint'>{v.esc(p['name'])}: {len(p['frames'])} frames, "
-                f"{'fixed' if p['static'] else 'handheld'} camera. Metres in a gravity aligned frame that starts "
-                "again at every cut, so each part of a shot is shown on its own.</p>")
-        if mode == "3D":
-            return head, BV.density_3d(p, fps), BV.floor_map(p, fps)
-        return head, BV.skeleton_4d(p, fps), None
+            return html
+        head = ("The moving skeleton (GVHMR, metres, gravity aligned); hand voxels in red and foot voxels in blue "
+                "build up with the seconds spent; the floor map below fills in. Each shot part has its own world frame."
+                if mode == "3D" else
+                "The scene of each shot part as coloured points (Pi3), the person at the current time, rainbow trails of "
+                "the hands and feet over the last 2 s, the camera as a moving frame; the skeleton when it could be placed.")
+        return f"<p class='av-hint'>{v.esc(head)} Drag to orbit, scroll to zoom.</p>" + self.player_html(run_id, mode)
 
     def baseline_table(self, run_id: str) -> list[list]:
         return [[b["label"], b["n"], _fmt(b["median_s"], "s"), _fmt(b["q1_s"], "s"), _fmt(b["q3_s"], "s"),
@@ -936,19 +980,17 @@ class GradioApp:
 
                         # --- Heatmap ------------------------------------------------------
                         with gr.Tab("Heatmap", id="heatmap"), gr.Column(elem_classes=["av-page"]):
-                            gr.HTML(v.page_header("Heatmap", "2D: hand reach and floor maps. 3D: where hands and feet "
-                                                  "spend time, in metres. 4D: the moving skeleton, shot by shot."))
+                            gr.HTML(v.page_header("Heatmap", "2D: hand reach and floor maps. 3D: the moving skeleton with "
+                                                  "where hands and feet spend time, in metres. 4D: the scene with the "
+                                                  "worker and the camera."))
                             with gr.Column(elem_classes=["av-card"]):
                                 with gr.Row():
                                     heat_run = gr.Dropdown(label="Run", choices=[], value=None, min_width=420,
-                                                           elem_classes=["av-plain", "av-field"], scale=2)
+                                                           elem_classes=["av-plain", "av-field"], scale=3)
                                     heat_mode = gr.Radio(list(HEAT_MODES), value="2D", label="View",
                                                          elem_classes=["av-seg"], scale=1)
-                                    heat_piece = gr.Dropdown(label="Shot part (3D, 4D)", choices=[], value=None,
-                                                             elem_classes=["av-plain", "av-field"], scale=2)
+                                    heat_all = gr.Checkbox(label="show all runs", value=False, scale=1)
                                 heat_html = gr.HTML()
-                                heat_plot1 = gr.Plot(show_label=False)
-                                heat_plot2 = gr.Plot(show_label=False)
 
                         # --- Runs ---------------------------------------------------------
                         with gr.Tab("Runs", id="runs"), gr.Column(elem_classes=["av-page"]):
@@ -1074,19 +1116,16 @@ class GradioApp:
             open_box.input(on_open_box, open_box, [run_dd, *nav_out])
             step_dd.change(self.metrics_html, [run_dd, step_dd], metrics_html, show_progress="hidden")
             reach_dd.input(self.reach_html, [run_dd, reach_dd], reach_html, show_progress="hidden")
-            def on_heat(run_id, mode, piece):
-                html_, f1, f2 = self.heatmap_view(run_id, mode, piece)
-                return html_, gr.update(value=f1, visible=f1 is not None), gr.update(value=f2, visible=f2 is not None)
-
-            def on_heat_run(run_id, mode):
-                ch = self.body3d_pieces(run_id)
-                first = ch[0][1] if ch else None
-                return [gr.update(choices=ch, value=first), *on_heat(run_id, mode, first)]
-            heat_out = [heat_html, heat_plot1, heat_plot2]
-            heat_run.change(on_heat_run, [heat_run, heat_mode], [heat_piece, *heat_out])
-            heat_mode.change(on_heat, [heat_run, heat_mode, heat_piece], heat_out)
-            heat_piece.input(on_heat, [heat_run, heat_mode, heat_piece], heat_out)
-            run_dd.change(lambda r: gr.update(choices=self.run_choices(), value=r), run_dd, heat_run)
+            def on_heat_list(mode, show_all, current):
+                ch = self.heat_runs(mode, show_all)
+                ids = [c[1] for c in ch]
+                run_id = current if current in ids else (ids[0] if ids else None)
+                return gr.update(choices=ch, value=run_id), self.heatmap_view(run_id, mode)
+            heat_mode.change(on_heat_list, [heat_mode, heat_all, heat_run], [heat_run, heat_html])
+            heat_all.change(on_heat_list, [heat_mode, heat_all, heat_run], [heat_run, heat_html])
+            heat_run.input(lambda r, m: self.heatmap_view(r, m), [heat_run, heat_mode], heat_html)
+            navs[[k for k, _ in PAGES].index("heatmap")].click(on_heat_list, [heat_mode, heat_all, heat_run],
+                                                             [heat_run, heat_html])
             run_dd.change(lambda r: [self.correction_rows(r), "", self.export_files(r)], run_dd,
                           [corr_df, corr_msg, exp_files])
             corr_prev.click(self.correction_preview, [run_dd, corr_df], corr_msg)
@@ -1113,13 +1152,13 @@ class GradioApp:
         users = getattr(self, "users", None)
         check_bind(host, share, port, login=users is not None and bool(users.names()))
         import gradio as gr
-        gr.set_static_paths([str(root / "runs") for root in self.store.roots.values()])
+        gr.set_static_paths([str(root / "runs") for root in self.store.roots.values()] + [str(UI_DIR / "static")])
         demo = self.build()
         demo.queue(default_concurrency_limit=4)
         demo.launch(server_name=host, server_port=port, share=False, inbrowser=False, show_api=False,
                     auth=users.check if users is not None else None,
                     auth_message="AssemblyVision: log in with your user name and password.",
-                    allowed_paths=[str(r) for r in self.store.roots.values()],
+                    allowed_paths=[str(r) for r in self.store.roots.values()] + [str(UI_DIR / "static")],
                     max_file_size=f"{self.cfg['ui']['max_upload_mb']}mb")
 
 

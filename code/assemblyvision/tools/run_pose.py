@@ -65,7 +65,7 @@ from ..storage.files import (REPO_ROOT, SOURCE_TYPE, SOURCES, RunContext, RunPat
                              RUN_ID_RE, data_area, new_run_id, run_source, utc_now, write_atomic)
 
 STAGES = ("ingest", "shots", "reference", "pose_body", "tracking", "vlm_scores", "siglip_scores", "segmentation", "metrics",
-          "overlay", "body3d", "eval")
+          "overlay", "body3d", "scene4d", "eval")
 RERUN_STAGES = ("segmentation", "metrics", "overlay", "eval")
 _ALIASES = {"engine": "segmentation"}
 
@@ -1017,6 +1017,15 @@ def main(argv: list[str] | None = None) -> int:
                 ctx.notice(AvError("AV-B3D-001", detail=e.code), "body3d")
         else:
             ctx.manifest["stages"]["body3d"]["status"] = "skipped"
+        if cfg["scene4d"]["enabled"]:         # optional, after body3d so the skeleton can be aligned
+            from .. import scene4d as S4
+            try:
+                stage("scene4d", lambda: S4.run(ctx.paths.root, ctx.manifest, cfg, args.gpu if args.gpu >= 0 else 0,
+                                                ctx.log.info))
+            except AvError as e:
+                ctx.notice(AvError("AV-B3D-001", detail=f"scene4d: {e.code}"), "scene4d")
+        else:
+            ctx.manifest["stages"]["scene4d"]["status"] = "skipped"
 
         if args.gt is None or steps is None:
             ctx.manifest["stages"]["eval"]["status"] = "skipped"

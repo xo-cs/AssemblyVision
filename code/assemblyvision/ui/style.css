@@ -436,3 +436,17 @@ img.av-chart { width: 100%; height: auto; display: block; }
 #av-compare .av-cmp-close { position: absolute; top: 10px; right: 14px; z-index: 1; background: rgba(255,255,255,0.12);
   color: #fff; border: none; border-radius: 50%; width: 36px; height: 36px; font-size: 18px; cursor: pointer; }
 #av-compare .av-cmp-close:hover { background: rgba(255,255,255,0.25); }
+
+/* Heatmap page player (static/player.js) */
+.avp { display: flex; flex-direction: column; gap: 8px; }
+.avp-row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.avp-view { flex: 3 1 520px; min-width: 320px; border-radius: 8px; overflow: hidden; }
+.avp-view canvas { display: block; width: 100% !important; height: auto !important; }
+.avp-side { flex: 2 1 320px; min-width: 260px; }
+.avp-video { width: 100%; border-radius: 8px; background: #000; }
+.avp-floor canvas { width: 100%; max-width: 640px; border: 1px solid #dde1e7; border-radius: 6px; }
+.avp-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.avp-btn { padding: 4px 14px; border-radius: 6px; border: 1px solid #c5ccd6; background: #fff; cursor: pointer; }
+.avp-slider { flex: 1 1 240px; }
+.avp-time { font-variant-numeric: tabular-nums; min-width: 56px; }
+.avp-note { font-size: 13px; color: #5b6472; }
