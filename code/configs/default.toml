@@ -293,7 +293,11 @@ encoder = "h264_nvenc"       # libx264 or h264_nvenc (GPU encoder of the pose GP
 workers = 4                  # >1: the frame range is rendered in this many parallel chunks, joined without re-encoding
 
 [ui]
-# host 127.0.0.1, port 7860 and share=False are fixed in ui/app.py (FR-INFRA-06, NFR-SEC-03)
+# host: "127.0.0.1" (this computer only, the default), a private address of this server, or "0.0.0.0" (every
+# network interface, reachable from outside; the mentor's decision of 2026-11-15). Any host other than localhost
+# needs a login user (tools/ui_users.py). --host and --port of ui/app.py override these. share=False is fixed.
+host = "127.0.0.1"
+port = 7860                  # 7860 to 7869
 poll_s = 2.0                 # status poll interval of the Run tab (s)
 max_upload_mb = 4096         # largest upload accepted (MB)
 

@@ -73,16 +73,27 @@ Rerun later stages of an existing run on the CPU, from its stored files:
 python -m assemblyvision.tools.run_pose --run <run_dir> --stages segmentation,metrics,overlay,eval [--gt <steps_gt.csv>]
 ```
 
-The interface (binds 127.0.0.1 only, default port 7860). It asks for a login: add each user once
+The interface (default 127.0.0.1, port 7860). It asks for a login: add each user once
 (the user file .config/ui_users.json holds only scrypt hashes and is never in git). Every run
 start, export and approved correction goes to data/<source>/audit.jsonl, every login to
-logs/ui_audit.jsonl.
+logs/ui_audit.jsonl. Five wrong passwords lock a user name for 5 minutes.
 
 ```bash
 python -m assemblyvision.tools.ui_users add khurshid      # asks for the password twice
+python -m assemblyvision.tools.ui_users passwd khurshid   # a new password
 python -m assemblyvision.ui.app --sources public
 # on the laptop: ssh -L 7860:127.0.0.1:7860 <user>@<server>, then open http://127.0.0.1:7860
 ```
+
+**External access (the mentor's decision, 2026-11-15).** The host is a setting: `ui.host` in
+code/configs/default.toml (default "127.0.0.1") or `--host` on the command line (for example
+`--host 0.0.0.0 --port 7861`), passed to Gradio's launch(server_name=...). It replaces the fixed
+127.0.0.1 of NFR-SEC-03 because the mentor needs the page from other computers, as his copy of the
+older source did with server_name="0.0.0.0". Safeguards: any host other than 127.0.0.1 needs at
+least one login user (otherwise AV-APP-009 and the page does not start), five wrong passwords lock
+the user for 5 minutes, a public address of its own and share links stay refused, and the port stays
+7860 to 7869. Reachability checks (ss, ufw, router, http, the camera of the Live page) are in
+docs_team/engine_b_guide.md.
 
 Tests (CPU):
 

@@ -66,9 +66,19 @@ UI_DIR = Path(__file__).resolve().parent
 NO_LABELS = "No hand labels for this video, so accuracy cannot be scored."
 
 
-def check_bind(host: str, share: bool, port: int = PORT) -> None:
-    """AV-APP-005 unless host is loopback or a private address, the port is 7860
-    to 7869 and share is off (NFR-SEC-03)."""
+def is_local(host: str) -> bool:
+    """True for localhost and loopback addresses (reachable from this computer only)."""
+    try:
+        return host == "localhost" or ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def check_bind(host: str, share: bool, port: int = PORT, login: bool = False) -> None:
+    """AV-APP-005 unless share is off, the port is 7860 to 7869 and the host is loopback, a
+    private address or 0.0.0.0 (all interfaces; the mentor's decision of 2026-11-15); a public
+    address of its own is refused (NFR-SEC-03). AV-APP-009 for any host but localhost without a
+    login (login: the page asks for one and at least one user exists)."""
     if share:
         raise AvError("AV-APP-005", detail="share=True")
     if port not in PORTS:
@@ -77,8 +87,10 @@ def check_bind(host: str, share: bool, port: int = PORT) -> None:
         ip = ipaddress.ip_address("127.0.0.1" if host == "localhost" else host)
     except ValueError as e:
         raise AvError("AV-APP-005", detail=f"host {host!r}") from e
-    if ip.is_unspecified or not (ip.is_loopback or ip.is_private):
+    if not (ip.is_loopback or ip.is_private or ip.is_unspecified):
         raise AvError("AV-APP-005", detail=f"host {host}")
+    if not ip.is_loopback and not login:
+        raise AvError("AV-APP-009", host=host, reason="no login user is set up (or --no-login was given)")
 
 
 def prepare_env(sources: list[str], cfg: Config, repo_root: Path = REPO_ROOT) -> Path:
@@ -1098,13 +1110,14 @@ class GradioApp:
 
     def launch(self, host: str = HOST, port: int | None = None, share: bool = False) -> None:
         port = getattr(self, "port", PORT) if port is None else port
-        check_bind(host, share, port)
+        users = getattr(self, "users", None)
+        check_bind(host, share, port, login=users is not None and bool(users.names()))
         import gradio as gr
         gr.set_static_paths([str(root / "runs") for root in self.store.roots.values()])
         demo = self.build()
         demo.queue(default_concurrency_limit=4)
         demo.launch(server_name=host, server_port=port, share=False, inbrowser=False, show_api=False,
-                    auth=self.users.check if self.users is not None else None,
+                    auth=users.check if users is not None else None,
                     auth_message="AssemblyVision: log in with your user name and password.",
                     allowed_paths=[str(r) for r in self.store.roots.values()],
                     max_file_size=f"{self.cfg['ui']['max_upload_mb']}mb")
@@ -1130,25 +1143,31 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="python -m assemblyvision.ui.app", description="Start the AssemblyVision page.")
     p.add_argument("--sources", type=parse_sources, default=["public"],
                    help="data areas the page may read, comma list of qisens,public (default public)")
-    p.add_argument("--port", type=int, default=PORT, choices=list(PORTS), metavar="7860..7869",
-                   help="port on 127.0.0.1 (7860 to 7869, default 7860)")
+    p.add_argument("--host", help="address to listen on (default ui.host, 127.0.0.1); 0.0.0.0 = every interface, "
+                                  "needs a login user")
+    p.add_argument("--port", type=int, choices=list(PORTS), metavar="7860..7869",
+                   help="port (7860 to 7869, default ui.port, 7860)")
     p.add_argument("--config", action="append", type=Path, default=[], help="extra TOML layer")
     p.add_argument("--no-login", action="store_true", help="start without a login (local tests only)")
     args = p.parse_args(argv)
     try:
         cfg = Config.load([*DEFAULT_LAYERS, *args.config])
-        tmp = prepare_env(args.sources, cfg)
-        check_bind(HOST, False, args.port)
-        app = GradioApp(cfg, args.sources, port=args.port)
+        host = (args.host or cfg["ui"]["host"]).strip()
+        port = args.port if args.port is not None else cfg["ui"]["port"]
         from .auth import Users
         users = Users()
-        if not args.no_login:
-            if not users.names():
-                raise AvError("AV-APP-008", file=str(users.path))
+        login = not args.no_login and bool(users.names())
+        check_bind(host, False, port, login=login)       # before anything starts (AV-APP-005, AV-APP-009)
+        if not args.no_login and not users.names():
+            raise AvError("AV-APP-008", file=str(users.path))
+        tmp = prepare_env(args.sources, cfg)
+        app = GradioApp(cfg, args.sources, port=port)
+        if login:
             app.users = users
-        print(f"AssemblyVision page on http://{HOST}:{args.port} (sources {','.join(app.sources)}, temp {tmp})",
-              flush=True)
-        app.launch()
+        shown = "this server's address" if host in ("0.0.0.0", "::") else host
+        print(f"AssemblyVision page on http://{shown}:{port} (listening on {host}; sources {','.join(app.sources)}, "
+              f"temp {tmp})", flush=True)
+        app.launch(host=host, port=port)
     except AvError as e:
         print(_err_text(e), file=sys.stderr)
         return 1

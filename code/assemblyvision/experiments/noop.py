@@ -179,7 +179,7 @@ DECLARATIONS: dict[str, dict] = {
     "heatmap": _all(NO, "cell_m cell_px min_samples"),
     "gpu": _all(NO, "pose"),
     "overlay": _all(NO, "kp_conf_min max_width crf enabled encoder workers"),
-    "ui": _all(RUN_FREE, "poll_s max_upload_mb"),
+    "ui": _all(RUN_FREE, "poll_s max_upload_mb host port"),
     "live": _all(RUN_FREE, "gpu half pose_model input_px det_conf kp_conf_min stream_every_s rate_steps rate_p95_ms "
                            "rate_drop_max rate_hold_s rate_up_s zone_hold_s one_euro_min_cutoff one_euro_beta "
                            "one_euro_d_cutoff lost_s idle_stop_s max_session_s rec_fps min_free_mb warn_fps "

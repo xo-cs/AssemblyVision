@@ -282,6 +282,8 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "live.rate_up_s": (lambda v: v > 0, "> 0"),
     "live.lift_knee_seen": (lambda v: 0 <= v <= 1, "0 to 1"),
     "ui.poll_s": (lambda v: 0.5 <= v <= 60, "0.5 to 60"),
+    "ui.host": (lambda v: isinstance(v, str) and v.strip() != "", "an IP address, localhost or 0.0.0.0"),
+    "ui.port": (lambda v: isinstance(v, int) and 7860 <= v <= 7869, "7860 to 7869"),
     "ui.max_upload_mb": (lambda v: v >= 1, ">= 1"),
 }
 

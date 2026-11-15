@@ -23,11 +23,21 @@ class BindTest(unittest.TestCase):
     def test_refuses_share_and_public_hosts(self):   # TC-APP-16
         check_bind("127.0.0.1", False)
         check_bind("localhost", False)
-        check_bind("10.0.0.5", False)
-        for host, share in (("127.0.0.1", True), ("0.0.0.0", False), ("8.8.8.8", False), ("example.com", False)):
+        check_bind("10.0.0.5", False, login=True)
+        for host, share in (("127.0.0.1", True), ("8.8.8.8", False), ("example.com", False), ("8.8.8.8", True)):
             with self.assertRaises(AvError) as cm:
-                check_bind(host, share)
+                check_bind(host, share, login=True)
             self.assertEqual(cm.exception.code, "AV-APP-005")
+
+    def test_external_hosts_need_a_login(self):   # the mentor's decision of 2026-11-15
+        check_bind("0.0.0.0", False, login=True)
+        check_bind("10.0.0.5", False, login=True)
+        check_bind("127.0.0.1", False, login=False)                       # localhost works without a login
+        for host in ("0.0.0.0", "10.0.0.5", "::"):
+            with self.assertRaises(AvError) as cm:
+                check_bind(host, False, login=False)
+            self.assertEqual(cm.exception.code, "AV-APP-009")
+            self.assertIn("ui_users add", cm.exception.text)
 
     def test_launch_refuses_before_starting(self):
         app = GradioApp.__new__(GradioApp)

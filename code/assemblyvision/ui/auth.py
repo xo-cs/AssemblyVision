@@ -53,9 +53,16 @@ def verify_password(password: str, stored: str) -> bool:
         return False
 
 
+MAX_FAILS, LOCK_S = 5, 300.0                     # 5 wrong passwords lock the user name for 5 minutes
+
+
 class Users:
-    def __init__(self, path: Path = USERS_FILE):
+    def __init__(self, path: Path = USERS_FILE, clock=None):
+        import threading
         self.path = path
+        self._clock = clock or __import__("time").monotonic
+        self._fails: dict[str, list] = {}          # name -> [wrong passwords in a row, locked until]
+        self._lock = threading.Lock()
 
     def load(self) -> dict:
         try:
@@ -94,15 +101,36 @@ class Users:
 
     def check(self, name: str, password: str) -> bool:
         """The Gradio auth function; every attempt goes to the login log with its reason
-        (never the password)."""
+        (never the password). MAX_FAILS wrong passwords in a row lock the user name for LOCK_S
+        seconds (unknown names too, so a lock tells nothing about which names exist); during
+        the lock even the right password is refused. A login resets the count."""
         n = norm_name(name)
-        users = self.load()
-        u = users.get(n)
-        ok = bool(u) and verify_password(password or "", u["hash"])
-        reason = "ok" if ok else ("no users file" if not users else "unknown user" if u is None else "wrong password")
-        append_jsonl(LOGIN_LOG, {"utc": utc_now(), "user": n if NAME_RE.fullmatch(n) else "?", "action": "login",
-                                 "ok": ok, "reason": reason, "users_file": str(self.path)})
-        return ok
+        shown = n if NAME_RE.fullmatch(n) else "?"
+        now = self._clock()
+
+        def log(ok, reason, **extra):
+            append_jsonl(LOGIN_LOG, {"utc": utc_now(), "user": shown, "action": "login", "ok": ok, "reason": reason,
+                                     "users_file": str(self.path), **extra})
+        with self._lock:
+            st = self._fails.setdefault(n, [0, 0.0])
+            if st[1] > now:
+                log(False, "locked", locked_s_left=round(st[1] - now))
+                return False
+            users = self.load()
+            u = users.get(n)
+            ok = bool(u) and verify_password(password or "", u["hash"])
+            if ok:
+                self._fails.pop(n, None)
+                log(True, "ok")
+                return True
+            st[0] += 1
+            log(False, "no users file" if not users else "unknown user" if u is None else "wrong password",
+                fails_in_a_row=st[0])
+            if st[0] >= MAX_FAILS:
+                st[:] = [0, now + LOCK_S]
+                append_jsonl(LOGIN_LOG, {"utc": utc_now(), "user": shown, "action": "lockout", "ok": False,
+                                         "reason": f"{MAX_FAILS} wrong passwords", "locked_s": LOCK_S})
+            return False
 
 
 def append_jsonl(path: Path, rec: dict) -> None:

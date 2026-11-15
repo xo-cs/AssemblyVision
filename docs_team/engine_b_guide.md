@@ -154,13 +154,50 @@ SHA256, config, GPU) and notices, into the run's export/rev0/:
 python -m assemblyvision.tools.export_run --run ../data/qisens/runs/RUN_ID
 ```
 
-**The interface** (login required; binds 127.0.0.1 only; ports 7860 to 7869):
+**The interface** (login required; ports 7860 to 7869):
 
 ```bash
 python -m assemblyvision.tools.ui_users add choi          # once per user, asks for the password twice
+python -m assemblyvision.tools.ui_users passwd choi       # a new password later (works at the next login)
 python -m assemblyvision.ui.app --sources qisens,public --port 7861
 # from your laptop: ssh -L 7861:127.0.0.1:7861 qisens1@<server>, then open http://127.0.0.1:7861
 ```
+
+**Host and port.** By default the page listens on 127.0.0.1 (this server only; reach it through the
+ssh tunnel above). To reach it from other computers, listen on every interface (0.0.0.0) or on one
+private address of the server, either in the configuration or on the command line (the command line wins):
+
+```toml
+# code/configs/default.toml, section [ui] (or the same lines in a file given with --config)
+host = "0.0.0.0"
+port = 7861
+```
+
+```bash
+python -m assemblyvision.ui.app --sources qisens,public --host 0.0.0.0 --port 7861
+# then open http://<server address>:7861 from another computer
+```
+
+Any host other than 127.0.0.1 needs at least one login user; without one the page does not start
+(AV-APP-009), and --no-login works only on 127.0.0.1. Five wrong passwords lock a user name for
+5 minutes (logs/ui_audit.jsonl records every login, failure and lockout, never a password). A public
+address of its own and share links stay refused.
+
+**If the page cannot be reached from outside:**
+
+1. It listens where you expect: `ss -tlnp | grep 7861` must show `0.0.0.0:7861` (or the private
+   address), not `127.0.0.1:7861`.
+2. It answers on the server: `curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:7861/` prints 401
+   (the login page) or 200.
+3. The firewall lets the port in: `sudo ufw status`; if ufw is active, `sudo ufw allow 7861/tcp`
+   (better: only from your network, `sudo ufw allow from 192.168.0.0/24 to any port 7861 proto tcp`).
+4. From outside the building network, the router must forward the port to the server (port forwarding
+   in the router's settings), or use the ssh tunnel instead.
+5. The address is http, not https (the page has no certificate): type `http://` explicitly; a browser
+   that forces https cannot connect.
+6. The Live page uses the camera of the browser, and browsers allow the camera only on https or on
+   localhost. Over http://<server address> the camera is refused; use the ssh tunnel
+   (http://127.0.0.1:7861) for Live mode.
 
 In the interface: New analysis, choose the video, pose model x and step engine B. Results shows the
 phases, the metrics, the boundary correction (saved as a new revision) and the report export.

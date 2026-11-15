@@ -13,6 +13,13 @@ from test_report_export import make_run
 RID = "run_20260101_000000_abcd"
 
 
+def _init(self, path, clock=None):
+    """Users.__init__ with another default file (for main() in the tests)."""
+    import threading
+    import time
+    self.path, self._clock, self._fails, self._lock = path, time.monotonic, {}, threading.Lock()
+
+
 class AuthTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -64,6 +71,48 @@ class AuthTest(unittest.TestCase):
                               ("khurshid", "ok"), ("khurshid", "wrong password")])
             self.assertTrue(all(x["users_file"] == str(u.path) for x in log))
             self.assertNotIn("password 1", (self.d / "login.jsonl").read_text())
+
+    def test_lockout_after_five_wrong_passwords(self):
+        now = [1000.0]
+        with mock.patch.object(A, "LOGIN_LOG", self.d / "login.jsonl"):
+            u = A.Users(self.d / "users.json", clock=lambda: now[0])
+            u.add("khurshid", "right password 1")
+            for _ in range(4):
+                self.assertFalse(u.check("khurshid", "wrong"))
+            self.assertTrue(u.check("khurshid", "right password 1"))       # a login resets the count
+            for _ in range(5):
+                self.assertFalse(u.check("khurshid", "wrong"))
+            self.assertFalse(u.check("khurshid", "right password 1"))      # locked: even the right one
+            now[0] += 299.0
+            self.assertFalse(u.check("Khurshid", "right password 1"))      # the same user, still locked
+            now[0] += 2.0                                                   # after 5 minutes
+            self.assertTrue(u.check("khurshid", "right password 1"))
+            for _ in range(5):
+                u.check("nobody", "x")                                      # unknown names lock the same way
+            self.assertEqual(u._fails["nobody"][0], 0)
+            log = [json.loads(x) for x in (self.d / "login.jsonl").read_text().splitlines()]
+            locks = [x for x in log if x["action"] == "lockout"]
+            self.assertEqual([x["user"] for x in locks], ["khurshid", "nobody"])
+            self.assertEqual([x["reason"] for x in log if x.get("reason") == "locked"], ["locked", "locked"])
+            self.assertEqual((log[3]["fails_in_a_row"], log[4]["reason"]), (4, "ok"))
+
+    def test_host_option(self):
+        from assemblyvision.ui import app
+        users = self.d / "users.json"
+        with mock.patch.object(A.Users, "__init__", lambda s, path=users, clock=None: _init(s, path)), \
+                mock.patch.object(app.GradioApp, "launch") as launch:
+            self.assertEqual(app.main(["--host", "0.0.0.0", "--port", "7869"]), 1)          # no user: refused
+            launch.assert_not_called()
+            self.assertEqual(app.main(["--host", "0.0.0.0", "--port", "7869", "--no-login"]), 1)
+            launch.assert_not_called()
+            A.Users(users).add("mentor", "a long password")
+            self.assertEqual(app.main(["--host", "0.0.0.0", "--port", "7869"]), 0)
+            self.assertEqual(launch.call_args.kwargs, {"host": "0.0.0.0", "port": 7869})
+            self.assertEqual(app.main(["--port", "7868"]), 0)                                # ui.host default
+            self.assertEqual(launch.call_args.kwargs, {"host": "127.0.0.1", "port": 7868})
+            self.assertEqual(app.main(["--port", "7868", "--no-login"]), 0)                  # localhost: allowed
+        from assemblyvision.config import Config
+        self.assertEqual((Config.load()["ui"]["host"], Config.load()["ui"]["port"]), ("127.0.0.1", 7860))
 
     def test_users_file_does_not_depend_on_the_working_directory(self):
         here = os.getcwd()
