@@ -56,7 +56,7 @@ sudo -u qisens git -C $SRC status --porcelain --untracked-files=no
 
 # 1. Code (main) and the repository history
 sudo rsync -a \
-  --exclude=/data/ --exclude=/.claude-home/ --exclude=/.claude/ --exclude=/env/ --exclude=/envs/ \
+  --exclude=/data/ --exclude=/.claude-home/ --exclude=/env/ --exclude=/envs/ \
   --exclude=/tmp/ --exclude=/logs/ --exclude=/.locks/ --exclude=/.cache/ --exclude=/.config/ \
   --exclude=/tools/ --exclude=/models/ --exclude=/third_party/ --exclude='*.bak' \
   $SRC/ $DEST/
