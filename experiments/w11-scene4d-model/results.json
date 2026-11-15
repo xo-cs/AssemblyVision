@@ -25,7 +25,7 @@
   },
   {
    "model": "CUT3R (cut3r_512_dpt_4_64, 3.17 GB, HF mirrors of the Drive file, 3 agree on SHA256)",
-   "licence": "not stated in the repository (CC BY-NC-SA family of DUSt3R assumed); to confirm",
+   "licence": "CC BY-NC-SA 4.0 (repository LICENSE)",
    "gates": "pass",
    "measures": {
     "fixed_rot_deg": 1.75,

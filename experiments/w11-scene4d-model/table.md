@@ -5,7 +5,7 @@ Scene 4D model choice (rule w11-scene4d-model): public clips of process_480p30, 
 | model | licence | gates | fixed: camera rotation deg | fixed: camera shift (share of depth) | fixed: background spread | handheld: camera jitter | s per video min (fixed / handheld) | peak MB |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Pi3 (yyfz233/Pi3, 3.83 GB) | BSD-2-Clause | pass | 1.17 | 0.0212 | 0.0193 | 0.0007 | 135.0 / 157.0 | 13204 |
-| CUT3R (cut3r_512_dpt_4_64, 3.17 GB, HF mirrors of the Drive file, 3 agree on SHA256) | not stated in the repository (CC BY-NC-SA family of DUSt3R assumed); to confirm | pass | 1.75 | 0.0324 | 0.0457 | 0.0009 | 44.3 / 44.8 | 8474 |
+| CUT3R (cut3r_512_dpt_4_64, 3.17 GB, HF mirrors of the Drive file, 3 agree on SHA256) | CC BY-NC-SA 4.0 (repository LICENSE) | pass | 1.75 | 0.0324 | 0.0457 | 0.0009 | 44.3 / 44.8 | 8474 |
 | MonST3R (Junyi42, 2.28 GB; + SEA-RAFT, SAM 2) | CC BY-NC-SA 4.0 | fails gate 2: 314 s for the 20 s fixed clip before finishing, about 15.7 min per video minute on the A4000 | - | - | - | - | - | - |
 | MegaSaM (+ Depth Anything ViT-L 1.34 GB, UniDepth v2 1.45 GB, RAFT) | Apache 2.0 code; UniDepth CC BY-NC | fails gate 2: 521 s for the 20 s fixed clip, about 26 min per video minute on the A4000 | - | - | - | - | - | - |
 | VGGT-1B | CC BY-NC 4.0 (a commercial variant exists) | not run: 5.03 GB download, needs approval | - | - | - | - | - | - |
