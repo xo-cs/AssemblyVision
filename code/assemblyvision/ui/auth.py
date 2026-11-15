@@ -30,6 +30,11 @@ NAME_RE = re.compile(r"^[a-z][a-z0-9_.-]{1,31}$")
 N, R, P = 2 ** 14, 8, 1
 
 
+def norm_name(name: str | None) -> str:
+    """User names are compared trimmed and in lower case ("Khurshid " is khurshid)."""
+    return (name or "").strip().lower()
+
+
 def hash_password(password: str, salt: bytes | None = None) -> str:
     salt = salt or secrets.token_bytes(16)
     h = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=N, r=R, p=P, dklen=32)
@@ -66,6 +71,8 @@ class Users:
         tmp.replace(self.path)
 
     def add(self, name: str, password: str) -> None:
+        """Adds a user or sets a new password for an existing one."""
+        name = norm_name(name)
         if not NAME_RE.fullmatch(name):
             raise ValueError("a user name is 2 to 32 lower case letters, digits, _ . or -, starting with a letter")
         if len(password) < 10:
@@ -75,6 +82,7 @@ class Users:
         self._save(users)
 
     def remove(self, name: str) -> bool:
+        name = norm_name(name)
         users = self.load()
         if users.pop(name, None) is None:
             return False
@@ -85,11 +93,15 @@ class Users:
         return sorted(self.load())
 
     def check(self, name: str, password: str) -> bool:
-        """The Gradio auth function; every attempt goes to the login log."""
-        u = self.load().get(name or "")
+        """The Gradio auth function; every attempt goes to the login log with its reason
+        (never the password)."""
+        n = norm_name(name)
+        users = self.load()
+        u = users.get(n)
         ok = bool(u) and verify_password(password or "", u["hash"])
-        append_jsonl(LOGIN_LOG, {"utc": utc_now(), "user": name if NAME_RE.fullmatch(name or "") else "?",
-                                 "action": "login", "ok": ok})
+        reason = "ok" if ok else ("no users file" if not users else "unknown user" if u is None else "wrong password")
+        append_jsonl(LOGIN_LOG, {"utc": utc_now(), "user": n if NAME_RE.fullmatch(n) else "?", "action": "login",
+                                 "ok": ok, "reason": reason, "users_file": str(self.path)})
         return ok
 
 

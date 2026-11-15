@@ -45,6 +45,35 @@ class AuthTest(unittest.TestCase):
             self.assertTrue(u.remove("asel"))
             self.assertEqual(u.names(), [])
 
+    def test_login_names_reasons_and_reset(self):
+        """TC-SEC: the login of 2026-11-15: a user name with a capital or a space, a wrong password,
+        and a new password that works at the next login without a restart."""
+        with mock.patch.object(A, "LOGIN_LOG", self.d / "login.jsonl"):
+            u = A.Users(self.d / "users.json")
+            u.add("khurshid", "first password 1")
+            self.assertTrue(u.check("Khurshid ", "first password 1"))       # trimmed, lower case
+            self.assertFalse(u.check("khurshid", "first password 2"))
+            self.assertFalse(u.check("kazi", "first password 1"))
+            u.add("Khurshid", "second password 2")                          # passwd: a new hash, same user
+            self.assertEqual(u.names(), ["khurshid"])
+            self.assertTrue(u.check("khurshid", "second password 2"))       # the file is read at every login
+            self.assertFalse(u.check("khurshid", "first password 1"))
+            log = [json.loads(x) for x in (self.d / "login.jsonl").read_text().splitlines()]
+            self.assertEqual([(x["user"], x["reason"]) for x in log],
+                             [("khurshid", "ok"), ("khurshid", "wrong password"), ("kazi", "unknown user"),
+                              ("khurshid", "ok"), ("khurshid", "wrong password")])
+            self.assertTrue(all(x["users_file"] == str(u.path) for x in log))
+            self.assertNotIn("password 1", (self.d / "login.jsonl").read_text())
+
+    def test_users_file_does_not_depend_on_the_working_directory(self):
+        here = os.getcwd()
+        try:
+            os.chdir(self.d)
+            self.assertEqual(A.Users().path, A.REPO_ROOT / ".config" / "ui_users.json")
+            self.assertTrue(A.Users().path.is_absolute())
+        finally:
+            os.chdir(here)
+
     def test_safe_media(self):
         area = self.d / "public"
         (area / "runs").mkdir(parents=True)
