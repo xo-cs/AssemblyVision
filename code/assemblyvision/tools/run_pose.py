@@ -489,20 +489,25 @@ def compare_run(manifest: dict, root: Path, source: str, cfg: Config, spec: str,
     section, _, name = key.partition(".")
     gt = read_steps_csv(gt_path)
     duration = float(manifest["ingest"]["cfr"]["duration_s"])
-    rows, bprob = [], None
+    rows = []
     if key in ENGINE_PRESETS.get(cfg["seg_a"]["engine"], {}):
         print(f"{key} is set by seg_a.engine = {cfg['seg_a']['engine']!r}; compared with seg_a.engine = \"custom\" "
               "(the preset's other values kept)", file=sys.stderr)
     engine_b_off = []
+    bprobs: dict = {}
     for value in values:
-        over = {section: {name: value}}
-        if key in ENGINE_PRESETS.get(cfg["seg_a"]["engine"], {}):
-            over = deep_merge(over, {"seg_a": {"engine": "custom"}})
-        c = Config.load(overrides=deep_merge(cfg.snapshot(), over))
+        if key == "seg_a.engine":       # a preset replaces the values of its keys (e.g. "B zero shot", "A")
+            c = Config.load(overrides=stored_with({"config": cfg.snapshot()}, {"seg_a": {"engine": value}}))
+        else:
+            over = {section: {name: value}}
+            if key in ENGINE_PRESETS.get(cfg["seg_a"]["engine"], {}):
+                over = deep_merge(over, {"seg_a": {"engine": "custom"}})
+            c = Config.load(overrides=deep_merge(cfg.snapshot(), over))
         engine_b_off.append(not engine_b_needed(c))
         mctx = _MemoryCtx(source)
-        if bprob is None and engine_b_needed(c):
-            bprob = boundary_probability(manifest, root, c, mctx) or {}
+        if engine_b_needed(c) and c["engine_b"]["model"] not in bprobs:     # one per Engine B model
+            bprobs[c["engine_b"]["model"]] = boundary_probability(manifest, root, c, mctx) or {}
+        bprob = bprobs.get(c["engine_b"]["model"]) if engine_b_needed(c) else None
         engine, steps = segment_stored(manifest, root, c, mctx, bprob or None)
         res, bounds, mapping = score_steps(steps, gt, Path(gt_path).name, engine.vocabulary, source, c, duration)
         rep = engine.report
