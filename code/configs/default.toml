@@ -245,6 +245,14 @@ vlm_parallel = true          # true: the VLM runs during the pose pass, false: a
 vlm_file = "vlm.npz"         # the VLM scores file the decoder reads (benchmarks of other settings use other names)
 siglip_file = "siglip.npz"   # the SigLIP scores file the decoder reads (the same for benchmarks)
 
+[body3d]
+# World grounded 3D body per shot with GVHMR (Week 11, assemblyvision/body3d; envs/gvhmr; non commercial research)
+enabled = false              # true: a full run adds the body3d stage after tracking (or run tools/body3d.py later)
+gpu = 0                      # GPU of the GVHMR worker, under .locks/gpu<N>.lock
+min_piece_s = 2.0            # shortest stretch of a shot with the subject that is reconstructed (s)
+max_gap_s = 1.0              # longer gaps without the subject split a shot into pieces (s)
+chunk = 128                  # frames read into memory at a time
+
 [motion]
 # MotionAnalyzer (LLD 3.7). Add "gaze" to enabled for the rough gaze direction (FR-MOTION-08, Want).
 enabled = ["duration", "path", "back_bending", "repetition", "hand_travel", "two_hand", "idle"]

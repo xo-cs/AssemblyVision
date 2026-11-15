@@ -58,7 +58,8 @@ REACH_CAPTION = ("Hand positions relative to the worker's own body, so camera mo
 STAGE_NAMES = {"ingest": "Ingest", "shots": "Shots", "reference": "Reference frames", "pose_body": "Pose",
                "tracking": "Tracking", "segmentation": "Steps (Engine A)", "metrics": "Motion metrics",
                "overlay": "Overlay video", "eval": "Evaluation"}
-PAGES = (("new", "New analysis"), ("results", "Results"), ("runs", "Runs"), ("live", "Live"))
+PAGES = (("new", "New analysis"), ("results", "Results"), ("heatmap", "Heatmap"), ("runs", "Runs"), ("live", "Live"))
+HEAT_MODES = ("2D", "3D", "4D")
 UI_DIR = Path(__file__).resolve().parent
 NO_LABELS = "No hand labels for this video, so accuracy cannot be scored."
 
@@ -502,6 +503,47 @@ class GradioApp:
                           "seen, so the map shows only part of the work.")
         return out + v.img_html(img, "Hand reach heatmap")
 
+    # Heatmap page: 2D (hand reach, floor maps), 3D and 4D (body3d stage, output/body3d_view.py) --------
+
+    def body3d_pieces(self, run_id: str | None) -> list[tuple[str, str]]:
+        if not run_id:
+            return []
+        from .. import body3d as B
+        fps = float(self.store.get_run(run_id)["ingest"]["cfr"]["fps"])
+        return [(f"{p['shot_id'].rsplit('-', 1)[-1]} part {p['name'].rsplit('_p', 1)[-1]}, "
+                 f"{v.clock(p['frames'][0] / fps)} to {v.clock(p['frames'][-1] / fps)}", p["name"])
+                for p in B.load(self.store.paths(run_id).root)]
+
+    def heatmap_view(self, run_id: str | None, mode: str, piece: str | None) -> tuple:
+        """(html, figure 1, figure 2) of the Heatmap page."""
+        if not run_id:
+            return v.note("Choose a run."), None, None
+        if mode == "2D":
+            from .auth import safe_media
+            m = self.store.get_run(run_id)
+            floors = [safe_media(self.store.paths(run_id).root / h["png"], self.store.roots)
+                      for h in m.get("metrics", {}).get("heatmaps", []) if h.get("png")]
+            html = v.section_title("Hand reach", REACH_CAPTION) + self.reach_html(run_id)
+            html += v.section_title("Floor map per fixed shot", "Where the worker's hips were, on the floor of each "
+                                    "fixed camera shot.")
+            html += "".join(v.img_html(f, "Floor heatmap") for f in floors if f) or v.note("No floor map in this run.")
+            return html, None, None
+        from .. import body3d as B
+        from ..output import body3d_view as BV
+        pieces = {p["name"]: p for p in B.load(self.store.paths(run_id).root)}
+        if not pieces:
+            return v.note("This run has no 3D body data yet. It is made by the optional body3d stage: "
+                          f"python -m assemblyvision.tools.body3d --run RUN_FOLDER (GVHMR; needs "
+                          f"{'; '.join(B.missing()) or 'nothing more'})."), None, None
+        p = pieces.get(piece) or next(iter(pieces.values()))
+        fps = float(self.store.get_run(run_id)["ingest"]["cfr"]["fps"])
+        head = (f"<p class='av-hint'>{v.esc(p['name'])}: {len(p['frames'])} frames, "
+                f"{'fixed' if p['static'] else 'handheld'} camera. Metres in a gravity aligned frame that starts "
+                "again at every cut, so each part of a shot is shown on its own.</p>")
+        if mode == "3D":
+            return head, BV.density_3d(p, fps), BV.floor_map(p, fps)
+        return head, BV.skeleton_4d(p, fps), None
+
     def baseline_table(self, run_id: str) -> list[list]:
         return [[b["label"], b["n"], _fmt(b["median_s"], "s"), _fmt(b["q1_s"], "s"), _fmt(b["q3_s"], "s"),
                  b.get("flags", "")] for b in self.store.get_baseline(run_id)]
@@ -873,6 +915,22 @@ class GradioApp:
                             eval_html = gr.HTML(elem_classes=["av-card"])
                             notices_html = gr.HTML(elem_classes=["av-card"])
 
+                        # --- Heatmap ------------------------------------------------------
+                        with gr.Tab("Heatmap", id="heatmap"), gr.Column(elem_classes=["av-page"]):
+                            gr.HTML(v.page_header("Heatmap", "2D: hand reach and floor maps. 3D: where hands and feet "
+                                                  "spend time, in metres. 4D: the moving skeleton, shot by shot."))
+                            with gr.Column(elem_classes=["av-card"]):
+                                with gr.Row():
+                                    heat_run = gr.Dropdown(label="Run", choices=[], value=None, min_width=420,
+                                                           elem_classes=["av-plain", "av-field"], scale=2)
+                                    heat_mode = gr.Radio(list(HEAT_MODES), value="2D", label="View",
+                                                         elem_classes=["av-seg"], scale=1)
+                                    heat_piece = gr.Dropdown(label="Shot part (3D, 4D)", choices=[], value=None,
+                                                             elem_classes=["av-plain", "av-field"], scale=2)
+                                heat_html = gr.HTML()
+                                heat_plot1 = gr.Plot(show_label=False)
+                                heat_plot2 = gr.Plot(show_label=False)
+
                         # --- Runs ---------------------------------------------------------
                         with gr.Tab("Runs", id="runs"), gr.Column(elem_classes=["av-page"]):
                             gr.HTML(v.page_header("Runs", "Every analysis on this server, newest first."))
@@ -996,6 +1054,19 @@ class GradioApp:
             open_box.input(on_open_box, open_box, [run_dd, *nav_out])
             step_dd.change(self.metrics_html, [run_dd, step_dd], metrics_html, show_progress="hidden")
             reach_dd.input(self.reach_html, [run_dd, reach_dd], reach_html, show_progress="hidden")
+            def on_heat(run_id, mode, piece):
+                html_, f1, f2 = self.heatmap_view(run_id, mode, piece)
+                return html_, gr.update(value=f1, visible=f1 is not None), gr.update(value=f2, visible=f2 is not None)
+
+            def on_heat_run(run_id, mode):
+                ch = self.body3d_pieces(run_id)
+                first = ch[0][1] if ch else None
+                return [gr.update(choices=ch, value=first), *on_heat(run_id, mode, first)]
+            heat_out = [heat_html, heat_plot1, heat_plot2]
+            heat_run.change(on_heat_run, [heat_run, heat_mode], [heat_piece, *heat_out])
+            heat_mode.change(on_heat, [heat_run, heat_mode, heat_piece], heat_out)
+            heat_piece.input(on_heat, [heat_run, heat_mode, heat_piece], heat_out)
+            run_dd.change(lambda r: gr.update(choices=self.run_choices(), value=r), run_dd, heat_run)
             run_dd.change(lambda r: [self.correction_rows(r), "", self.export_files(r)], run_dd,
                           [corr_df, corr_msg, exp_files])
             corr_prev.click(self.correction_preview, [run_dd, corr_df], corr_msg)

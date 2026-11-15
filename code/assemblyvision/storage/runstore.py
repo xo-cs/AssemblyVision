@@ -32,7 +32,7 @@ VIDEO_EXT = (".mp4", ".avi")
 FINISHED = ("done", "partial", "failed")
 # share of a typical run's time per stage, for the progress bar
 STAGE_WEIGHTS = {"ingest": 2, "shots": 6, "reference": 5, "pose_body": 60, "tracking": 3, "vlm_scores": 0, "siglip_scores": 8,
-                 "segmentation": 1, "metrics": 1, "overlay": 20, "eval": 1}
+                 "segmentation": 1, "metrics": 1, "overlay": 20, "body3d": 0, "eval": 1}
 
 
 @dataclass

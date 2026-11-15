@@ -174,6 +174,8 @@ DECLARATIONS: dict[str, dict] = {
     # read by a full run only while a phase likelihood weight is above 0
     "zero_shot": _all(likelihood_off, "phases in_pipeline siglip_fps siglip_max_px siglip_pad vlm_gpu vlm_port vlm_slots "
                                       "vlm_window_s vlm_frames vlm_px vlm_parallel vlm_file vlm_seed vlm_cache_prompt siglip_file"),
+    "body3d": {"enabled": OFF, **{k: (lambda v, st: not st.get("body3d", {}).get("enabled", False))
+                                  for k in ("gpu", "min_piece_s", "max_gap_s", "chunk")}},
     "heatmap": _all(NO, "cell_m cell_px min_samples"),
     "gpu": _all(NO, "pose"),
     "overlay": _all(NO, "kp_conf_min max_width crf enabled encoder workers"),

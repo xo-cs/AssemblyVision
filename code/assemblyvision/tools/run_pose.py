@@ -65,7 +65,7 @@ from ..storage.files import (REPO_ROOT, SOURCE_TYPE, SOURCES, RunContext, RunPat
                              RUN_ID_RE, data_area, new_run_id, run_source, utc_now, write_atomic)
 
 STAGES = ("ingest", "shots", "reference", "pose_body", "tracking", "vlm_scores", "siglip_scores", "segmentation", "metrics",
-          "overlay", "eval")
+          "overlay", "body3d", "eval")
 RERUN_STAGES = ("segmentation", "metrics", "overlay", "eval")
 _ALIASES = {"engine": "segmentation"}
 
@@ -989,6 +989,18 @@ def main(argv: list[str] | None = None) -> int:
                 stage("overlay", lambda: stage_overlay(ctx, cfg, steps))
             except AvError as e:
                 status, code = "partial", _fail(e)
+
+        if cfg["body3d"]["enabled"]:          # optional; a failure is a notice, the run stays done
+            from .. import body3d as B
+            try:
+                if args.gpu >= 0:
+                    torch.cuda.empty_cache()
+                stage("body3d", lambda: B.run(ctx.paths.root, ctx.manifest, cfg, args.gpu if args.gpu >= 0 else 0,
+                                              ctx.log.info))
+            except AvError as e:
+                ctx.notice(AvError("AV-B3D-001", detail=e.code), "body3d")
+        else:
+            ctx.manifest["stages"]["body3d"]["status"] = "skipped"
 
         if args.gt is None or steps is None:
             ctx.manifest["stages"]["eval"]["status"] = "skipped"

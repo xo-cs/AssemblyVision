@@ -39,7 +39,7 @@ from ..storage.files import REPO_ROOT, RUN_ID_RE, RunPaths, check_video_source, 
 ID_RE = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
 KINDS = ("full_run",)
 STAGE_ORDER = ("ingest", "shots", "reference", "pose_body", "tracking", "vlm_scores", "siglip_scores", "segmentation",
-               "metrics", "overlay", "eval")
+               "metrics", "overlay", "body3d", "eval")
 NOISE_FLOOR_FILE = "noise_floor.json"      # experiments/noise_floor.json (tracked, public measurement)
 INDEX_HEAD = ("# Experiments\n\nOne line per experiment (public data only; QiSens rows only as approved summaries).\n"
               "Regenerate any table with `python -m assemblyvision.tools.exp table <id> ...`.\n\n"
