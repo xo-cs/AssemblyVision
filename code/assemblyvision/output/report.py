@@ -24,6 +24,7 @@ from pathlib import Path
 
 import numpy as np
 
+from ..analysis.segmentation.base import source_label
 from ..storage.files import REPO_ROOT, utc_now
 
 SHA_CACHE = REPO_ROOT / "models" / ".sha256_cache.json"
@@ -170,6 +171,7 @@ def build(root: Path, steps_csv: Path | None = None, metrics_csv: Path | None = 
                            "exported_utc": utc_now()},
             "revision": revision or {"number": 0, "based_on": None, "by": "pipeline", "note": "as computed"},
             "status": manifest.get("status"), "step_engine": manifest.get("config", {}).get("seg_a", {}).get("engine"),
+            "effective_engine": source_label(next((s["source"] for s in phases), None)) or None,
             "steps": steps, "phases_found": len(phases), "phases_expected": len(vocab),
             "metrics": read_metrics(metrics_csv or root / "metrics.csv"), "eval": ev,
             "notices": manifest.get("notices", []), "provenance": provenance(manifest)}
@@ -206,7 +208,8 @@ def write_pdf(path: Path, rep: dict) -> None:
                 f"Revision {rev['number']} ({rev['by']}: {rev['note']})" + (f", based on rev {rev['based_on']}"
                                                                            if rev.get("based_on") is not None else ""),
                 f"Run created {ts['run_created_utc']}, finished {ts['run_finished_utc']}, exported {ts['exported_utc']}",
-                f"Step engine {rep['step_engine']}, status {rep['status']}, "
+                f"Step engine {rep.get('effective_engine') or rep['step_engine']} (chosen: {rep['step_engine']}), "
+                f"status {rep['status']}, "
                 f"{rep['phases_found']} of {rep['phases_expected']} phases"]
         if rep["eval"]:
             m = rep["eval"]["metrics"]
@@ -226,11 +229,13 @@ def write_pdf(path: Path, rep: dict) -> None:
         ax.set_xlabel("time (s); label: step and phase confidence")
         ax.set_xlim(0, float(rep["duration_s"] or max(s["end_s"] for s in rep["steps"])))
         rows = [[s["step"], s["label"], f"{s['start_s']:.1f}", f"{s['end_s']:.1f}", f"{s['end_s'] - s['start_s']:.1f}",
-                 "-" if s.get("phase_confidence") is None else f"{s['phase_confidence']:.2f}"] for s in rep["steps"]]
+                 "-" if s.get("phase_confidence") is None else f"{s['phase_confidence']:.2f}", source_label(s.get("source"))]
+                for s in rep["steps"]]
         tax = fig.add_axes([0.07, 0.08, 0.86, 0.52])
         tax.axis("off")
         if rows:
-            t = tax.table(cellText=rows[:40], colLabels=["step", "label", "start s", "end s", "duration s", "confidence"],
+            t = tax.table(cellText=rows[:40], colLabels=["step", "label", "start s", "end s", "duration s", "confidence",
+                                                         "source"],
                           loc="upper center", cellLoc="left")
             t.auto_set_font_size(False)
             t.set_fontsize(8)

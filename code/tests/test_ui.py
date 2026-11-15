@@ -80,7 +80,7 @@ class AppTest(unittest.TestCase):
     def test_build(self):
         demo = self.app.build()
         labels = {c.label for c in demo.blocks.values() if getattr(c, "label", None)}
-        for want in ("Run", "Video", "Overlay video", "Process timeline (Engine A)", "Step"):
+        for want in ("Run", "Video", "Overlay video", "Process timeline", "Step"):
             self.assertIn(want, labels)
 
     def test_stored_run_fills_results_quickly(self):   # TC-APP-10

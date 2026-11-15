@@ -321,8 +321,12 @@ def engine_b_needed(cfg: Config) -> bool:
 
 
 def segment_stored(manifest: dict, root: Path, cfg: Config, ctx, bprob: dict | None = None) -> tuple:
-    """(engine, steps) of Engine A from the stored files of a run; writes nothing.
+    """(engine, steps) from the stored files of a run; writes nothing. Each step's source is the
+    effective step engine (analysis/segmentation/base.source_code), with the fallback and its notice.
     bprob: a boundary_probability() result to reuse (compare mode), else computed here."""
+    from dataclasses import replace
+    from ..analysis.segmentation.base import FALLBACK, SOURCE, source_code
+    from ..config import engine_label
     from ..analysis.segmentation import build_timeline, create_engine
     engine = create_engine("A", cfg, ctx)
     tl = build_timeline(manifest, root, engine.cleaner, cfg["motion"] if cfg["seg_a"]["activity_change"] else None)
@@ -332,7 +336,11 @@ def segment_stored(manifest: dict, root: Path, cfg: Config, ctx, bprob: dict | N
                                                       cfg["zero_shot"]["siglip_file"])
         if missing and cfg["seg_a"]["engine"] == "B zero shot":       # the preset falls back to B v1
             ctx.notice(AvError("AV-SEG-006", detail="this run has no " + ", ".join(missing)), "segmentation")
-            return segment_stored(manifest, root, fallback_config(cfg), ctx, bprob)
+            engine, steps = segment_stored(manifest, root, fallback_config(cfg), ctx, bprob)
+            if FALLBACK not in (steps[0].source if steps else FALLBACK):
+                steps = [replace(s, source=s.source + FALLBACK + "AV-SEG-006") for s in steps]
+                engine.report["source"] = steps[0].source if steps else None
+            return engine, steps
         for f in missing:
             ctx.notice(AvError("AV-SEG-005", file=f), "segmentation")
     if cfg["seg_a"]["visual_weight"] > 0:
@@ -348,7 +356,10 @@ def segment_stored(manifest: dict, root: Path, cfg: Config, ctx, bprob: dict | N
             tl.boundary_prob = bp["prob"]
             tl.embedding, tl.embedding_valid = bp.get("embedding"), bp.get("embedding_valid")
             tl.boundary_info = {k: v for k, v in bp.items() if k not in ("prob", "embedding", "embedding_valid")}
-    return engine, engine.segment_run(tl)
+    steps = engine.segment_run(tl)
+    code = source_code(engine.report.get("engine", "A"), engine_label(cfg))   # the effective engine, in steps.csv
+    engine.report["source"] = code
+    return engine, [replace(s, source=code) if s.source == SOURCE else s for s in steps]
 
 
 def stage_segmentation(ctx: RunContext, cfg: Config) -> list:

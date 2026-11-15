@@ -25,7 +25,32 @@ from ..cleaning import SignalCleaner, features
 from .activity import empty_activity, frame_activity
 
 OTHER = "other"
-SOURCE = "engine_a"
+SOURCE = "engine_a"           # what the rule engine writes; the run's segmentation stage sets the effective engine
+FALLBACK = ":fallback:"
+
+
+def source_code(engine: str, requested: str | None = None, notice: str | None = None) -> str:
+    """The steps.csv source of the effective step engine: "engine_a" (the rules), "engine_b" (the
+    B zero shot preset), else "engine_" + the preset ("engine_b_v1", "engine_b_custom"); with a
+    fallback from another engine ":fallback:" + the notice code is appended."""
+    base = {"A": "engine_a", "B zero shot": "engine_b"}.get(engine, "engine_" + engine.lower().replace(" ", "_"))
+    if notice:
+        return base + FALLBACK + notice
+    if requested is not None and requested != engine and engine == "A":
+        return base + FALLBACK + "AV-SEG-001"                  # Engine B requested, no weights
+    return base
+
+
+def source_label(code: str | None) -> str:
+    """The label of a source code, for the interface and the report ("Engine B", "Engine A (rules)",
+    "Engine B v1, fallback from B (AV-SEG-006)"); unknown codes are shown as stored."""
+    if not code:
+        return ""
+    base, _, notice = code.partition(FALLBACK)
+    names = {"engine_a": "Engine A (rules)", "engine_b": "Engine B", "corrected": "Corrected", "gt": "Ground truth"}
+    label = names.get(base) or (("Engine B " + base[len("engine_b_"):].replace("_", " ")) if base.startswith("engine_b_")
+                                else base.replace("_", " "))
+    return f"{label}, fallback from B ({notice})" if notice else label
 _SEGMENT = re.compile(r"segment_[1-9][0-9]*")
 
 

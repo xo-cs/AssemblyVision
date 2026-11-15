@@ -45,6 +45,7 @@ from ..config import DEFAULT_LAYERS, VARIANTS, Config
 from ..errors import AvError
 from ..phases import PUBLIC_NOTE
 from ..storage.files import REPO_ROOT, SOURCES, source_root
+from ..analysis.segmentation.base import source_label
 from ..storage.runstore import FINISHED, RunStore
 from . import views as v
 
@@ -56,8 +57,9 @@ ALL_PHASES = "All phases"
 REACH_CAPTION = ("Hand positions relative to the worker's own body, so camera movement does not matter. "
                  "Units: torso lengths.")
 STAGE_NAMES = {"ingest": "Ingest", "shots": "Shots", "reference": "Reference frames", "pose_body": "Pose",
-               "tracking": "Tracking", "segmentation": "Steps (Engine A)", "metrics": "Motion metrics",
-               "overlay": "Overlay video", "eval": "Evaluation"}
+               "tracking": "Tracking", "vlm_scores": "Phase scores (VLM)", "siglip_scores": "Phase scores (SigLIP)",
+               "segmentation": "Steps", "metrics": "Motion metrics", "overlay": "Overlay video",
+               "body3d": "3D body", "eval": "Evaluation"}
 PAGES = (("new", "New analysis"), ("results", "Results"), ("heatmap", "Heatmap"), ("runs", "Runs"), ("live", "Live"))
 HEAT_MODES = ("2D", "3D", "4D")
 UI_DIR = Path(__file__).resolve().parent
@@ -352,6 +354,11 @@ class GradioApp:
             return ""
         return "<div class='av-note-list'>" + "".join(f"<div class='av-note'>{n}</div>" for n in notes) + "</div>"
 
+    def run_engine(self, run_id: str) -> str:
+        """The effective step engine of a run, from its stored steps (old runs: their stored label)."""
+        src = next((s["source"] for s in self.store.get_segments(run_id) if s["label"] != "other"), None)
+        return source_label(src) or "the step engine"
+
     def steps_table(self, run_id: str) -> list[list]:
         return [[s["step"], s["label"], _fmt(s["start_s"]), _fmt(s["end_s"]), _fmt(s["duration_s"]), s["source"]]
                 for s in self.store.get_segments(run_id) if s["label"] != "other"]
@@ -368,7 +375,7 @@ class GradioApp:
             b = base.get(s["label"], {})
             row = [s["step"], v.esc(s["label"]), v.clock(s["start_s"]), v.clock(s["end_s"]),
                    f"{s['duration_s']:.1f} s", b.get("n", ""),
-                   v.pill(s["source"].replace("engine_", "Engine ").replace("_", " "), "muted")]
+                   v.pill(source_label(s["source"]), "muted")]
             if spread:
                 rng = f"{_fmt(b['q1_s'], 's')} to {_fmt(b['q3_s'], 's')}" \
                     if (b.get("n") or 0) >= 2 and b.get("q1_s") is not None else ""
@@ -376,7 +383,7 @@ class GradioApp:
             rows.append(row)
         head = ["Step", "Phase", "Start", "End", "Duration", "Cycles"] + \
             (["Median", "Range (Q1 to Q3)"] if spread else []) + ["Source"]
-        out = v.section_title("Steps", "Phases found by Engine A, in video time (min:s).") + \
+        out = v.section_title("Steps", f"Phases found by {self.run_engine(run_id)}, in video time (min:s).") + \
             v.table(head, rows, num={0, 2, 3, 4, 5, 6, 7} if spread else {0, 2, 3, 4, 5},
                     raw={1, len(head) - 1}, empty="No steps were stored for this run.")
         if rows and not spread:
@@ -877,7 +884,7 @@ class GradioApp:
                                 overlay = gr.Video(label="Overlay video", show_label=False, interactive=False,
                                                    elem_id="av-overlay", elem_classes=["av-video"],
                                                    show_download_button=True)
-                            timeline_img = gr.HTML(label="Process timeline (Engine A)", elem_classes=["av-card"])
+                            timeline_img = gr.HTML(label="Process timeline", elem_classes=["av-card"])
                             steps_html = gr.HTML(elem_classes=["av-card"])
                             with gr.Column(elem_classes=["av-card"]):
                                 gr.HTML(v.section_title("Boundary correction", "Move a boundary (time in seconds), "
@@ -952,7 +959,8 @@ class GradioApp:
                 r = self.results(run_id)
                 return [r["head"], r["kpis"], r["note_html"], gr.Column(visible=bool(r["overlay"])),
                         self.video_head_html(run_id if r["overlay"] else None), r["overlay"],
-                        v.section_title("Process timeline", "When each phase happens in the video (Engine A).")
+                        v.section_title("Process timeline", "When each phase happens in the video ("
+                                        + (self.run_engine(run_id) if run_id else "step engine") + ").")
                         + (v.img_html(r["timeline"], "Process timeline") if r["timeline"] is not None
                            else v.note("No steps were stored for this run.")),
                         r["steps_html"], gr.update(choices=r["steps_choices"], value=ALL_STEPS), r["metrics_html"],
