@@ -43,7 +43,8 @@ def main(argv: list[str] | None = None) -> int:
         lock.close()
     frames = sum(x["frames"] for x in s["pieces"])
     print(f"body3d: {len(s['pieces'])} pieces, {frames} frames in {s['seconds']} s "
-          f"({frames / max(s['seconds'], 1e-6):.1f} frames/s), torch peak {s['torch_peak_mb']} MB")
+          f"({frames / max(s['seconds'], 1e-6):.1f} frames/s), torch peak {s['torch_peak_mb']} MB, "
+          f"{len(s['failed'])} pieces failed (body3d/summary.json)")
     return 0
 
 

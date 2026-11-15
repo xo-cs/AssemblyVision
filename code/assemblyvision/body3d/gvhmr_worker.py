@@ -54,13 +54,20 @@ def camera_rotation(video: str, start: int, n: int, step: int = 8) -> torch.Tens
         for i, f in read_frames(video, start + n - 1, 1, 0.5):
             idx.append(n - 1)
             frames.append(f)
-    frames = np.stack(frames)
-    H, W = frames.shape[1:3]
+    H, W = frames[0].shape[:2]
     vo = SimpleVO("", scale=0.5, step=step)
     solver = TwoPairSolver(CameraParams(W, H, focal_length=focal_length_from_mm(W, H, vo.f_mm)), solver="pycolmap")
-    T = vo.process_video_T_w2c_list_np(frames, Matcher("sift"), solver)
+    matcher = Matcher("sift")
+    T, failed = [np.eye(4)], 0
+    for a, b in zip(frames[:-1], frames[1:]):          # SimpleVO's serial loop; a pair without a pose keeps the rotation
+        try:
+            pts0, pts1 = matcher.match_np(a, b)
+            T.append(solver.solve(pts0, pts1) @ T[-1])
+        except Exception:
+            failed += 1
+            T.append(T[-1].copy())
     T = interpolate_missing_frames(T, np.asarray(idx))
-    return torch.from_numpy(np.asarray(T)[:, :3, :3]).float()
+    return torch.from_numpy(np.asarray(T)[:, :3, :3]).float(), failed
 
 
 def run_piece(model, vitpose, extractor, smplx_coco17, job: dict, piece: dict) -> dict:
@@ -84,9 +91,11 @@ def run_piece(model, vitpose, extractor, smplx_coco17, job: dict, piece: dict) -
             feats.append(extractor.extract_video_features(imgs, sl))
             buf = []
     W, H = int(job["width"]), int(job["height"])
-    R_w2c = torch.eye(3).repeat(L, 1, 1) if piece["static"] else camera_rotation(job["video"], piece["start"], L)
+    R_w2c, vo_failed = (torch.eye(3).repeat(L, 1, 1), 0) if piece["static"] else \
+        camera_rotation(job["video"], piece["start"], L)
     if model is None:                                       # preprocess only (a check without SMPL-X)
-        return {"kp2d": torch.cat(kp2d).numpy(), "features": torch.cat(feats).numpy(), "R_w2c": R_w2c.numpy()}
+        return {"kp2d": torch.cat(kp2d).numpy(), "features": torch.cat(feats).numpy(), "R_w2c": R_w2c.numpy(),
+                "vo_failed": vo_failed}
     data = {"length": torch.tensor(L), "bbx_xys": bbx_xys, "kp2d": torch.cat(kp2d), "K_fullimg": estimate_K(W, H).repeat(L, 1, 1),
             "cam_angvel": compute_cam_angvel(R_w2c), "f_imgseq": torch.cat(feats)}
     pred = detach_to_cpu(model.predict(data, static_cam=bool(piece["static"])))
@@ -94,7 +103,7 @@ def run_piece(model, vitpose, extractor, smplx_coco17, job: dict, piece: dict) -
     with torch.no_grad():
         joints = smplx_coco17(**p)                          # [L, 17, 3], y up (gravity aligned)
     return {"joints_world": joints.cpu().numpy().astype(np.float32),
-            "transl": pred["smpl_params_global"]["transl"].numpy().astype(np.float32)}
+            "transl": pred["smpl_params_global"]["transl"].numpy().astype(np.float32), "vo_failed": vo_failed}
 
 
 def main(job_path: str) -> int:
@@ -110,6 +119,7 @@ def main(job_path: str) -> int:
     pre = bool(job.get("preprocess_only"))
     model = smplx_coco17 = None
     if not pre:
+        from hmr4d.model.gvhmr.gvhmr_pl_demo import DemoPL  # noqa: F401  (registers model/gvhmr/gvhmr_pl_demo)
         with initialize_config_module(version_base="1.3", config_module="hmr4d.configs"):
             register_store_gvhmr()
             cfg = compose(config_name="demo", overrides=["video_name=body3d", "static_cam=True"])
@@ -121,7 +131,16 @@ def main(job_path: str) -> int:
     report = []
     for piece in job["pieces"]:
         t = time.monotonic()
-        res = run_piece(model, vitpose, extractor, smplx_coco17, job, piece)
+        if not pre and (out / f"{piece['name']}.npz").is_file():          # done by an earlier, interrupted run
+            report.append({"name": piece["name"], "frames": len(piece["boxes"]), "seconds": 0.0, "reused": True})
+            print(json.dumps(report[-1]), flush=True)
+            continue
+        try:
+            res = run_piece(model, vitpose, extractor, smplx_coco17, job, piece)
+        except Exception as e:                       # one piece must not stop the others
+            report.append({"name": piece["name"], "frames": len(piece["boxes"]), "failed": f"{type(e).__name__}: {e}"[:300]})
+            print(json.dumps(report[-1]), flush=True)
+            continue
         if pre:
             report.append({"name": piece["name"], "frames": len(piece["boxes"]), "seconds": round(time.monotonic() - t, 1),
                            "kp2d": list(res["kp2d"].shape), "features": list(res["features"].shape),
@@ -131,9 +150,11 @@ def main(job_path: str) -> int:
             continue
         frames = np.arange(piece["start"], piece["start"] + len(piece["boxes"]), dtype=np.int32)
         tmp = out / f"{piece['name']}.part.npz"
-        np.savez_compressed(tmp, frames=frames, **res, static=np.bool_(piece["static"]))
+        vo_failed = res.pop("vo_failed")
+        np.savez_compressed(tmp, frames=frames, **res, static=np.bool_(piece["static"]), vo_failed=np.int32(vo_failed))
         tmp.replace(out / f"{piece['name']}.npz")
-        report.append({"name": piece["name"], "frames": int(len(frames)), "seconds": round(time.monotonic() - t, 1)})
+        report.append({"name": piece["name"], "frames": int(len(frames)), "seconds": round(time.monotonic() - t, 1),
+                       "vo_pairs_failed": vo_failed})
         print(json.dumps(report[-1]), flush=True)
     peak = torch.cuda.max_memory_allocated() / 1e6
     print(json.dumps({"done": len(report), "seconds": round(time.monotonic() - t0, 1), "torch_peak_mb": round(peak)}))

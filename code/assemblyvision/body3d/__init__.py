@@ -97,11 +97,12 @@ def run(root: Path, manifest: dict, cfg, gpu: int, log=print) -> dict:
         raise RuntimeError(f"the GVHMR worker failed (exit {p.returncode}): {last}; see body3d/worker.log")
     lines = [json.loads(x) for x in p.stdout.splitlines() if x.startswith("{")]
     summary = {"created_utc": utc_now(), "model": "GVHMR siga24 release", "joints": COCO17, "fps": fps,
-               "pieces": [x for x in lines if "name" in x], "seconds": round(time.monotonic() - t0, 1),
+               "pieces": [x for x in lines if "name" in x and "failed" not in x],
+               "failed": [x for x in lines if "failed" in x], "seconds": round(time.monotonic() - t0, 1),
                "torch_peak_mb": next((x["torch_peak_mb"] for x in lines if "torch_peak_mb" in x), None),
                "static": {pc["name"]: pc["static"] for pc in job["pieces"]}}
     (root / "body3d" / "summary.json").write_text(json.dumps(summary, indent=1))
-    log(f"body3d: {len(summary['pieces'])} pieces in {summary['seconds']} s")
+    log(f"body3d: {len(summary['pieces'])} pieces in {summary['seconds']} s, {len(summary['failed'])} failed")
     return summary
 
 
