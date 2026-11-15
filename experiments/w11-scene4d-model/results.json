@@ -1,0 +1,80 @@
+{
+ "id": "w11-scene4d-model",
+ "kind": "model_choice",
+ "source": "public",
+ "reference": "",
+ "title": "Scene 4D model choice on public clips (rule w11-scene4d-model)",
+ "finished_utc": "2026-11-15",
+ "rows": [
+  {
+   "model": "Pi3 (yyfz233/Pi3, 3.83 GB)",
+   "licence": "BSD-2-Clause",
+   "gates": "pass",
+   "measures": {
+    "fixed_rot_deg": 1.17,
+    "fixed_trans_share": 0.0212,
+    "fixed_bg_spread": 0.0193,
+    "hh_pos_jitter_share": 0.0007,
+    "hh_rot_step_deg": 0.063,
+    "hh_path_share": 0.183,
+    "fixed_s_per_video_min": 135.0,
+    "fixed_peak_mb": 12235,
+    "handheld_s_per_video_min": 157.0,
+    "handheld_peak_mb": 13204
+   }
+  },
+  {
+   "model": "CUT3R (cut3r_512_dpt_4_64, 3.17 GB, HF mirrors of the Drive file, 3 agree on SHA256)",
+   "licence": "not stated in the repository (CC BY-NC-SA family of DUSt3R assumed); to confirm",
+   "gates": "pass",
+   "measures": {
+    "fixed_rot_deg": 1.75,
+    "fixed_trans_share": 0.0324,
+    "fixed_bg_spread": 0.0457,
+    "hh_pos_jitter_share": 0.0009,
+    "hh_rot_step_deg": 0.056,
+    "hh_path_share": 0.243,
+    "fixed_s_per_video_min": 44.3,
+    "fixed_peak_mb": 7784,
+    "handheld_s_per_video_min": 44.8,
+    "handheld_peak_mb": 8474
+   }
+  },
+  {
+   "model": "MonST3R (Junyi42, 2.28 GB; + SEA-RAFT, SAM 2)",
+   "licence": "CC BY-NC-SA 4.0",
+   "gates": "fails gate 2: 314 s for the 20 s fixed clip before finishing, about 15.7 min per video minute on the A4000",
+   "measures": null
+  },
+  {
+   "model": "MegaSaM (+ Depth Anything ViT-L 1.34 GB, UniDepth v2 1.45 GB, RAFT)",
+   "licence": "Apache 2.0 code; UniDepth CC BY-NC",
+   "gates": "fails gate 2: 521 s for the 20 s fixed clip, about 26 min per video minute on the A4000",
+   "measures": null
+  },
+  {
+   "model": "VGGT-1B",
+   "licence": "CC BY-NC 4.0 (a commercial variant exists)",
+   "gates": "not run: 5.03 GB download, needs approval",
+   "measures": null
+  },
+  {
+   "model": "Pi3X",
+   "licence": "CC BY-NC 4.0",
+   "gates": "not run: 5.44 GB download, needs approval",
+   "measures": null
+  },
+  {
+   "model": "Open-d4rt (48 frame checkpoint)",
+   "licence": "Apache 2.0 code; checkpoint licence not stated",
+   "gates": "not run: 13.95 GB download, needs approval",
+   "measures": null
+  }
+ ],
+ "index": {
+  "cells": [
+   "Pi3 first, CUT3R second; MonST3R and MegaSaM fail the time gate; VGGT, Pi3X, Open-d4rt wait for approval"
+  ],
+  "verdict": "measurement"
+ }
+}
