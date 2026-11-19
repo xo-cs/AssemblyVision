@@ -629,19 +629,48 @@ class GradioApp:
                "| Measure | Value |\n|---|---|\n" + "\n".join(f"| {a} | {b} |" for a, b in rows))
         return txt
 
+    def run_eval(self, run_id: str) -> dict | None:
+        """The run's evaluation against the hand labels linked to its video (evaluation/gt_links.py), computed
+        from the stored steps in memory; else the run's own eval.json; None without hand labels."""
+        from ..evaluation import gt_links as L
+        source, paths = self.store._locate(run_id)
+        m = self.store.get_run(run_id)
+        gt = L.gt_for_run(self.store.roots[source], m)
+        if gt is None or not paths.steps_csv.is_file():
+            return self.store.get_eval(run_id)
+        key = (run_id, paths.steps_csv.stat().st_mtime, gt, gt.stat().st_mtime)
+        if getattr(self, "_eval_key", None) != key:
+            from ..evaluation.steps_eval import score_steps
+            from ..evaluation.steps_io import read_steps_csv
+            from ..tools.run_pose import stored_config
+            cfg = Config.load(overrides=stored_config(m))
+            vocab = m.get("segmentation", {}).get("vocabulary") or [d["name"] for d in cfg["steps"]["step"]]
+            pred = read_steps_csv(paths.steps_csv)
+            res, rows, _ = score_steps(pred, read_steps_csv(gt), gt.name, vocab, source, cfg,
+                                       float(m["ingest"]["cfr"]["duration_s"]))
+            self._eval_key = key
+            self._eval = {"metrics": res, "boundaries": rows, "gt_file": gt.name, "linked": True,
+                          "engine": source_label(next((s.source for s in pred if s.label != "other"), "")),
+                          "gt_steps": None, "pred_steps": sum(s.label != "other" for s in pred)}
+        return self._eval
+
     def eval_html(self, run_id: str) -> str:
-        ev = self.store.get_eval(run_id)
-        head = v.section_title("Evaluation", "Steps found by the engine against hand labels.")
+        """The Evaluation card, or "" (the card is hidden) when the run has no hand labels."""
+        ev = self.run_eval(run_id)
         if not ev:
-            return head + v.note(NO_LABELS)
+            return ""
+        head = v.section_title("Evaluation", "Steps found by the engine against hand labels"
+                               + (" linked to this video." if ev.get("linked") else "."))
         m = ev.get("metrics", {})
         items = [("Frame accuracy", _fmt(m.get("frame_accuracy"), "%") or "n/a"),
                  ("Edit score", _fmt(m.get("edit")) or "n/a"), ("F1@10", _fmt(m.get("f1_10")) or "n/a"),
                  ("F1@25", _fmt(m.get("f1_25")) or "n/a"), ("F1@50", _fmt(m.get("f1_50")) or "n/a"),
                  ("Mean boundary error", _fmt(m.get("boundary_mae_s"), "s") or "n/a")]
-        sub = (f"Engine {ev.get('engine', 'A')} against {ev.get('gt_file', '?')}: {ev.get('gt_steps', '?')} "
-               f"labelled and {ev.get('pred_steps', '?')} found steps.")
-        return head + v.kpi_cards(items) + f"<p class='av-hint'>{v.esc(sub)}</p>"
+        sub = f"{ev.get('engine') or 'The step engine'} against {ev.get('gt_file', '?')}."
+        rows = [[i + 1, v.clock(r["gt_s"]), "" if r.get("pred_s") is None else v.clock(r["pred_s"]),
+                 "" if r.get("error_s") is None else f"{r['error_s']:.1f} s"] for i, r in enumerate(ev.get("boundaries") or [])]
+        table = (v.table(["Boundary", "Hand label", "Found", "Error"], rows, num={0, 1, 2, 3}) if rows else "")
+        return head + v.kpi_cards(items) + f"<p class='av-hint'>{v.esc(sub)}</p>" + table
 
     def notices_text(self, run_id: str) -> str:
         notes = self.store.get_run(run_id).get("notices", [])
@@ -747,7 +776,7 @@ class GradioApp:
                  ("Frames with a person", f"{100 * pb['frames_with_person'] / pb['frames']:.0f} %"
                   if pb.get("frames") and pb.get("frames_with_person") is not None else "n/a"),
                  ("Metrics reported", f"{n_rec - mc.get('null', 0)} of {n_rec}" if n_rec else "n/a")]
-        ev = self.store.get_eval(run_id)
+        ev = self.run_eval(run_id)
         if ev:
             em = ev.get("metrics", {})
             items += [("Frame accuracy", _fmt(em.get("frame_accuracy"), "%") or "n/a"),
@@ -983,7 +1012,7 @@ class GradioApp:
                                     mv3_html = gr.HTML()
                                 with gr.Column(visible=False, elem_classes=["av-mv-panel"]) as mv_p4:
                                     mv4_html = gr.HTML()
-                            eval_html = gr.HTML(elem_classes=["av-card"])
+                            eval_html = gr.HTML(elem_classes=["av-card"], visible=False)
                             notices_html = gr.HTML(elem_classes=["av-card"])
 
                         # --- Runs ---------------------------------------------------------
@@ -1018,7 +1047,8 @@ class GradioApp:
                            else v.note("No back bending values for this run.")),
                         gr.update(choices=self.reach_choices(run_id) if run_id else [ALL_PHASES], value=ALL_PHASES),
                         self.reach_html(run_id),
-                        r["eval_html"], r["notices_html"], self.run_id_html(run_id)]
+                        gr.update(value=r["eval_html"], visible=bool(r["eval_html"])), r["notices_html"],
+                        self.run_id_html(run_id)]
             results_out = [res_head, res_kpis, note, video_card, video_head, overlay, timeline_img, steps_html, step_dd,
                            metrics_html, bend_img, reach_dd, reach_html, eval_html, notices_html, run_id_box]
 
