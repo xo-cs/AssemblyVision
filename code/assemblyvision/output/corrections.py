@@ -51,6 +51,8 @@ def apply(steps: list[dict], moved: dict[int, float]) -> list[dict]:
             raise ValueError(f"no movable boundary after step {k}")
         i = idx[k]
         a, b = out[i], out[i + 1]
+        if abs(t - a["end_s"]) < 1e-3:                       # not moved: nothing to check or change
+            continue
         if not (a["start_s"] + MIN_S <= t <= b["end_s"] - MIN_S):
             raise ValueError(f"the boundary after step {k} must stay between {a['start_s'] + MIN_S:.1f} s and "
                              f"{b['end_s'] - MIN_S:.1f} s")
@@ -99,6 +101,7 @@ def preview(root: Path, steps: list[dict]) -> list[dict]:
 
 def approve(root: Path, steps: list[dict], by: str, note: str = "") -> Path:
     """Writes the corrected steps as the next revision (never overwriting one)."""
+    R.check_writable(root)
     base = R.next_revision(root) - 1
     if base < 0:                                    # the run as computed is always rev0
         R.export_run(root, 0)

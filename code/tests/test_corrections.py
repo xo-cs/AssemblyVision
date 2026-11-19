@@ -20,6 +20,7 @@ class CorrectionTest(unittest.TestCase):
             new = C.apply(steps, {1: 12.5})
             self.assertEqual((new[0]["end_s"], new[1]["start_s"], new[1]["source"]), (12.5, 12.5, "corrected"))
             self.assertEqual(steps[0]["end_s"], 10.0)                              # the input is not changed
+            self.assertEqual(C.apply(steps, {1: 10.0}), steps)                     # unchanged rows are not checked
             for bad in ({1: 0.5}, {1: 19.5}, {2: 15.0}):
                 with self.assertRaises(ValueError):
                     C.apply(steps, bad)

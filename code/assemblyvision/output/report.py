@@ -143,6 +143,28 @@ def step_confidence(steps: list[dict], post: np.ndarray | None, vocab: list[str]
         s["phase_confidence"] = round(float(seg.mean()), 3) if len(seg) else None
 
 
+class NotWritable(PermissionError):
+    """The run folder (or its export folder) cannot be written by this account."""
+
+
+def check_writable(root: Path) -> None:
+    """NotWritable with the owner and the fix, before anything is written. Run folders made by another
+    account's app (the qisens1 copy writing into this data area) belong to that account; a default ACL
+    on <area>/runs gives both accounts write access to new run folders, older ones need it once."""
+    import os
+    import pwd
+    target = root / "export" if (root / "export").exists() else root
+    if os.access(target, os.W_OK | os.X_OK):
+        return
+    try:
+        owner = pwd.getpwuid(target.stat().st_uid).pw_name
+    except (KeyError, OSError):
+        owner = "another account"
+    me = pwd.getpwuid(os.getuid()).pw_name
+    raise NotWritable(f"This run folder belongs to the account {owner}, so the account {me} cannot write the report "
+                      f"into it. Give {me} write access once: sudo setfacl -R -m u:{me}:rwX -m d:u:{me}:rwX {root}")
+
+
 def next_revision(root: Path) -> int:
     d = root / "export"
     revs = [int(p.name[3:]) for p in d.glob("rev*") if p.name[3:].isdigit()] if d.is_dir() else []
@@ -270,6 +292,7 @@ def export_run(root: Path, number: int | None = None, steps_csv: Path | None = N
                metrics_csv: Path | None = None, revision: dict | None = None) -> Path:
     """Writes <root>/export/rev<N>/ (report.json, steps.csv, metrics.csv, report.pdf);
     an existing revision folder is never overwritten (FileExistsError)."""
+    check_writable(root)
     number = next_revision(root) if number is None else number
     out = root / "export" / f"rev{number}"
     out.mkdir(parents=True, exist_ok=False)

@@ -725,7 +725,7 @@ class GradioApp:
         try:
             steps = self._moved(run_id, rows)
             out = C.approve(self.store.paths(run_id).root, steps, user, note or "")
-        except (ValueError, AvError, FileExistsError) as e:
+        except (ValueError, AvError, FileExistsError, PermissionError) as e:
             return v.note(str(e)), self.export_files(run_id)
         self.audit(user, "approve_revision", run_id, out.name)
         return f"<span class='av-hint'>Saved as revision {v.esc(out.name[3:])}; the original stays as revision 0.</span>", \
@@ -742,8 +742,10 @@ class GradioApp:
             try:
                 R.export_run(root, 0)
                 made = True
+            except PermissionError as e:
+                return v.note(str(e)), self.export_files(run_id)
             except (OSError, AvError, KeyError) as e:
-                return v.note(f"The report could not be made: {e}"), []
+                return v.note(f"The report could not be made: {e}"), self.export_files(run_id)
         self.audit(user, "export_report", run_id, "rev0" if made else "download")
         return "<span class='av-hint'>Report files of every revision (PDF, JSON, CSV).</span>", self.export_files(run_id)
 
@@ -970,22 +972,28 @@ class GradioApp:
                             timeline_img = gr.HTML(label="Process timeline", elem_classes=["av-card"])
                             steps_html = gr.HTML(elem_classes=["av-card"])
                             with gr.Column(elem_classes=["av-card"]):
-                                gr.HTML(v.section_title("Boundary correction", "Move a boundary (time in seconds), "
-                                                        "recompute the metrics, then approve: the corrected version "
-                                                        "is saved as a new revision and the original stays."))
-                                corr_df = gr.Dataframe(headers=["After step", "Between", "Time (s)"],
-                                                       datatype=["number", "str", "number"], col_count=(3, "fixed"),
-                                                       interactive=True, elem_classes=["av-plain"])
-                                corr_note = gr.Textbox(label="Note for the revision", max_lines=1,
-                                                       elem_classes=["av-plain"])
+                                gr.HTML(v.section_title("Report", "PDF, JSON and CSV of the run, with every saved "
+                                                        "revision."))
                                 with gr.Row(elem_classes=["av-actions"]):
-                                    corr_prev = gr.Button("Recompute metrics", variant="secondary",
-                                                          elem_classes=["av-fit"])
-                                    corr_ok = gr.Button("Approve and save revision", variant="primary",
-                                                        elem_classes=["av-fit"])
                                     exp_btn = gr.Button("Export report", variant="secondary", elem_classes=["av-fit"])
-                                corr_msg = gr.HTML()
-                                exp_files = gr.File(label="Report files", file_count="multiple", interactive=False)
+                                exp_msg = gr.HTML()
+                                exp_files = gr.File(label="Report files", file_count="multiple", interactive=False,
+                                                    visible=False)
+                                with gr.Accordion("Correct phases (advanced)", open=False, elem_classes=["av-accordion"]):
+                                    gr.HTML("<p class='av-hint'>Move a boundary (time in seconds), recompute the "
+                                            "metrics, then approve: the corrected version is saved as a new revision "
+                                            "and the original stays.</p>")
+                                    corr_df = gr.Dataframe(headers=["After step", "Between", "Time (s)"],
+                                                           datatype=["number", "str", "number"], col_count=(3, "fixed"),
+                                                           interactive=True, elem_classes=["av-plain"])
+                                    corr_note = gr.Textbox(label="Note for the revision", max_lines=1,
+                                                           elem_classes=["av-plain"])
+                                    with gr.Row(elem_classes=["av-actions"]):
+                                        corr_prev = gr.Button("Recompute metrics", variant="secondary",
+                                                              elem_classes=["av-fit"])
+                                        corr_ok = gr.Button("Approve and save revision", variant="primary",
+                                                            elem_classes=["av-fit"])
+                                    corr_msg = gr.HTML()
                             with gr.Column(elem_classes=["av-card"]):
                                 gr.HTML(v.section_title("Motion metrics per step", "Every value with its coverage, "
                                                         "the share of frames that had the keypoints it needs."))
@@ -1153,18 +1161,22 @@ class GradioApp:
                         self.movement_html(run_id, "3D") if mode == "3D" else "",
                         self.movement_html(run_id, "4D") if mode == "4D" else ""]
             run_dd.change(on_mv_run, [run_dd, mv_mode], [floor_html, mv3_html, mv4_html], show_progress="hidden")
-            run_dd.change(lambda r: [self.correction_rows(r), "", self.export_files(r)], run_dd,
-                          [corr_df, corr_msg, exp_files])
+            def files_update(files):
+                return gr.update(value=files or None, visible=bool(files))
+            run_dd.change(lambda r: [self.correction_rows(r), "", "", files_update(self.export_files(r))], run_dd,
+                          [corr_df, corr_msg, exp_msg, exp_files], show_progress="hidden")
             corr_prev.click(self.correction_preview, [run_dd, corr_df], corr_msg)
             def on_approve(run_id, rows, note_text, request):
-                return (*self.correction_approve(run_id, rows, note_text, _user(request)), self.correction_rows(run_id))
+                msg_, files = self.correction_approve(run_id, rows, note_text, _user(request))
+                return msg_, files_update(files), self.correction_rows(run_id)
 
             def on_export(run_id, request):
-                return self.export_report(run_id, _user(request))
+                msg_, files = self.export_report(run_id, _user(request))
+                return msg_, files_update(files)
             on_approve.__annotations__["request"] = gr.Request
             on_export.__annotations__["request"] = gr.Request
             corr_ok.click(on_approve, [run_dd, corr_df, corr_note], [corr_msg, exp_files, corr_df])
-            exp_btn.click(on_export, run_dd, [corr_msg, exp_files])
+            exp_btn.click(on_export, run_dd, [exp_msg, exp_files])
         self.demo = demo
         return demo
 
