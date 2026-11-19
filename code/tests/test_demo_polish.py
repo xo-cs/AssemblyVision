@@ -63,7 +63,7 @@ class PhaseLabelTest(unittest.TestCase):
             self.assertIn("Removal", RunPaths(pub, app.store.paths(pub).root).steps_csv.read_text())  # file unchanged
             self.assertIn(PUBLIC_NOTE, app.results_head(pub))
             self.assertNotIn(PUBLIC_NOTE, app.results_head(qis))
-            self.assertIn(NO_LABELS, app.eval_html(pub))
+            self.assertEqual(app.eval_html(pub), "")              # no hand labels: the Evaluation card is hidden (2026-11-19)
             self.assertEqual(app.reach_choices(pub), ["All phases", "Phase 1", "Phase 2"])
 
 
