@@ -7,7 +7,7 @@ Runs and Live. Suggestions, Compare and Reports follow.
 then, on the laptop: ssh -L 7860:127.0.0.1:7860 qisens@<server> and open
 http://127.0.0.1:7860. The page binds 127.0.0.1 only, on a port from 7860 to
 7869 (default 7860), and never makes a share link (fixed in code, AV-APP-005
-otherwise). ?run=<run_id> opens that run on Results, ?page=new|results|runs|live
+otherwise). ?run=<run_id> opens that run on Results, ?view=new|results|runs|live (Gradio 5 reserves ?page=)
 opens a page.
 
 Live mode (LLD 3.12) runs inside this process on GPU live.gpu (the A4000):
@@ -60,8 +60,7 @@ STAGE_NAMES = {"ingest": "Ingest", "shots": "Shots", "reference": "Reference fra
                "tracking": "Tracking", "vlm_scores": "Phase scores (VLM)", "siglip_scores": "Phase scores (SigLIP)",
                "segmentation": "Steps", "metrics": "Motion metrics", "overlay": "Overlay video",
                "body3d": "3D body", "eval": "Evaluation"}
-PAGES = (("new", "New analysis"), ("results", "Results"), ("heatmap", "Heatmap"), ("runs", "Runs"), ("live", "Live"))
-HEAT_MODES = ("2D", "3D", "4D")
+PAGES = (("new", "New analysis"), ("results", "Results"), ("runs", "Runs"), ("live", "Live"))
 UI_DIR = Path(__file__).resolve().parent
 NO_LABELS = "No hand labels for this video, so accuracy cannot be scored."
 
@@ -524,27 +523,6 @@ class GradioApp:
 
     # Heatmap page: 2D (hand reach, floor maps), 3D and 4D (body3d stage, output/body3d_view.py) --------
 
-    def heat_runs(self, mode: str, show_all: bool = False) -> list[tuple[str, str]]:
-        """Runs for the Heatmap page: 3D only with body3d output, 4D only with scene4d player data,
-        2D all. Without show_all, repeated runs of the same video (timing repeats, tests) are left out:
-        per video the newest finished run stays, and every run with 3D, 4D or export output."""
-        runs = self.listed_runs()
-        has = lambda r, sub, pat: any((self.store.paths(r["run_id"]).root / sub).glob(pat))
-        if mode == "3D":
-            runs = [r for r in runs if has(r, "body3d", "*_p*.npz")]
-        elif mode == "4D":
-            runs = [r for r in runs if has(r, "scene4d", "*.player.json")]
-        if not show_all:
-            seen, keep = set(), []
-            for r in runs:                                 # newest first
-                extra = has(r, "body3d", "*_p*.npz") or has(r, "scene4d", "*.player.json") or has(r, "export", "rev*")
-                if extra or r["video"] not in seen:
-                    keep.append(r)
-                seen.add(r["video"])
-            runs = keep
-        return [(v.run_option(self.run_label(r), r["created_utc"], r.get("variant"), r["status"]), r["run_id"])
-                for r in runs]
-
     def _file_url(self, path) -> str | None:
         from .auth import safe_media
         ok = safe_media(path, self.store.roots)
@@ -583,29 +561,49 @@ class GradioApp:
         return (f"<div class='av-player' data-module='{H.escape(module, quote=True)}' "
                 f"data-cfg='{H.escape(J.dumps(cfg), quote=True)}'>Loading the player ...</div>")
 
-    def heatmap_view(self, run_id: str | None, mode: str) -> str:
-        """The Heatmap page for one run: 2D maps, or the 3D or 4D player."""
+    def floor_html(self, run_id: str | None) -> str:
+        """The 2D tab's floor maps: per shot part, where the feet were on the ground plane in metres (GVHMR,
+        body3d stage); this works on handheld shots too. One grey line when the run has no body3d output."""
         if not run_id:
-            return v.note({"3D": "No run has 3D body output yet (the body3d stage: python -m assemblyvision.tools.body3d "
-                                  "--run RUN_FOLDER).",
-                           "4D": "No run has a 3D scene yet (the scene4d stage: python -m assemblyvision.tools.scene4d "
-                                  "--run RUN_FOLDER)."}.get(mode, "Choose a run."))
-        if mode == "2D":
-            from .auth import safe_media
-            m = self.store.get_run(run_id)
-            floors = [safe_media(self.store.paths(run_id).root / h["png"], self.store.roots)
-                      for h in m.get("metrics", {}).get("heatmaps", []) if h.get("png")]
-            html = v.section_title("Hand reach", REACH_CAPTION) + self.reach_html(run_id)
-            html += v.section_title("Floor map per fixed shot", "Where the worker's hips were, on the floor of each "
-                                    "fixed camera shot.")
-            html += "".join(v.img_html(f, "Floor heatmap") for f in floors if f) or v.note("No floor map in this run.")
-            return html
+            return ""
+        from .. import body3d as B
+        from ..output import body3d_view as BV
+        root = self.store.paths(run_id).root
+        parts = B.load(root)
+        head = v.section_title("Floor map per shot part", "Where the feet were on the floor, in metres, seconds per "
+                               "10 cm cell (from the 3D body). Each part has its own floor frame.")
+        if not parts:
+            return head + "<p class='av-quiet'>No 3D body output for this run yet, so no floor map.</p>"
+        fps = float(self.store.get_run(run_id)["ingest"]["cfr"]["fps"])
+        key = (run_id, tuple((p["name"], int(p["frames"][0]), len(p["frames"])) for p in parts))
+        if getattr(self, "_floor_key", None) != key:
+            imgs = []
+            for p in parts:
+                t0, t1 = p["frames"][0] / fps, p["frames"][-1] / fps
+                img = BV.floor_png(p, fps, title=f"{p['shot_id'].rsplit('-', 1)[-1]} part "
+                                                  f"{p['name'].rsplit('_p', 1)[-1]}, {v.clock(t0)} to {v.clock(t1)}")
+                if img is not None:
+                    imgs.append(v.img_html(img, "Floor map"))
+            self._floor_key, self._floor_html = key, "<div class='av-floor-grid'>" + "".join(imgs) + "</div>"
+        return head + self._floor_html
+
+    def movement_html(self, run_id: str | None, mode: str) -> str:
+        """The 3D or 4D tab: the player, or one calm grey line when the run has no such output."""
+        if not run_id:
+            return ""
+        root = self.store.paths(run_id).root
+        has = any((root / "body3d").glob("*_p*.npz")) if mode == "3D" else any((root / "scene4d").glob("*.player.json"))
+        if not has:
+            return f"<p class='av-quiet'>No {mode} output for this run yet.</p>"
         head = ("The moving skeleton (GVHMR, metres, gravity aligned); hand voxels in red and foot voxels in blue "
                 "build up with the seconds spent; the floor map below fills in. Each shot part has its own world frame."
                 if mode == "3D" else
                 "The scene of each shot part as coloured points (Pi3), the person at the current time, rainbow trails of "
                 "the hands and feet over the last 2 s, the camera as a moving frame; the skeleton when it could be placed.")
-        return f"<p class='av-hint'>{v.esc(head)} Drag to orbit, scroll to zoom.</p>" + self.player_html(run_id, mode)
+        try:
+            return f"<p class='av-hint'>{v.esc(head)} Drag to orbit, scroll to zoom.</p>" + self.player_html(run_id, mode)
+        except (OSError, ValueError, KeyError) as e:
+            return f"<p class='av-quiet'>The {mode} view could not be prepared ({v.esc(type(e).__name__)}).</p>"
 
     def baseline_table(self, run_id: str) -> list[list]:
         return [[b["label"], b["n"], _fmt(b["median_s"], "s"), _fmt(b["q1_s"], "s"), _fmt(b["q3_s"], "s"),
@@ -969,28 +967,24 @@ class GradioApp:
                                 metrics_html = gr.HTML()
                             bend_img = gr.HTML(elem_classes=["av-card"])
                             with gr.Column(elem_classes=["av-card"]):
-                                gr.HTML(v.section_title("Hand reach heatmap", REACH_CAPTION))
-                                with gr.Row():
-                                    reach_dd = gr.Dropdown(label="Phase", choices=[ALL_PHASES], value=ALL_PHASES,
-                                                           elem_classes=["av-plain", "av-field"], min_width=280,
-                                                           scale=0)
-                                reach_html = gr.HTML()
+                                gr.HTML(v.section_title("Movement", "2D: hand reach and the floor map. 3D: the moving "
+                                                        "skeleton with where hands and feet spend time, in metres. "
+                                                        "4D: the scene with the worker and the camera."))
+                                mv_mode = gr.Radio(["2D", "3D", "4D"], value="2D", show_label=False, container=False,
+                                                   elem_classes=["av-seg", "av-mv-mode"])
+                                with gr.Column(elem_classes=["av-mv-panel"]) as mv_p2:
+                                        with gr.Row():
+                                            reach_dd = gr.Dropdown(label="Phase", choices=[ALL_PHASES], value=ALL_PHASES,
+                                                                   elem_classes=["av-plain", "av-field"], min_width=280,
+                                                                   scale=0)
+                                        reach_html = gr.HTML()
+                                        floor_html = gr.HTML()
+                                with gr.Column(visible=False, elem_classes=["av-mv-panel"]) as mv_p3:
+                                    mv3_html = gr.HTML()
+                                with gr.Column(visible=False, elem_classes=["av-mv-panel"]) as mv_p4:
+                                    mv4_html = gr.HTML()
                             eval_html = gr.HTML(elem_classes=["av-card"])
                             notices_html = gr.HTML(elem_classes=["av-card"])
-
-                        # --- Heatmap ------------------------------------------------------
-                        with gr.Tab("Heatmap", id="heatmap"), gr.Column(elem_classes=["av-page"]):
-                            gr.HTML(v.page_header("Heatmap", "2D: hand reach and floor maps. 3D: the moving skeleton with "
-                                                  "where hands and feet spend time, in metres. 4D: the scene with the "
-                                                  "worker and the camera."))
-                            with gr.Column(elem_classes=["av-card"]):
-                                with gr.Row():
-                                    heat_run = gr.Dropdown(label="Run", choices=[], value=None, min_width=420,
-                                                           elem_classes=["av-plain", "av-field"], scale=3)
-                                    heat_mode = gr.Radio(list(HEAT_MODES), value="2D", label="View",
-                                                         elem_classes=["av-seg"], scale=1)
-                                    heat_all = gr.Checkbox(label="show all runs", value=False, scale=1)
-                                heat_html = gr.HTML()
 
                         # --- Runs ---------------------------------------------------------
                         with gr.Tab("Runs", id="runs"), gr.Column(elem_classes=["av-page"]):
@@ -1045,7 +1039,7 @@ class GradioApp:
                 q = dict(request.query_params) if request is not None else {}
                 run_id = self.initial_run(q.get("run"))
                 active = self.store.active_run()
-                page = q.get("page") if q.get("page") in keys else ("results" if q.get("run") else "new")
+                page = q.get("view") if q.get("view") in keys else ("results" if q.get("run") else "new")
                 return [gr.update(choices=self.run_choices(), value=run_id), active, *job_values(active),
                         self.runs_html(run_id), *goto(page)]
             on_load.__annotations__["request"] = gr.Request     # a real type, so Gradio passes the request
@@ -1116,16 +1110,19 @@ class GradioApp:
             open_box.input(on_open_box, open_box, [run_dd, *nav_out])
             step_dd.change(self.metrics_html, [run_dd, step_dd], metrics_html, show_progress="hidden")
             reach_dd.input(self.reach_html, [run_dd, reach_dd], reach_html, show_progress="hidden")
-            def on_heat_list(mode, show_all, current):
-                ch = self.heat_runs(mode, show_all)
-                ids = [c[1] for c in ch]
-                run_id = current if current in ids else (ids[0] if ids else None)
-                return gr.update(choices=ch, value=run_id), self.heatmap_view(run_id, mode)
-            heat_mode.change(on_heat_list, [heat_mode, heat_all, heat_run], [heat_run, heat_html])
-            heat_all.change(on_heat_list, [heat_mode, heat_all, heat_run], [heat_run, heat_html])
-            heat_run.input(lambda r, m: self.heatmap_view(r, m), [heat_run, heat_mode], heat_html)
-            navs[[k for k, _ in PAGES].index("heatmap")].click(on_heat_list, [heat_mode, heat_all, heat_run],
-                                                             [heat_run, heat_html])
+            def on_mv_mode(mode, run_id):
+                """Show one panel; 3D and 4D are filled when shown (their players load data)."""
+                return [gr.Column(visible=mode == "2D"), gr.Column(visible=mode == "3D"), gr.Column(visible=mode == "4D"),
+                        self.movement_html(run_id, "3D") if mode == "3D" else gr.skip(),
+                        self.movement_html(run_id, "4D") if mode == "4D" else gr.skip()]
+            mv_mode.change(on_mv_mode, [mv_mode, run_dd], [mv_p2, mv_p3, mv_p4, mv3_html, mv4_html], show_progress="hidden")
+
+            def on_mv_run(run_id, mode):
+                """A new run: 2D is always filled; 3D and 4D only when their tab shows (players load data)."""
+                return [self.floor_html(run_id),
+                        self.movement_html(run_id, "3D") if mode == "3D" else "",
+                        self.movement_html(run_id, "4D") if mode == "4D" else ""]
+            run_dd.change(on_mv_run, [run_dd, mv_mode], [floor_html, mv3_html, mv4_html], show_progress="hidden")
             run_dd.change(lambda r: [self.correction_rows(r), "", self.export_files(r)], run_dd,
                           [corr_df, corr_msg, exp_files])
             corr_prev.click(self.correction_preview, [run_dd, corr_df], corr_msg)

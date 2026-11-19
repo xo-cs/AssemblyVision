@@ -450,3 +450,10 @@ img.av-chart { width: 100%; height: auto; display: block; }
 .avp-slider { flex: 1 1 240px; }
 .avp-time { font-variant-numeric: tabular-nums; min-width: 56px; }
 .avp-note { font-size: 13px; color: #5b6472; }
+.av-quiet { color: #7a8391; font-size: 14px; margin: 10px 2px; }
+/* the Movement tabs inside Results: the page tabs' hidden tab bar (above) must not hide these */
+#av-pages .av-subtabs .tab-wrapper, #av-pages .av-subtabs .tab-container { display: flex !important; }
+#av-pages .av-subtabs .tab-container { gap: 4px; border-bottom: 1px solid #e3e6eb; margin-bottom: 8px; }
+#av-pages .av-subtabs .tabitem { padding: 6px 0 0 0 !important; }
+.av-floor-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+.av-floor-grid img.av-chart { width: 300px; max-width: 100%; }

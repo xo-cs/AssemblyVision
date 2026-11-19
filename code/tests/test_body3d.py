@@ -67,36 +67,32 @@ class Body3dTest(unittest.TestCase):
         self.assertAlmostEqual(d["ground"], 0.08, places=5)
         json.dumps(d)                                                       # plain JSON for the player
 
-    def test_heatmap_page(self):
+    def test_movement_panels(self):
+        """The Movement card on Results: 3D and 4D players or one grey line; the GVHMR floor map per part."""
         from assemblyvision.ui.app import GradioApp
         from test_report_export import make_run
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             cfg = Config.load(overrides={"paths": {"public_root": str(root / "public"), "qisens_root": str(root / "q")}})
-            runs = []
-            for rid in ("run_20260101_000000_aaaa", "run_20260102_000000_bbbb", "run_20260103_000000_cccc"):
-                run = root / "public" / "runs" / rid
-                run.mkdir(parents=True)
-                make_run(run)                                               # the same video (clip.mp4) three times
-                m = json.loads((run / "manifest.json").read_text())
-                m.update(run_id=rid, shots={"items": []})
-                (run / "manifest.json").write_text(json.dumps(m))
-                runs.append(run)
+            run = root / "public" / "runs" / "run_20260101_000000_aaaa"
+            run.mkdir(parents=True)
+            make_run(run)
+            m = json.loads((run / "manifest.json").read_text())
+            m.update(run_id=run.name, shots={"items": []})
+            (run / "manifest.json").write_text(json.dumps(m))
             app = GradioApp(cfg, ["public"], repo_root=root)
-            self.assertEqual([r for _, r in app.heat_runs("2D")], ["run_20260103_000000_cccc"])      # duplicates hidden
-            self.assertEqual(len(app.heat_runs("2D", show_all=True)), 3)
-            self.assertEqual(app.heat_runs("3D"), [])
-            self.assertIn("No run has 3D body output", app.heatmap_view(None, "3D"))
-            (runs[0] / "body3d").mkdir()
-            np.savez(runs[0] / "body3d" / "run_20260101_000000_aaaa-s001_p1.npz", frames=np.arange(60),
-                     joints_world=walking(), transl=np.zeros((60, 3), np.float32), static=np.bool_(True))
-            self.assertEqual([r for _, r in app.heat_runs("3D")], ["run_20260101_000000_aaaa"])
-            self.assertEqual([r for _, r in app.heat_runs("2D")], ["run_20260103_000000_cccc", "run_20260101_000000_aaaa"])
-            html = app.heatmap_view("run_20260101_000000_aaaa", "3D")
+            self.assertEqual(app.movement_html(run.name, "3D"), "<p class='av-quiet'>No 3D output for this run yet.</p>")
+            self.assertIn("No 4D output for this run yet.", app.movement_html(run.name, "4D"))
+            self.assertIn("No 3D body output for this run yet", app.floor_html(run.name))
+            (run / "body3d").mkdir()
+            np.savez(run / "body3d" / f"{run.name}-s001_p1.npz", frames=np.arange(60), joints_world=walking(),
+                     transl=np.zeros((60, 3), np.float32), static=np.bool_(False))
+            html = app.movement_html(run.name, "3D")
             self.assertIn("class='av-player'", html)
             self.assertIn("player.js", html)
-            self.assertTrue((runs[0] / "body3d" / "run_20260101_000000_aaaa-s001_p1.player.json").is_file())
-            self.assertIn("No 3D or 4D output", app.heatmap_view("run_20260101_000000_aaaa", "4D"))
+            self.assertTrue((run / "body3d" / f"{run.name}-s001_p1.player.json").is_file())
+            self.assertEqual(app.floor_html(run.name).count("<img class='av-chart'"), 1)   # works without fixed shots
+            self.assertEqual(app.movement_html(None, "3D"), "")
 
 if __name__ == "__main__":
     unittest.main()

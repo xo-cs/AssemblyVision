@@ -173,3 +173,38 @@ def player_data(piece: dict, fps: float, voxel_m: float = 0.1, cell_m: float = 0
             "vox_ids": vox_ids.tolist(), "cell_m": cell_m, "cells_x": nx, "cells_z": nz, "cell_ids": cell_ids.tolist(),
             "ground": round(ground_level(J), 3), "center": np.round((lo + hi) / 2, 3).tolist(),
             "extent": round(float(max(hi[0] - lo[0], hi[2] - lo[2], 1.0)), 3), "n_points": int(len(flat))}
+
+
+def floor_png(piece: dict, fps: float, cell_m: float = 0.1, title: str = "") -> np.ndarray | None:
+    """The floor map of one part as an RGB image (matplotlib): seconds per cell of the feet on the ground
+    plane, in metres; cells never stepped on stay empty."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib import pyplot as plt
+    feet = np.asarray(piece["joints"])[:, FEET].reshape(-1, 3)
+    feet = feet[np.isfinite(feet).all(1)]
+    if not len(feet):
+        return None
+    x, z = feet[:, 0], feet[:, 2]
+
+    def edges(v):
+        a = np.floor(v.min() / cell_m) * cell_m
+        return a + cell_m * np.arange(int(np.floor((v.max() - a) / cell_m)) + 2)
+    bx, bz = edges(x), edges(z)
+    h, _, _ = np.histogram2d(z, x, bins=[bz, bx])
+    sec = np.where(h > 0, h / fps / 2, np.nan)
+    fig, ax = plt.subplots(figsize=(3.4, 3.0), dpi=110)
+    im = ax.imshow(sec, origin="lower", extent=[bx[0], bx[-1], bz[0], bz[-1]], cmap="YlOrRd", interpolation="nearest")
+    ax.set_xlabel("x (m)", fontsize=8)
+    ax.set_ylabel("z (m)", fontsize=8)
+    ax.tick_params(labelsize=7)
+    ax.set_facecolor("#f4f5f7")
+    ax.set_title(title, fontsize=8)
+    cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    cb.set_label("s", fontsize=7)
+    cb.ax.tick_params(labelsize=7)
+    fig.tight_layout()
+    fig.canvas.draw()
+    img = np.asarray(fig.canvas.buffer_rgba())[..., :3].copy()
+    plt.close(fig)
+    return img
