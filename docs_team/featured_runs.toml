@@ -7,4 +7,10 @@ label = "Engine B zero shot (flagship)"
 
 [public]
 max_videos = 10              # one run per video: the one with the most output (4D, 3D, Eval), then the newest
-videos = []                  # preferred videos (file names), listed first: the public demo set
+# preferred videos (file names), listed first: the public demo set (2D, 3D and 4D each; all have handheld shots)
+videos = ["process_480p30.mp4",               # maintenance, fixed and handheld shots
+          "12981262_1920_1080_25fps.mp4",     # wiring harness bench, 71 s
+          "19497508-hd_1920_1080_25fps.mp4",  # track work outdoors
+          "13943788_1920_1080_60fps.mp4",     # train coupling at the platform
+          "13751344_3840_2160_50fps.mp4",     # welding, 4K, 4 shots
+          "17145555_1920_1080_50fps.mp4"]     # workshop bench, several workers
