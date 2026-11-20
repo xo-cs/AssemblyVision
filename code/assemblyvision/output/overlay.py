@@ -421,6 +421,7 @@ def render_track_overlay(video: Path, shots: list, items: dict, out_path: Path, 
     in every case (frame_hashes, for tests, collects their md5 with workers = 1).
     The time split is in manifest["overlay"]["breakdown_s"] (render = decode
     and drawing, encode = time waiting on the encoder, concat)."""
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)       # a copied run (milestone_run) has no overlay folder yet
     t0 = time.monotonic()
     ocfg = cfg["overlay"]
     out_path = ctx.paths.check_inside(out_path)
