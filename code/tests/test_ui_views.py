@@ -251,8 +251,8 @@ class RunListTest(unittest.TestCase):
     def test_runs_without_steps_are_hidden_not_removed(self):
         ids = [r["run_id"] for r in self.app.listed_runs()]
         self.assertEqual(ids, ["run_20261027_010203_aa03", "run_20261026_010203_aa01"])
-        self.assertEqual([c[1] for c in self.app.run_choices()], ids)
-        h = self.app.runs_html()
+        self.assertEqual(self.app.run_choices(), [])                 # curated: these test runs have no overlay video
+        h = self.app.runs_html(show_all=True)
         self.assertNotIn("aa02", h)
         self.assertIn("aa03", h)
         self.assertIn("av-scroll", h)
@@ -264,8 +264,8 @@ class RunListTest(unittest.TestCase):
                          "process_480p30.mp4 · 26 Oct, 12:38 · m")
         self.assertEqual(v.run_option("a.mp4", "2026-10-27T01:02:03Z", "s", "running"),
                          "a.mp4 · 27 Oct, 01:02 · s · running")
-        self.assertEqual(dict((b, a) for a, b in self.app.run_choices())["run_20261026_010203_aa01"],
-                         "clip.mp4 · 26 Oct, 00:00 · m")
+        self.assertEqual(dict((b, a) for a, b in self.app.run_choices("run_20261026_010203_aa01"))["run_20261026_010203_aa01"],
+                         "clip.mp4 · 26 Oct, 00:00 · m")      # a run outside the curated list, shown now
 
     def test_steps_carry_the_cycles(self):
         h = self.app.steps_html("run_20261026_010203_aa01")

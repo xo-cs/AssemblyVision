@@ -190,6 +190,20 @@ def write_player(root: Path, name: str, fps: float, a: dict) -> None:
     (root / "scene4d" / f"{name}.player.json").write_text(json.dumps(header))
 
 
+def ensure_players(root: Path, fps: float) -> int:
+    """Player data for every scene4d part that has none (e.g. a part made by an older version): the
+    alignment and write_player, in the run folder. Returns how many were made."""
+    d = root / "scene4d"
+    n = 0
+    for f in sorted(d.glob("*_p*.npz")) if d.is_dir() else []:
+        name = f.stem
+        if name.endswith(".part") or (d / f"{name}.player.json").is_file():
+            continue
+        write_player(root, name, fps, align(root, name))
+        n += 1
+    return n
+
+
 def load_parts(root: Path) -> list[dict]:
     """The scene4d parts of a run with player data, in frame order: [{"name", "start", "end"}]."""
     d = root / "scene4d"

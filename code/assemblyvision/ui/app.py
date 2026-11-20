@@ -207,10 +207,81 @@ class GradioApp:
         """Runs shown on the page: with steps, or still queued or running (views.listed_runs)."""
         return v.listed_runs(self.store.list_runs())
 
-    def run_choices(self) -> list[tuple[str, str]]:
-        """Results picker: 'process_480p30.mp4 · 26 Oct, 12:38 · m', the run ID as value."""
-        return [(v.run_option(self.run_label(r), r["created_utc"], r.get("variant"), r["status"]), r["run_id"])
-                for r in self.listed_runs()]
+    def run_choices(self, current: str | None = None) -> list[tuple[str, str]]:
+        """Results picker: the curated runs (curated_runs), labelled with engine, score and badges; the run
+        shown now is added when it is not among them, so a value is never missing from the choices."""
+        out = [(r["label"], r["run_id"]) for r in self.curated_runs()]
+        if current and current not in [x[1] for x in out]:
+            try:
+                r = next(x for x in self.store.list_runs() if x["run_id"] == current)
+                out.insert(0, (v.run_option(self.run_label(r), r["created_utc"], r.get("variant"), r["status"]),
+                               current))
+            except StopIteration:
+                pass
+        return out
+
+    def featured(self) -> dict:
+        import tomllib
+        try:
+            return tomllib.loads((REPO_ROOT / "docs_team" / "featured_runs.toml").read_text())
+        except (OSError, tomllib.TOMLDecodeError):
+            return {}
+
+    def run_badges(self, run_id: str) -> list[str]:
+        """3D, 4D and Eval, from the output in the run folder now (so new output shows at once)."""
+        from ..evaluation import gt_links as L
+        source, paths = self.store._locate(run_id)
+        root = paths.root
+        b = []
+        if any((root / "body3d").glob("*_p*.npz")):
+            b.append("3D")
+        if any((root / "scene4d").glob("*_p*.npz")):
+            b.append("4D")
+        if paths.eval_json.is_file() or L.gt_for_run(self.store.roots[source], self.store.get_run(run_id)):
+            b.append("Eval")
+        return b
+
+    def curated_runs(self) -> list[dict]:
+        """The runs of the Results list: QiSens the pinned runs of docs_team/featured_runs.toml and every
+        milestone copy; public one run per video (the one with the most output, then the newest) and at
+        most [public] max_videos videos, preferred videos first. Only finished runs with steps and an
+        overlay video."""
+        fe = self.featured()
+        pinned = {x["id"]: x.get("label", "") for x in fe.get("qisens", [])}
+        runs = [r for r in self.store.list_runs() if r.get("has_steps") and r.get("status") in ("done", "partial")]
+        out, public = [], {}
+        for r in runs:
+            rid = r["run_id"]
+            try:
+                if self.store.overlay_path(rid) is None:
+                    continue
+                m = self.store.get_run(rid)
+            except AvError:
+                continue
+            if r["source"] == "qisens":
+                label = pinned.get(rid) or (m.get("milestone") or {}).get("label")
+                if label:
+                    out.append({"run_id": rid, "label": label, "sort": (0, rid)})
+            else:
+                badges = self.run_badges(rid)
+                key = ("4D" in badges, "3D" in badges, "Eval" in badges, rid)
+                if r["video"] not in public or key > public[r["video"]][0]:
+                    public[r["video"]] = (key, r)
+        prefer = fe.get("public", {}).get("videos", [])
+        # preferred videos first (in their order), then 4D, 3D, Eval; ties keep the newest first (list_runs order)
+        order = sorted(public.items(), key=lambda kv: (prefer.index(kv[0]) if kv[0] in prefer else len(prefer),
+                                                       not kv[1][0][0], not kv[1][0][1], not kv[1][0][2]))
+        for video, (key, r) in order[: int(fe.get("public", {}).get("max_videos", 10))]:
+            out.append({"run_id": r["run_id"], "label": video, "sort": (1, len(out))})
+        for x in out:
+            rid = x["run_id"]
+            ev = self.run_eval(rid)
+            score = f"{ev['metrics']['frame_accuracy']:.1f} %" if ev and ev.get("metrics", {}).get("frame_accuracy") is not None else ""
+            engine = self.run_engine(rid)
+            badges = self.run_badges(rid)
+            parts = [x["label"]] + ([engine] if engine and engine not in x["label"] else []) + ([score] if score else [])
+            x["label"] = " · ".join(parts) + (f"  [{' '.join(badges)}]" if badges else "")
+        return sorted(out, key=lambda x: x["sort"])
 
     def video_choices(self) -> list[tuple[str, str]]:
         runs = None
@@ -592,6 +663,12 @@ class GradioApp:
         if not run_id:
             return ""
         root = self.store.paths(run_id).root
+        if mode == "4D" and any((root / "scene4d").glob("*_p*.npz")):
+            from .. import scene4d as S4
+            try:                                     # parts without player data get it now (older output)
+                S4.ensure_players(root, float(self.store.get_run(run_id)["ingest"]["cfr"]["fps"]))
+            except (OSError, ValueError, KeyError) as e:
+                return f"<p class='av-quiet'>The 4D view could not be prepared ({v.esc(type(e).__name__)}).</p>"
         has = any((root / "body3d").glob("*_p*.npz")) if mode == "3D" else any((root / "scene4d").glob("*.player.json"))
         if not has:
             return f"<p class='av-quiet'>No {mode} output for this run yet.</p>"
@@ -821,10 +898,14 @@ class GradioApp:
                 "metrics_html": self.metrics_html(run_id, ALL_STEPS), "baseline_html": self.baseline_html(run_id),
                 "eval_html": self.eval_html(run_id), "notices_html": self.notices_html(run_id)}
 
-    def runs_html(self, current: str | None = None) -> str:
-        """The Runs page table, newest first, with an Open button per run."""
+    def runs_html(self, current: str | None = None, show_all: bool = False) -> str:
+        """The Runs page table, newest first, with an Open button per run: the curated runs of Results, or
+        every run with show_all."""
         rows = []
+        keep = None if show_all else {x["run_id"] for x in self.curated_runs()}
         for r in self.listed_runs():
+            if keep is not None and r["run_id"] not in keep:
+                continue
             took = v.utc_seconds(r["created_utc"], r.get("finished_utc"))
             btn = f"<button class='av-open' data-open-run='{v.esc(r['run_id'])}'>Open</button>"
             rows.append([f"<span class='av-mono'>{v.esc(r['run_id'])}</span>", v.pill(r["source"]),
@@ -1025,7 +1106,9 @@ class GradioApp:
 
                         # --- Runs ---------------------------------------------------------
                         with gr.Tab("Runs", id="runs"), gr.Column(elem_classes=["av-page"]):
-                            gr.HTML(v.page_header("Runs", "Every analysis on this server, newest first."))
+                            gr.HTML(v.page_header("Runs", "The runs of the Results list, newest first; switch on "
+                                                  "\"show all runs\" for every analysis on this server."))
+                            runs_all = gr.Checkbox(label="show all runs", value=False)
                             runs_html = gr.HTML(elem_classes=["av-card"])
                             open_box = gr.Textbox(elem_id="av-open-run", elem_classes=["av-hidden"],
                                                   show_label=False, container=False)
@@ -1078,7 +1161,7 @@ class GradioApp:
                 run_id = self.initial_run(q.get("run"))
                 active = self.store.active_run()
                 page = q.get("view") if q.get("view") in keys else ("results" if q.get("run") else "new")
-                return [gr.update(choices=self.run_choices(), value=run_id), active, *job_values(active),
+                return [gr.update(choices=self.run_choices(run_id), value=run_id), active, *job_values(active),
                         self.runs_html(run_id), *goto(page)]
             on_load.__annotations__["request"] = gr.Request     # a real type, so Gradio passes the request
 
@@ -1089,11 +1172,11 @@ class GradioApp:
                     return [*vals, gr.skip(), *[gr.skip()] * len(results_out)]
                 # finished: fill the summary once, stop the timer (TC-APP-07), refresh Results if it shows this run
                 same = shown == job_id
-                return [*vals, gr.update(choices=self.run_choices(), value=shown),
+                return [*vals, gr.update(choices=self.run_choices(shown), value=shown),
                         *(fill_results(job_id) if same else [gr.skip()] * len(results_out))]
 
             def on_refresh(run_id):
-                return gr.update(choices=self.run_choices(), value=run_id), \
+                return gr.update(choices=self.run_choices(run_id), value=run_id), \
                     gr.update(choices=self.video_choices()), self.runs_html(run_id)
 
             def on_start(video, var, eng, request):
@@ -1114,7 +1197,7 @@ class GradioApp:
                         gr.Column(visible=False))
 
             def on_open(run_id):
-                return [gr.update(choices=self.run_choices(), value=run_id), *goto("results")]
+                return [gr.update(choices=self.run_choices(run_id), value=run_id), *goto("results")]
 
             def on_open_box(text):
                 run_id = (text or "").split("|", 1)[0]
@@ -1126,11 +1209,15 @@ class GradioApp:
             demo.load(live_load, None, live_out)
             for key, btn in zip(keys, navs):
                 if key == "runs":
-                    btn.click(lambda r: [self.runs_html(r), *goto("runs")], run_dd, [runs_html, *nav_out],
-                              show_progress="hidden")
+                    btn.click(lambda r, a: [self.runs_html(r, a), *goto("runs")], [run_dd, runs_all],
+                              [runs_html, *nav_out], show_progress="hidden")
+                elif key == "results":                  # the list refreshes when Results is opened (new output)
+                    btn.click(lambda r: [gr.update(choices=self.run_choices(r), value=r), *goto("results")], run_dd,
+                              [run_dd, *nav_out], show_progress="hidden")
                 else:
                     btn.click(lambda k=key: goto(k), None, nav_out, show_progress="hidden")
             run_dd.change(fill_results, run_dd, results_out)
+            runs_all.change(lambda r, a: self.runs_html(r, a), [run_dd, runs_all], runs_html, show_progress="hidden")
             job_timer.tick(on_poll, [job, run_dd], [*job_out, run_dd, *results_out], show_progress="hidden")
             server_shown = gr.State(self.server_html())
 

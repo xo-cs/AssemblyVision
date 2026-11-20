@@ -1,0 +1,10 @@
+# Runs the Results list shows (ui/app.py curated_runs). Every run folder stays on disk; the Runs page has
+# a "show all runs" switch. QiSens: only these pinned runs and every milestone copy (tools/milestone_run.py,
+# labelled by its --label). Labels get the step engine's score (from the linked hand labels) and badges.
+[[qisens]]
+id = "run_20261108_133251_1550"
+label = "Engine B zero shot (flagship)"
+
+[public]
+max_videos = 10              # one run per video: the one with the most output (4D, 3D, Eval), then the newest
+videos = []                  # preferred videos (file names), listed first: the public demo set
