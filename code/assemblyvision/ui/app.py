@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import ipaddress
+import json
 import os
 import statistics
 import sys
@@ -257,6 +258,8 @@ class GradioApp:
                     continue
                 m = self.store.get_run(rid)
             except AvError:
+                continue
+            if (m.get("milestone") or {}).get("hidden"):        # a test copy (rule w11-scene4d-quality)
                 continue
             if r["source"] == "qisens":
                 label = pinned.get(rid) or (m.get("milestone") or {}).get("label")
@@ -672,10 +675,16 @@ class GradioApp:
         has = any((root / "body3d").glob("*_p*.npz")) if mode == "3D" else any((root / "scene4d").glob("*.player.json"))
         if not has:
             return f"<p class='av-quiet'>No {mode} output for this run yet.</p>"
+        model = "Pi3"
+        if mode == "4D":
+            try:
+                model = json.loads((root / "scene4d" / "summary.json").read_text())["model"].split(" (")[0]
+            except (OSError, ValueError, KeyError):
+                pass
         head = ("The moving skeleton (GVHMR, metres, gravity aligned); hand voxels in red and foot voxels in blue "
                 "build up with the seconds spent; the floor map below fills in. Each shot part has its own world frame."
                 if mode == "3D" else
-                "The scene of each shot part as coloured points (Pi3), the person at the current time, rainbow trails of "
+                f"The scene of each shot part as coloured points ({model}), the person at the current time, rainbow trails of "
                 "the hands and feet over the last 2 s, the camera as a moving frame; the skeleton when it could be placed.")
         try:
             return f"<p class='av-hint'>{v.esc(head)} Drag to orbit, scroll to zoom.</p>" + self.player_html(run_id, mode)
@@ -1243,10 +1252,12 @@ class GradioApp:
             mv_mode.change(on_mv_mode, [mv_mode, run_dd], [mv_p2, mv_p3, mv_p4, mv3_html, mv4_html], show_progress="hidden")
 
             def on_mv_run(run_id, mode):
-                """A new run: 2D is always filled; 3D and 4D only when their tab shows (players load data)."""
+                """A new run: 2D is always filled; 3D and 4D only when their tab shows (players load data). A hidden
+                panel is left as it is (it is filled again when shown): clearing it raced with a switch to 3D or 4D
+                made while this ran, and wiped the player just shown."""
                 return [self.floor_html(run_id),
-                        self.movement_html(run_id, "3D") if mode == "3D" else "",
-                        self.movement_html(run_id, "4D") if mode == "4D" else ""]
+                        self.movement_html(run_id, "3D") if mode == "3D" else gr.skip(),
+                        self.movement_html(run_id, "4D") if mode == "4D" else gr.skip()]
             run_dd.change(on_mv_run, [run_dd, mv_mode], [floor_html, mv3_html, mv4_html], show_progress="hidden")
             def files_update(files):
                 return gr.update(value=files or None, visible=bool(files))

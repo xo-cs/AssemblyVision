@@ -27,7 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     from .visual_embed import take_lock
     cfg = Config.load()
     _, root = run_source(args.run, cfg["paths"])
-    need = B.missing()
+    need = B.missing(cfg["scene4d"].get("model", "pi3"))
     if need:
         print("scene4d cannot run yet; missing: " + "; ".join(need), file=sys.stderr)
         return 2

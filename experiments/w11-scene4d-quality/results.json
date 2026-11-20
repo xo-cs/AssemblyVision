@@ -1,0 +1,74 @@
+{
+ "pi3_before": {
+  "model": "Pi3 before (stage of 2026-11-15)",
+  "copy": "run_20261120_081955_aa95",
+  "chunk": 80,
+  "fixed_bg_points": 106780,
+  "fixed_rot_deg": 8.9,
+  "fixed_trans_share": 0.131,
+  "fixed_cloud_noise": 0.00072,
+  "handheld_bg_points": 67778,
+  "hh_pos_jitter_share": 0.0008,
+  "hh_rot_step_deg": 0.055
+ },
+ "pi3": {
+  "model": "Pi3 (yyfz233/Pi3, BSD-2-Clause)",
+  "copy": "run_20261120_080210_2e74",
+  "peak_mb": 10068,
+  "fixed_s_per_video_min": 288.3,
+  "fixed_bg_points": 120291,
+  "fixed_rot_deg": 1.13,
+  "fixed_trans_share": 0.0187,
+  "fixed_bg_spread": 0.0308,
+  "fixed_cloud_noise": 0.00055,
+  "handheld_s_per_video_min": 341.0,
+  "handheld_bg_points": 132227,
+  "hh_pos_jitter_share": 0.0008,
+  "hh_rot_step_deg": 0.052,
+  "aligned": {
+   "run_20261025_063706_7fc4-s021_p1": true,
+   "run_20261025_063706_7fc4-s024_p1": true
+  },
+  "chunk": 80
+ },
+ "vggt": {
+  "model": "VGGT-1B (facebook/VGGT-1B, CC BY-NC 4.0)",
+  "chunk": 80,
+  "copy": "run_20261120_081437_3ccf",
+  "peak_mb": 13956,
+  "fixed_s_per_video_min": 396.0,
+  "fixed_bg_points": 137450,
+  "fixed_rot_deg": 0.93,
+  "fixed_trans_share": 0.0112,
+  "fixed_bg_spread": 0.0272,
+  "fixed_cloud_noise": 0.00059,
+  "handheld_s_per_video_min": 292.4,
+  "handheld_bg_points": 144255,
+  "hh_pos_jitter_share": 0.0002,
+  "hh_rot_step_deg": 0.044,
+  "aligned": {
+   "run_20261025_063706_7fc4-s021_p1": true,
+   "run_20261025_063706_7fc4-s024_p1": true
+  }
+ },
+ "pi3x": {
+  "model": "Pi3X (yyfz233/Pi3X, CC BY-NC 4.0)",
+  "chunk": 40,
+  "copy": "run_20261120_080709_d203",
+  "peak_mb": 15753,
+  "fixed_s_per_video_min": 747.6,
+  "fixed_bg_points": 120963,
+  "fixed_rot_deg": 1.11,
+  "fixed_trans_share": 0.0103,
+  "fixed_bg_spread": 0.0346,
+  "fixed_cloud_noise": 0.00057,
+  "handheld_s_per_video_min": 429.4,
+  "handheld_bg_points": 114134,
+  "hh_pos_jitter_share": 0.0004,
+  "hh_rot_step_deg": 0.05,
+  "aligned": {
+   "run_20261025_063706_7fc4-s021_p1": true,
+   "run_20261025_063706_7fc4-s024_p1": true
+  }
+ }
+}

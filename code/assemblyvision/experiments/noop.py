@@ -177,7 +177,8 @@ DECLARATIONS: dict[str, dict] = {
     "body3d": {"enabled": OFF, **{k: (lambda v, st: not st.get("body3d", {}).get("enabled", False))
                                   for k in ("gpu", "min_piece_s", "max_gap_s", "chunk")}},
     "scene4d": {"enabled": OFF, **{k: (lambda v, st: not st.get("scene4d", {}).get("enabled", False))
-                                   for k in ("gpu", "fps", "chunk", "overlap", "max_bg_points", "person_points")}},
+                                   for k in ("gpu", "fps", "chunk", "overlap", "max_bg_points", "person_points", "model",
+                                             "conf_drop", "edge_rtol", "voxel_div")}},
     "heatmap": _all(NO, "cell_m cell_px min_samples"),
     "gpu": _all(NO, "pose"),
     "overlay": _all(NO, "kp_conf_min max_width crf enabled encoder workers"),

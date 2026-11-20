@@ -41,7 +41,8 @@ class Scene4dTest(unittest.TestCase):
             n = len(frames)
             s, R, t = 0.5 + 0.1 * frames[0, 0, 0, 0], rot(10 * frames[0, 0, 0, 0]), np.array([frames[0, 0, 0, 0], 0, 0])
             pts = s * truth[:n] @ R.T + t
-            c2w = np.repeat(np.eye(4)[None], n, 0)
+            c2w = np.repeat(np.eye(4)[None], n, 0)                        # the camera of the truth frame, mapped too
+            c2w[:, :3, :3], c2w[:, :3, 3] = R, t
             return {"pts": pts.astype(np.float32), "conf": np.ones((n, h, w), np.float32), "c2w": c2w.astype(np.float32)}
         frames = np.zeros((S, h, w, 3), np.uint8)
         for k, a in enumerate(range(0, S, 8)):
@@ -51,6 +52,35 @@ class Scene4dTest(unittest.TestCase):
         self.assertEqual(len(r["fits"]), 3)
         spread = np.linalg.norm(r["pts"] - r["pts"][0], axis=-1).max()      # every frame on the first chunk's scene
         self.assertLess(spread, 1e-3)
+
+    def test_camera_stitch_keeps_a_fixed_camera_fixed(self):
+        """Two chunks of a fixed camera, the second with points that fit a slightly wrong rotation: the stitch
+        follows the cameras of the shared frames, so the camera path has no jump at the border."""
+        rng = np.random.default_rng(2)
+        n = 6
+        cs = np.repeat(np.eye(4)[None], n, 0)
+        R0 = rot(25)
+        cd = cs.copy()
+        cd[:, :3, :3] = R0
+        cd[:, :3, 3] = [1.0, 2.0, 0.5]
+        ps = rng.normal(size=(n, 8, 8, 3)) + [0, 0, 4]
+        pd = 1.5 * ps @ R0.T + cd[0, :3, 3] + rng.normal(scale=0.05, size=ps.shape)
+        s, R, t = W.camera_sim3(cs, cd, ps, pd, np.ones((n, 8, 8), bool))
+        self.assertAlmostEqual(s, 1.5, delta=0.05)
+        self.assertLess(np.abs(R - R0).max(), 1e-9)
+        self.assertLess(np.abs(t - cd[0, :3, 3]).max(), 1e-9)
+
+    def test_edges_and_votes(self):
+        pts = np.zeros((4, 4, 3))
+        pts[..., 2] = 1.0
+        pts[:, 2:, 2] = 3.0                                                 # a depth jump between columns 1 and 2
+        e = W.edge_mask(pts, np.zeros(3))
+        self.assertTrue(e[:, 1:3].all())
+        self.assertFalse(e[:, [0, 3]].any())
+        p = np.array([[0.01, 0, 0], [0.02, 0, 0], [5.0, 5, 5]])           # one voxel seen in 2 frames, one in 1
+        P, C, _ = W.voxel_down(p, np.full((3, 3), 100.0), 0.1, 10, np.array([0, 1, 0]), min_frames=2)
+        self.assertEqual(len(P), 1)
+        self.assertEqual(C.dtype, np.uint8)
 
     def test_skeleton_alignment(self):
         J = walking(60)

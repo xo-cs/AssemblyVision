@@ -40,6 +40,10 @@ class CuratedRunsTest(unittest.TestCase):
             run("public", "run_20260105_000000_eeee", "a.mp4", body3d=True)                 # a.mp4 with 3D output
             run("public", "run_20260106_000000_ffff", "a.mp4")                              # newer, but no 3D
             run("public", "run_20260107_000000_abab", "b.mp4")
+            run("public", "run_20260108_000000_cdcd", "b.mp4", body3d=True, milestone="4D test")   # a hidden test copy
+            m = json.loads((root / "public/runs/run_20260108_000000_cdcd/manifest.json").read_text())
+            m["milestone"]["hidden"] = True
+            (root / "public/runs/run_20260108_000000_cdcd/manifest.json").write_text(json.dumps(m))
             fe = {"qisens": [{"id": "run_20260101_000000_aaaa", "label": "Flagship"}], "public": {"max_videos": 10}}
             app = GradioApp(cfg, ["qisens", "public"], repo_root=root)
             with mock.patch.object(GradioApp, "featured", return_value=fe):

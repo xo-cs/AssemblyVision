@@ -24,16 +24,21 @@ from ..storage.files import REPO_ROOT, utc_now
 PYTHON = REPO_ROOT / "envs" / "scene4d" / "bin" / "python"
 CKPT = REPO_ROOT / "models" / "scene4d" / "pi3" / "model.safetensors"
 PI3 = REPO_ROOT / "third_party" / "Pi3"
+MODELS = {"pi3": ("Pi3 (yyfz233/Pi3, BSD-2-Clause)", "Hugging Face yyfz233/Pi3", PI3 / "pi3"),
+          "pi3x": ("Pi3X (yyfz233/Pi3X, CC BY-NC 4.0)", "Hugging Face yyfz233/Pi3X", PI3 / "pi3"),
+          "vggt": ("VGGT-1B (facebook/VGGT-1B, CC BY-NC 4.0)", "Hugging Face facebook/VGGT-1B",
+                   REPO_ROOT / "third_party" / "vggt" / "vggt")}
 
 
-def missing() -> list[str]:
+def missing(model: str = "pi3") -> list[str]:
     out = []
     if not PYTHON.is_file():
         out.append("the env envs/scene4d")
-    if not CKPT.is_file():
-        out.append("models/scene4d/pi3/model.safetensors (Hugging Face yyfz233/Pi3)")
-    if not (PI3 / "pi3").is_dir():
-        out.append("third_party/Pi3 (github.com/yyfz/Pi3)")
+    ckpt = REPO_ROOT / "models" / "scene4d" / model / "model.safetensors"
+    if not ckpt.is_file():
+        out.append(f"models/scene4d/{model}/model.safetensors ({MODELS[model][1]})")
+    if not MODELS[model][2].is_dir():
+        out.append(f"the code {MODELS[model][2].relative_to(REPO_ROOT)}")
     return out
 
 
@@ -66,18 +71,26 @@ def job_pieces(manifest: dict, root: Path, cfg) -> list[dict]:
     return out
 
 
-def run(root: Path, manifest: dict, cfg, gpu: int, log=print) -> dict:
-    """Runs Pi3 on every shot part (the GPU lock is the caller's), then the alignment and the player data."""
-    need = missing()
+def run(root: Path, manifest: dict, cfg, gpu: int, log=print, only: list[str] | None = None,
+        raw_dir: Path | None = None) -> dict:
+    """Runs the scene model on every shot part (or the parts named in only; the GPU lock is the caller's),
+    then the alignment and the player data. raw_dir (tests of the rule w11-scene4d-quality only) also keeps
+    the model's raw points per part there."""
+    sc = cfg["scene4d"]
+    model = sc.get("model", "pi3")
+    need = missing(model)
     if need:
         raise RuntimeError("scene4d needs " + "; ".join(need))
-    sc = cfg["scene4d"]
     cfr = manifest["ingest"]["cfr"]
     fps = float(cfr["fps"])
     job = {"video": str(root / cfr["path"]), "fps": fps, "width": cfr["width"], "height": cfr["height"],
            "pieces": job_pieces(manifest, root, cfg), "out_dir": str(root / "scene4d"),
            "step": max(1, int(round(fps / sc["fps"]))), "chunk": sc["chunk"], "overlap": sc["overlap"],
-           "max_bg": sc["max_bg_points"], "person_pts": sc["person_points"]}
+           "max_bg": sc["max_bg_points"], "person_pts": sc["person_points"], "model": model,
+           "conf_drop": sc.get("conf_drop", 0.35), "edge_rtol": sc.get("edge_rtol", 0.03),
+           "voxel_div": sc.get("voxel_div", 700), "raw_dir": str(raw_dir) if raw_dir else None}
+    if only:
+        job["pieces"] = [p for p in job["pieces"] if p["name"].rsplit("-", 1)[-1] in only or p["name"] in only]
     out = root / "scene4d"
     out.mkdir(exist_ok=True)
     (root / "tmp").mkdir(exist_ok=True)
@@ -94,7 +107,7 @@ def run(root: Path, manifest: dict, cfg, gpu: int, log=print) -> dict:
     (out / "worker.log").write_text(p.stdout + "\n" + p.stderr)
     if p.returncode != 0:
         last = p.stderr.strip().splitlines()[-1][:300] if p.stderr.strip() else ""
-        raise RuntimeError(f"the Pi3 worker failed (exit {p.returncode}): {last}; see scene4d/worker.log")
+        raise RuntimeError(f"the scene4d worker ({model}) failed (exit {p.returncode}): {last}; see scene4d/worker.log")
     lines = [json.loads(x) for x in p.stdout.splitlines() if x.startswith("{")]
     aligned = {}
     for pc in job["pieces"]:
@@ -102,7 +115,7 @@ def run(root: Path, manifest: dict, cfg, gpu: int, log=print) -> dict:
             a = align(root, pc["name"])
             aligned[pc["name"]] = a["ok"]
             write_player(root, pc["name"], fps, a)
-    summary = {"created_utc": utc_now(), "model": "Pi3 (yyfz233/Pi3, BSD-2-Clause)", "fps": fps,
+    summary = {"created_utc": utc_now(), "model": MODELS[model][0], "settings": {k: job[k] for k in ("conf_drop", "edge_rtol", "voxel_div")}, "fps": fps,
                "sample_fps": fps / job["step"], "pieces": [x for x in lines if "name" in x and "failed" not in x],
                "failed": [x for x in lines if "failed" in x], "aligned": aligned, "seconds": round(time.monotonic() - t0, 1),
                "torch_peak_mb": next((x["torch_peak_mb"] for x in lines if "torch_peak_mb" in x), None)}
@@ -169,6 +182,8 @@ def write_player(root: Path, name: str, fps: float, a: dict) -> None:
             off += pad
     add("bg_pts", z["bg_pts"], np.float32)
     add("bg_col", z["bg_col"], np.uint8)
+    if "bg_size" in z.files:                     # per point size (neighbour spacing): far, sparse areas get bigger points
+        add("bg_size", z["bg_size"], np.float32)
     add("person_pts", np.nan_to_num(z["person_pts"].astype(np.float32), nan=np.nan), np.float32)
     add("person_col", z["person_col"], np.uint8)
     add("c2w", z["c2w"], np.float32)

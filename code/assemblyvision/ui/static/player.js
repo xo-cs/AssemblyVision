@@ -79,6 +79,7 @@ export function mount(root) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(dark ? 0x0b0d12 : 0xf4f5f7);
   const cam = new THREE.PerspectiveCamera(50, 1, 0.01, 1000);
+  const pxScale = { value: 300 };          // pixels per world unit at distance 1 (point sizes of the 4D scene)
   const orbit = new OrbitControls(cam, renderer.domElement);
   orbit.enableDamping = true;
   scene.add(new THREE.AmbientLight(0xffffff, 0.9));
@@ -184,7 +185,7 @@ export function mount(root) {
       g.setAttribute("color", new THREE.BufferAttribute(C, 3, true));
       return new THREE.Points(g, new THREE.PointsMaterial({ size, vertexColors: true, sizeAttenuation: true }));
     };
-    const bgP = B("bg_pts");
+    const bgP = B("bg_pts"), bgS = B("bg_size");
     // the size of the scene: 5th to 95th percentile box of the background (a long lens sees a small, far scene)
     const ext = (() => {
       const n = bgP.length / 3, step = Math.max(1, Math.floor(n / 5000)), ax = [[], [], []];
@@ -194,7 +195,24 @@ export function mount(root) {
       return { center: new THREE.Vector3(...lo.map((v, k) => (v + hi[k]) / 2)), size: Math.hypot(...hi.map((v, k) => v - lo[k])) || 1 };
     })();
     const depth = ext.size;
-    world.add(pts(bgP, B("bg_col"), depth / 260));
+    if (bgS) {        // round points of their own world size (the gap to the neighbours), smaller with distance
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.BufferAttribute(bgP, 3));
+      g.setAttribute("color", new THREE.BufferAttribute(B("bg_col"), 3, true));
+      g.setAttribute("psize", new THREE.BufferAttribute(bgS, 1));
+      const mat = new THREE.ShaderMaterial({
+        uniforms: { scale: pxScale },
+        vertexShader: `attribute float psize; varying vec3 vC; uniform float scale;
+          void main() { vC = color; vec4 mv = modelViewMatrix * vec4(position, 1.0);
+            gl_PointSize = clamp(psize * scale / -mv.z, 1.0, 24.0); gl_Position = projectionMatrix * mv; }`,
+        fragmentShader: `varying vec3 vC;
+          void main() { vec2 q = gl_PointCoord - 0.5; if (dot(q, q) > 0.25) discard; gl_FragColor = vec4(vC, 1.0); }`,
+        vertexColors: true,
+      });
+      world.add(new THREE.Points(g, mat));
+    } else {
+      world.add(pts(bgP, B("bg_col"), depth / 260));
+    }
     const S = h.frames.length, P = h.person_pts.shape[1];
     const pp = B("person_pts"), pc = B("person_col");
     const person = pts(new Float32Array(P * 3), new Uint8Array(P * 3), depth / 250);
@@ -353,7 +371,15 @@ export function mount(root) {
     });
   }
   const loop = () => {
+    if (!root.isConnected) {                   // replaced (another run or view): stop for good
+      clearInterval(timer);
+      if (video) video.pause();
+      renderer.dispose();
+      return;
+    }
+    if (!root.offsetParent) { requestAnimationFrame(loop); return; }      // hidden panel: no drawing
     orbit.update();
+    pxScale.value = renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2));
     renderer.render(scene, cam);
     // paused: keep the video on the player's time (a seek may have been lost while the video was loading)
     if (video && !playing && !video.seeking && video.readyState >= 1 && Math.abs(video.currentTime - t) > 0.3) seekVideo(t);

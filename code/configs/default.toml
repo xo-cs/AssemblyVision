@@ -262,6 +262,10 @@ chunk = 80                   # frames per Pi3 call (about 11 GB on the A4000); l
 overlap = 12                 # frames shared by two chunks, for the similarity transform between them
 max_bg_points = 150000       # the static background, voxel downsampled to at most this many points
 person_points = 2500         # points of the person per sampled frame
+model = "pi3"                # pi3 (BSD-2-Clause), pi3x or vggt (both CC BY-NC 4.0; rule w11-scene4d-quality)
+conf_drop = 0.35             # per frame, the least confident share of the pixels is left out (and conf < 0.3 always)
+edge_rtol = 0.03             # points at a depth jump of more than 3 % to a neighbour pixel are left out
+voxel_div = 700              # background voxel = median depth / voxel_div, grown until max_bg_points
 
 [motion]
 # MotionAnalyzer (LLD 3.7). Add "gaze" to enabled for the rough gaze direction (FR-MOTION-08, Want).
