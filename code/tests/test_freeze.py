@@ -9,6 +9,7 @@ from assemblyvision.analysis import clip_classes as C
 from assemblyvision.analysis import zero_shot as Z
 from assemblyvision.storage.files import REPO_ROOT
 from assemblyvision.tools import freeze as F
+from assemblyvision import validation_labels as VL
 from assemblyvision.evaluation import metrics as M
 from assemblyvision.tools import robustness as R
 from assemblyvision.tools import train_domain as T
@@ -190,6 +191,62 @@ class RobustnessTest(unittest.TestCase):
         from assemblyvision.analysis import phase_text as pt
         got = pt.parse(R.AUTHOR_DIR / "TEMPLATE.md")[None]
         self.assertEqual([p["name"] for p in got], [p["name"] for p in pt.phases("qisens")])
+
+
+class ValidationLabelsTest(unittest.TestCase):
+    def test_every_annotator_gets_the_same_seeded_items(self):
+        frames = np.arange(100, 5000)
+        a = VL.draw_items("trunk_band", "run_x", frames, 30.0, 6000)
+        self.assertEqual(a, VL.draw_items("trunk_band", "run_x", frames[::-1], 30.0, 6000))
+        self.assertEqual(len(a), 100)
+        self.assertNotEqual(a, VL.draw_items("gaze", "run_x", frames, 30.0, 6000))
+        self.assertTrue(all(100 <= x["frame"] < 5000 for x in a))
+
+    def test_clips_and_event_windows_stay_inside_the_video(self):
+        for x in VL.draw_items("repetition", "r", np.arange(0, 600), 30.0, 600):
+            self.assertLessEqual(x["end_s"], 20.0)
+            self.assertAlmostEqual(x["end_s"] - x["time_s"], 10.0, places=2)
+        w = VL.draw_items("tool_pickup", "r", np.arange(0, 9000), 30.0, 9000)
+        self.assertEqual(len(w), 1)
+        self.assertAlmostEqual(w[0]["end_s"] - w[0]["time_s"], 120.0, places=2)
+
+    def test_labels_are_per_user_and_replace_the_old_answer(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = VL.label_path(Path(d), "run_x", "gaze", "asel")
+            q = VL.label_path(Path(d), "run_x", "gaze", "kazi")
+            it = {"item": 3, "frame": 90, "time_s": 3.0}
+            VL.save_item(p, it, "left", "asel")
+            VL.save_item(p, it, "front", "asel")
+            VL.save_item(q, it, "right", "kazi")
+            self.assertEqual([r["value"] for r in VL.read(p)], ["front"])
+            self.assertEqual([r["value"] for r in VL.read(q)], ["right"])
+
+    def test_a_label_needs_a_real_account(self):
+        for bad in (None, "interface", "../x", "A B"):
+            with self.assertRaises(ValueError):
+                VL.check_user(bad)
+
+    def test_marks(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = VL.label_path(Path(d), "r", "tool_pickup", "asel")
+            win = {"item": 0, "frame": 300, "time_s": 10.0, "end_s": 130.0}
+            VL.add_mark(p, 50.0, win, 30.0, "asel")
+            VL.add_mark(p, 20.0, win, 30.0, "asel")
+            self.assertEqual([float(r["time_s"]) for r in VL.read(p)], [20.0, 50.0])
+            with self.assertRaises(ValueError):
+                VL.add_mark(p, 5.0, win, 30.0, "asel")
+            VL.remove_last_mark(p)
+            self.assertEqual([float(r["time_s"]) for r in VL.read(p)], [50.0])
+
+    def test_clip_class_rules(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = VL.clip_path(Path(d), "kazi")
+            VL.save_clip(p, "a.mp4", ["X", "Y"], "X", None, None, 10.0, "kazi")
+            VL.save_clip(p, "a.mp4", ["X", "Y"], "X", "Y", 4.0, 10.0, "kazi")
+            self.assertEqual([(r["class"], r["second_class"], r["change_s"]) for r in VL.read(p)], [("X", "Y", "4.0")])
+            for bad in (("Z", None, None), ("X", "X", 4.0), ("X", "Y", None), ("X", "Y", 11.0)):
+                with self.assertRaises(ValueError):
+                    VL.save_clip(p, "a.mp4", ["X", "Y"], bad[0], bad[1], bad[2], 10.0, "kazi")
 
 
 if __name__ == "__main__":

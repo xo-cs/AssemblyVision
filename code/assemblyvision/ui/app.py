@@ -61,7 +61,7 @@ STAGE_NAMES = {"ingest": "Ingest", "shots": "Shots", "reference": "Reference fra
                "tracking": "Tracking", "vlm_scores": "Phase scores (VLM)", "siglip_scores": "Phase scores (SigLIP)",
                "segmentation": "Steps", "metrics": "Motion metrics", "overlay": "Overlay video",
                "body3d": "3D body", "eval": "Evaluation"}
-PAGES = (("new", "New analysis"), ("results", "Results"), ("runs", "Runs"), ("live", "Live"))
+PAGES = (("new", "New analysis"), ("results", "Results"), ("runs", "Runs"), ("live", "Live"), ("labels", "Labels"))
 UI_DIR = Path(__file__).resolve().parent
 NO_LABELS = "No hand labels for this video, so accuracy cannot be scored."
 
@@ -986,6 +986,7 @@ class GradioApp:
         # matplotlib and its font list load once here, not on the first Results view
         from .charts import _plt
         from .live_tab import build_live_tab
+        from .labels_tab import build_labels_tab
         _plt()
         # delete_cache: every hour, Gradio's temp files older than a day are removed
         with gr.Blocks(title="AssemblyVision", theme=_theme(gr), css=css, js=js, analytics_enabled=False,
@@ -1131,6 +1132,10 @@ class GradioApp:
                         # --- Live ---------------------------------------------------------
                         with gr.Tab("Live", id="live"), gr.Column(elem_classes=["av-page"]):
                             live_load, live_out = build_live_tab(self, gr, job, job_timer, server)
+
+                        # --- Labels (hand labels for validation) ---------------------------
+                        with gr.Tab("Labels", id="labels"), gr.Column(elem_classes=["av-page"]):
+                            build_labels_tab(self, gr)
             server_timer = gr.Timer(5.0)
 
             def goto(key: str) -> list:
