@@ -116,6 +116,19 @@ Findings:
 
 Conclusion: B zero shot meets both critical gates on QiSens: frame accuracy median 93.40 (92.97 to 93.40) and 270.62 s for the full run.
 
+### w11-qisens-milestones
+
+QiSens runs of the Results list, to show the progress: the flagship rescored and labelled copies with another step engine (tools/milestone_run.py). Run by Khurshid on 2026-11-21, approved summary numbers only; everything else stays under the QiSens data area. Only the numbers Khurshid reported are listed.
+
+| label | run | keypoints | frame acc | edit | F1@10 | F1@25 | F1@50 | MAE s |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Engine A (YOLO26 l) | run_20261121_051330_0511 (from run_20261025_053609_fd62) | YOLO26 l | 75.02 | - | - | - | - | - |
+| Engine B v1 | run_20261121_051432_2d75 (from run_20261108_133251_1550) | YOLO26 x | 67.26 | - | - | - | - | - |
+| Engine B v2 | run_20261121_051535_b39e (from run_20261108_133251_1550) | YOLO26 x | 52.50 | - | - | - | - | - |
+| Engine B zero shot (flagship) | run_20261108_133251_1550, rescored in place | YOLO26 x | 93.20 | 100 | 100 | 100 | 100 | 8.09 |
+
+The three milestone scores equal the recorded results of those engines (w10-qisens-l-replica, w10-qisens-engine-b-v1, w10-qisens-engine-b-v2), and the flagship equals the 93.20 of w11-qisens-zero-shot. The labels and scores of the Results list are in docs_team/featured_runs.toml.
+
 ### w11-qisens-zero-shot
 
 QiSens, zero shot phase scoring (SigLIP 2 and Qwen3 VL 8B, rule w11-zero-shot) and visual Engine B v3 (rule w11-visual-engine-b), blind. Approved summary numbers only (2026-11-13); everything else stays under the QiSens data area.

@@ -44,14 +44,15 @@ class CuratedRunsTest(unittest.TestCase):
             m = json.loads((root / "public/runs/run_20260108_000000_cdcd/manifest.json").read_text())
             m["milestone"]["hidden"] = True
             (root / "public/runs/run_20260108_000000_cdcd/manifest.json").write_text(json.dumps(m))
-            fe = {"qisens": [{"id": "run_20260101_000000_aaaa", "label": "Flagship"}], "public": {"max_videos": 10}}
+            fe = {"qisens": [{"id": "run_20260101_000000_aaaa", "label": "Flagship", "score": 93.2}], "public": {"max_videos": 10}}
             app = GradioApp(cfg, ["qisens", "public"], repo_root=root)
             with mock.patch.object(GradioApp, "featured", return_value=fe):
                 ids = [x["run_id"] for x in app.curated_runs()]
                 labels = {x["run_id"]: x["label"] for x in app.curated_runs()}
                 self.assertEqual(set(ids), {"run_20260101_000000_aaaa", "run_20260103_000000_cccc",
                                             "run_20260105_000000_eeee", "run_20260107_000000_abab"})
-                self.assertTrue(labels["run_20260101_000000_aaaa"].startswith("Flagship"))
+                self.assertTrue(labels["run_20260101_000000_aaaa"].startswith("Flagship · 93.2 %"))
+                self.assertEqual(ids[0], "run_20260101_000000_aaaa")
                 self.assertIn("[3D]", labels["run_20260105_000000_eeee"])
                 hidden = "run_20260106_000000_ffff"
                 self.assertIn(hidden, [v for _, v in app.run_choices(hidden)])      # the shown run is always a choice

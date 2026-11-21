@@ -248,7 +248,8 @@ class GradioApp:
         most [public] max_videos videos, preferred videos first. Only finished runs with steps and an
         overlay video."""
         fe = self.featured()
-        pinned = {x["id"]: x.get("label", "") for x in fe.get("qisens", [])}
+        pinned = {x["id"]: x for x in fe.get("qisens", [])}
+        order = {k: i for i, k in enumerate(pinned)}
         runs = [r for r in self.store.list_runs() if r.get("has_steps") and r.get("status") in ("done", "partial")]
         out, public = [], {}
         for r in runs:
@@ -262,9 +263,10 @@ class GradioApp:
             if (m.get("milestone") or {}).get("hidden"):        # a test copy (rule w11-scene4d-quality)
                 continue
             if r["source"] == "qisens":
-                label = pinned.get(rid) or (m.get("milestone") or {}).get("label")
+                label = pinned.get(rid, {}).get("label") or (m.get("milestone") or {}).get("label")
                 if label:
-                    out.append({"run_id": rid, "label": label, "sort": (0, rid)})
+                    out.append({"run_id": rid, "label": label, "score": pinned.get(rid, {}).get("score"),
+                                "sort": (0, order.get(rid, len(order)), rid)})
             else:
                 badges = self.run_badges(rid)
                 key = ("4D" in badges, "3D" in badges, "Eval" in badges, rid)
@@ -278,6 +280,10 @@ class GradioApp:
             out.append({"run_id": r["run_id"], "label": video, "sort": (1, len(out))})
         for x in out:
             rid = x["run_id"]
+            if x.get("score") is not None:              # a pinned run: its label and recorded score as they are
+                badges = self.run_badges(rid)
+                x["label"] = f"{x['label']} · {x['score']:.1f} %" + (f"  [{' '.join(badges)}]" if badges else "")
+                continue
             ev = self.run_eval(rid)
             score = f"{ev['metrics']['frame_accuracy']:.1f} %" if ev and ev.get("metrics", {}).get("frame_accuracy") is not None else ""
             engine = self.run_engine(rid)

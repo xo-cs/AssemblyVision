@@ -1,9 +1,26 @@
 # Runs the Results list shows (ui/app.py curated_runs). Every run folder stays on disk; the Runs page has
 # a "show all runs" switch. QiSens: only these pinned runs and every milestone copy (tools/milestone_run.py,
-# labelled by its --label). Labels get the step engine's score (from the linked hand labels) and badges.
+# labelled by its --label). A pinned run with a score shows that recorded frame accuracy (experiments/w10_summary.md,
+# w11-qisens-milestones); other runs get the score from the linked hand labels. Listed in this order, with badges.
 [[qisens]]
 id = "run_20261108_133251_1550"
 label = "Engine B zero shot (flagship)"
+score = 93.20
+
+[[qisens]]
+id = "run_20261121_051330_0511"
+label = "Engine A (YOLO26 l)"
+score = 75.02
+
+[[qisens]]
+id = "run_20261121_051432_2d75"
+label = "Engine B v1"
+score = 67.26
+
+[[qisens]]
+id = "run_20261121_051535_b39e"
+label = "Engine B v2"
+score = 52.50
 
 [public]
 max_videos = 10              # one run per video: the one with the most output (4D, 3D, Eval), then the newest
