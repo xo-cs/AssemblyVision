@@ -52,9 +52,11 @@ def main(argv: list[str] | None = None) -> int:
             jobs.append((root, "qisens"))
         else:
             ikea = {v: k for k, v in json.loads(ikea_runs.read_text()).items()}
-            if root.name not in ikea:
-                p.error("a public run must be an IKEA ASM run (derived/runs.json)")
-            jobs.append((root, "ikea_asm:" + ikea[root.name].split("/")[0]))
+            if root.name in ikea:
+                jobs.append((root, "ikea_asm:" + ikea[root.name].split("/")[0]))
+            else:                               # another public run: the phase set its full run used
+                stored = json.loads((root / "manifest.json").read_text())["config"]
+                jobs.append((root, stored.get("zero_shot", {}).get("phases", zs["phases"])))
     else:
         for vid, rid in sorted(json.loads(ikea_runs.read_text()).items()):
             furn = vid.split("/")[0]
