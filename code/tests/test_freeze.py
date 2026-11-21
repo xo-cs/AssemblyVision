@@ -9,7 +9,10 @@ from assemblyvision.analysis import clip_classes as C
 from assemblyvision.analysis import zero_shot as Z
 from assemblyvision.storage.files import REPO_ROOT
 from assemblyvision.tools import freeze as F
+from assemblyvision.evaluation import metrics as M
 from assemblyvision.tools import train_domain as T
+from assemblyvision.tools import validate_seg as V
+from assemblyvision.types import Step
 
 
 def cumulative(labels, K, good=0.0, bad=-3.0):
@@ -130,6 +133,26 @@ class TrainDomainTest(unittest.TestCase):
         items, info = T.clip_items(ll, 10.0, lab, ["A", "B"])
         self.assertEqual(items, [("B", "B"), ("A", "A")])
         self.assertEqual(info["change_s"], 4.0)
+
+
+class ValidateSegTest(unittest.TestCase):
+    def test_tables(self):
+        gt = [Step("A", 2.0, 6.0, "gt"), Step("B", 6.0, 10.0, "gt")]
+        pred = [Step("A", 2.0, 7.0, "x"), Step("B", 7.0, 10.0, "x")]
+        p, g = M.frames_from_steps(pred, 10.0, 10.0), M.frames_from_steps(gt, 10.0, 10.0)
+        cm = V.confusion(p, g, ["other", "A", "B"])
+        self.assertEqual(cm.tolist(), [[20, 0, 0], [0, 40, 0], [0, 10, 30]])
+        per = V.per_class(cm, ["other", "A", "B"])
+        self.assertEqual((per["A"]["precision"], per["B"]["recall"]), (80.0, 75.0))
+        rows = V.boundary_errors(pred, gt, 10.0)
+        self.assertEqual([(r["between"], r["error_s"]) for r in rows],
+                         [("start of A", 0.0), ("end of A = start of B", 1.0)])
+
+    def test_agreement_pairs_each_phase(self):
+        a = [Step("A", 1.0, 5.0, "x"), Step("B", 6.0, 10.0, "x")]
+        b = [Step("A", 2.0, 5.0, "x"), Step("B", 5.0, 10.0, "x")]             # another number of distinct boundaries
+        r = V.agreement(a, b, 10.0, 10.0)
+        self.assertEqual((r["boundaries"], r["max_boundary_difference_s"], r["mean_boundary_difference_s"]), (3, 1.0, 0.67))
 
 
 if __name__ == "__main__":
