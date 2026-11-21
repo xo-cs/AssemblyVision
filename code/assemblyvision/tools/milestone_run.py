@@ -47,7 +47,7 @@ def link_tree(src: Path, dst: Path) -> int:
     return n
 
 
-def make_copy(src: Path, label: str, sets: list[str]) -> Path:
+def make_copy(src: Path, label: str, sets: list[str], hidden: bool = False) -> Path:
     rid = new_run_id()
     dst = src.parent / rid
     dst.mkdir()
@@ -65,6 +65,8 @@ def make_copy(src: Path, label: str, sets: list[str]) -> Path:
     m.pop("worker", None)
     m.pop("eval", None)
     m["milestone"] = {"label": label, "copied_from": src.name, "sets": sets, "created_utc": utc_now(), "files_linked": n}
+    if hidden:                                       # a test copy: not in the Results list (Runs page, show all runs)
+        m["milestone"]["hidden"] = True
     m["status"] = "done"
     (dst / "manifest.json").write_text(json.dumps(m, indent=2))
     return dst
@@ -77,9 +79,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--set", action="append", default=[], metavar="SECTION.KEY=VALUE")
     p.add_argument("--config", action="append", type=Path, default=[])
     p.add_argument("--gt", type=Path)
+    p.add_argument("--hidden", action="store_true", help="a test copy, not listed in Results")
     args = p.parse_args(argv)
     _, src = run_source(args.run, Config.load()["paths"])
-    dst = make_copy(src, args.label, args.set)
+    dst = make_copy(src, args.label, args.set, args.hidden)
     cmd = [sys.executable, "-m", "assemblyvision.tools.run_pose", "--run", str(dst),
            "--stages", "segmentation,metrics,overlay" + (",eval" if args.gt else ""),
            "--set", 'overlay.encoder="libx264"', *sum((["--set", s] for s in args.set), []),

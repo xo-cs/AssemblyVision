@@ -228,7 +228,7 @@ half = false                 # true: FP16 on the GPU
 [zero_shot]
 # Zero shot phase scores (Week 11, analysis/zero_shot.py): a full run makes siglip.npz and vlm.npz when the
 # step engine uses them (seg_a.siglip_weight, siglip_crop_weight or vlm_weight > 0, e.g. "B zero shot")
-phases = "qisens"            # phase descriptions: "qisens" (docs_team/phase_descriptions.md) or "ikea_asm:<furniture>"
+phases = "qisens"            # phase descriptions: "qisens" (docs_team/phase_descriptions.md), "ikea_asm:<furniture>" or "file:<path>"
 in_pipeline = true           # false: the run reads the files made by tools/siglip_scores.py and vlm_scores.py
 siglip_fps = 1.0             # SigLIP 2 samples per second (full frame and subject crop; w11-siglip-speed, 2.0 before)
 siglip_max_px = 1280         # long side of the sampled frames (px)

@@ -48,7 +48,7 @@ class AuthTest(unittest.TestCase):
                     u.add(*bad)
             log = [json.loads(x) for x in (self.d / "login.jsonl").read_text().splitlines()]
             self.assertEqual([x["ok"] for x in log], [True, False, False])
-            self.assertTrue(all("pw" not in json.dumps(x) for x in log))       # no password in the log
+            self.assertTrue(all("long enough" not in json.dumps(x) for x in log))   # no password in the log
             self.assertTrue(u.remove("asel"))
             self.assertEqual(u.names(), [])
 

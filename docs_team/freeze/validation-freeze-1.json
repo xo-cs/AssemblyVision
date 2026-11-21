@@ -1,0 +1,34 @@
+{
+ "tag": "validation-freeze-1",
+ "written_utc": "2026-11-21T08:22:12Z",
+ "files": {
+  "code/configs/default.toml": "2bddb52d5789ab866d4fedc069856e6b629bfa2b19acc1a48f67187e4b726afb",
+  "code/configs/live/floor_pick.toml": "cee37d6375492d8aaac4a127ea1309b36862e3a39a5c4000e4e7ebc28b87b8e6",
+  "code/configs/live/side_work.toml": "6a53f2e6e40e4d01afbe6349559a78f08afc9d0b89c712b43aff0b4a2beb0b8d",
+  "code/configs/live/workbench.toml": "3560504f5effa4786907d3dfb9f4c0a7086236fcd088f0010f8ae8fca33fcf01",
+  "code/configs/reference.toml": "806a3b8ac1e2e50541b724f588d4efa7f9800d0c0f740a793e386a7fef836a41",
+  "code/configs/speed_proposed.toml": "3a4a407bde0adbea990c7da1e84c741d1bc182e780056afc58556f064a10599e",
+  "code/configs/steps.toml": "9bcaa3a10953668de1c882cda2111a2301821a64100ff9ddb4e40985878511cc",
+  "code/requirements-ci.lock": "1886cdc9a7eeff97b820b5b0c9746a6900f39dc699c5ca39dc692301db2d6fc8",
+  "code/requirements-pinned.txt": "cc0fc84a439db4261630dfd6fc0f7fd8ed334ac65a6858212ec971a03093086f",
+  "docs_team/phase_descriptions.md": "aa765795eb123c2fd424da7ded86eb9727c17de3a77f3835fa693130a8d5ff9e",
+  "docs_team/phase_descriptions_ikea_asm.md": "4a8c93297bbfa6446590565b1434747a61519700bcc333aca8a336033e974791",
+  "docs_team/phase_descriptions_other.md": "488655ffe8df9d36731e5a8eeb4da49184b4ada858e7291733a5443fb779bb79"
+ },
+ "models": {
+  "models/yolo26x-pose.pt": "08ed9e01d22a6f248b04f2f9992016aca9a32250b9ab57057d886a09d026700d",
+  "models/yolo26l-pose.pt": "ad33da8a29ea5772318c4c980844e47b56792d2b63815ad4e8e09c078c7d1abf",
+  "models/engine_b/w10-engine-b-v1.pt": "9e8f18f2103bd17be4d23701d627d809059ba4da06bc7ebebb47d46940573fe9",
+  "models/engine_b/w10-engine-b-v2.pt": "d40625bfc2e5afc7d6c9eac3db97094780f62f04f211c6aebbf859ce07d639ec",
+  "models/Qwen3VL-8B-Instruct-Q4_K_M.gguf": "67d1659bfe71b89d50b45a4ad1a9e5b997e5bb16ce5da66a6a6167abd569e9e2",
+  "models/mmproj-Qwen3VL-8B-Instruct-F16.gguf": "ca524100ebf825c9a870db1c580d03879e0da0ab2541697e2458e64891cf9d38",
+  "models/siglip2/so400m-patch14-384/config.json": "73477b47ae9a395f008f993ebd8fb5c16ce0b5e8419ffdf2f5b2183b260f9cff",
+  "models/siglip2/so400m-patch14-384/model.safetensors": "9f4f4a49f908ef0c979bce8ff5a5c0e88882dc6c5dc4304387cbbd152558e2c2",
+  "models/siglip2/so400m-patch14-384/preprocessor_config.json": "fb2817d3523ca3b666c859f15320c7138416bc38ffc515e2963f78c868c51c90",
+  "models/siglip2/so400m-patch14-384/special_tokens_map.json": "baec30ea10906f16adb8c18af7a34023002c1746542612b8b41c9f09e1351351",
+  "models/siglip2/so400m-patch14-384/tokenizer.json": "cb9140fae3ac5122c972d37adf83e1248471a38147ad76f8215c8872c6fd8322",
+  "models/siglip2/so400m-patch14-384/tokenizer.model": "61a7b147390c64585d6c3543dd6fc636906c9af3865a5548f27f31aee1d4c8e2",
+  "models/siglip2/so400m-patch14-384/tokenizer_config.json": "14afe629fe4959b9e0d51e1852b8d9f7ad074f90a1a7125a4fcdd17f06e78fc8",
+  "models/scene4d/pi3/model.safetensors": "33580e4702ac671558aedeab1148fd08118f7ce45bdbeb99f3e3cf340062875d"
+ }
+}

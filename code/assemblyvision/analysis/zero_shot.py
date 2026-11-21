@@ -2,7 +2,8 @@
 
 Used by tools/siglip_scores.py, tools/vlm_scores.py and the full pipeline run
 (tools/run_pose.py). The phase set comes from [zero_shot] phases: "qisens"
-(docs_team/phase_descriptions.md) or "ikea_asm:<furniture>". Both stages write only
+(docs_team/phase_descriptions.md), "ikea_asm:<furniture>" or "file:<path>" (a descriptions
+file of the same format, relative to the repository, for the public train domain test). Both stages write only
 scores into the run folder (siglip.npz, vlm.npz); a QiSens run's files stay under
 data/qisens. In a full run the VLM runs in a thread on its own GPU (zero_shot.vlm_gpu,
 under .locks/gpu<N>.lock) during the pose pass; SigLIP runs on the pose GPU after
@@ -22,22 +23,30 @@ import numpy as np
 from ..storage.files import REPO_ROOT, utc_now
 
 PROCESS = {"qisens": "a video of a worker maintaining a railway vehicle (bogie maintenance) in a workshop",
-           "ikea": "a top view video of a person assembling an IKEA {name}"}
+           "ikea": "a top view video of a person assembling an IKEA {name}",
+           "file": "a video of workers doing railway maintenance"}
 IKEA_NAMES = {"Kallax_Shelf_Drawer": "Kallax shelf drawer", "Lack_TV_Bench": "Lack TV bench",
               "Lack_Coffee_Table": "Lack coffee table", "Lack_Side_Table": "Lack side table"}
 
 
-def other_class(name: str) -> dict:
-    """The "other" class (docs_team/phase_descriptions_other.md) of a phase set name."""
+def other_class(name: str) -> dict | None:
+    """The "other" class (docs_team/phase_descriptions_other.md) of a phase set name; a "file:" set has none."""
     from . import phase_text as pt
+    if name.startswith("file:"):
+        return None
     return pt.other("qisens" if name == "qisens" else "ikea_asm")
 
 
 def phase_set(name: str) -> tuple[list[dict], str, str]:
-    """(phases, process text of the VLM prompt, label) of "qisens" or "ikea_asm:<furniture>"."""
+    """(phases, process text of the VLM prompt, label) of "qisens", "ikea_asm:<furniture>" or "file:<path>"."""
     from . import phase_text as pt
     if name == "qisens":
         return pt.phases("qisens"), PROCESS["qisens"], "qisens"
+    if name.startswith("file:"):
+        path = (REPO_ROOT / name[5:]).resolve()
+        if not path.is_relative_to(REPO_ROOT / "data/public") and not path.is_relative_to(REPO_ROOT / "docs_team"):
+            raise ValueError(f"zero_shot.phases {name!r}: the file must be under data/public or docs_team")
+        return pt.parse(path)[None], PROCESS["file"], path.stem
     ds, _, furn = name.partition(":")
     if ds != "ikea_asm" or furn not in IKEA_NAMES:
         raise ValueError(f"zero_shot.phases {name!r}: \"qisens\" or \"ikea_asm:<furniture>\"")

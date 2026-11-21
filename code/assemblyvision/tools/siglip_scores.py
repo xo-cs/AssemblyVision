@@ -33,6 +33,7 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--dataset", choices=("ikea_asm",))
     p.add_argument("--gpu", type=int, default=0)
     p.add_argument("--force", action="store_true")
+    p.add_argument("--fps", type=float, help="samples per second (default zero_shot.siglip_fps)")
     p.add_argument("--furniture", help="ikea_asm: only this furniture type")
     p.add_argument("--other", action="store_true", help="only add the \"other\" class to existing files")
     args = p.parse_args(argv)
@@ -43,7 +44,9 @@ def main(argv: list[str] | None = None) -> int:
     from ..config import Config
     from .visual_embed import take_lock
     cfg = Config.load()
-    zs = cfg["zero_shot"]
+    zs = dict(cfg["zero_shot"])
+    if args.fps is not None:
+        zs["siglip_fps"] = args.fps
     jobs = []                                   # (run root, phase set)
     ikea_runs = REPO_ROOT / "data/public/datasets/ikea_asm/derived/runs.json"
     if args.run is not None:
