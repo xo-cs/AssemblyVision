@@ -8,6 +8,7 @@ import numpy as np
 from assemblyvision.analysis import clip_classes as C
 from assemblyvision.analysis import zero_shot as Z
 from assemblyvision.storage.files import REPO_ROOT
+from assemblyvision.tools import check_outputs as CO
 from assemblyvision.tools import freeze as F
 from assemblyvision import validation_labels as VL
 from assemblyvision.evaluation import metrics as M
@@ -247,6 +248,23 @@ class ValidationLabelsTest(unittest.TestCase):
             for bad in (("Z", None, None), ("X", "X", 4.0), ("X", "Y", None), ("X", "Y", 11.0)):
                 with self.assertRaises(ValueError):
                     VL.save_clip(p, "a.mp4", ["X", "Y"], bad[0], bad[1], bad[2], 10.0, "kazi")
+
+
+class FloorPathTest(unittest.TestCase):
+    def test_path_is_per_phase_and_never_jumps_between_parts(self):
+        n = 60
+        j = np.zeros((n, 17, 3))
+        j[:, [11, 12], 0] = (np.arange(n) / 30.0)[:, None]                  # 1 m/s along x, for 2 s
+        far = j + np.array([100.0, 0, 0])                                   # another part, another world frame
+        pieces = [{"frames": np.arange(n), "joints": j}, {"frames": np.arange(n, 2 * n), "joints": far}]
+        steps = [{"label": "other", "start_s": 0.0, "end_s": 0.5}, {"label": "A", "start_s": 0.0, "end_s": 4.0}]
+        r = CO.floor_path(pieces, steps, 30.0)
+        self.assertEqual(len(r), 1)
+        self.assertAlmostEqual(r[0]["path_m"], 2 * 59 / 30.0, places=2)
+        self.assertEqual((r[0]["parts"], r[0]["coverage"]), (2, 1.0))
+
+    def test_a_phase_without_body3d(self):
+        self.assertIsNone(CO.floor_path([], [{"label": "A", "start_s": 0.0, "end_s": 1.0}], 30.0)[0]["path_m"])
 
 
 if __name__ == "__main__":
