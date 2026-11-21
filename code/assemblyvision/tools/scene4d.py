@@ -1,7 +1,7 @@
 """The scene4d stage on a stored run (Week 11; assemblyvision/scene4d, Pi3 in envs/scene4d).
 
     source ~/AssemblyVision/av.sh && cd ~/AssemblyVision/code
-    python -m assemblyvision.tools.scene4d --run RUN_DIR [--gpu 0]
+    python -m assemblyvision.tools.scene4d --run RUN_DIR [--gpu 0] [--redo]
 
 Writes RUN_DIR/scene4d/<shot_id>_p<k>.npz (the scene, the person, cameras), .align.json (the GVHMR
 skeleton in the scene, when body3d ran first), .player.bin/.json (for the Heatmap page) and summary.json; a QiSens run's files stay under data/qisens. No frame is written. Takes
@@ -22,6 +22,7 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="python -m assemblyvision.tools.scene4d")
     p.add_argument("--run", type=Path, required=True)
     p.add_argument("--gpu", type=int, help="default scene4d.gpu")
+    p.add_argument("--redo", action="store_true", help="make the 4D again; the old output is kept as scene4d.v<N>")
     args = p.parse_args(argv)
     from .. import scene4d as B
     from .visual_embed import take_lock
@@ -35,6 +36,11 @@ def main(argv: list[str] | None = None) -> int:
     gpu = cfg["scene4d"]["gpu"] if args.gpu is None else args.gpu
     lock = take_lock(gpu)
     try:
+        if args.redo and (root / "scene4d").is_dir():
+            n = 1
+            while (root / f"scene4d.v{n}").exists():
+                n += 1
+            (root / "scene4d").rename(root / f"scene4d.v{n}")
         s = B.run(root, manifest, cfg, gpu)
     except RuntimeError as e:
         print(str(e), file=sys.stderr)

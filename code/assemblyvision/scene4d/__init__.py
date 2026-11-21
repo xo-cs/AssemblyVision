@@ -27,10 +27,13 @@ PI3 = REPO_ROOT / "third_party" / "Pi3"
 MODELS = {"pi3": ("Pi3 (yyfz233/Pi3, BSD-2-Clause)", "Hugging Face yyfz233/Pi3", PI3 / "pi3"),
           "pi3x": ("Pi3X (yyfz233/Pi3X, CC BY-NC 4.0)", "Hugging Face yyfz233/Pi3X", PI3 / "pi3"),
           "vggt": ("VGGT-1B (facebook/VGGT-1B, CC BY-NC 4.0)", "Hugging Face facebook/VGGT-1B",
-                   REPO_ROOT / "third_party" / "vggt" / "vggt")}
+                   REPO_ROOT / "third_party" / "vggt" / "vggt"),
+          "fusion": ("Fusion of Pi3 and VGGT-1B (CC BY-NC 4.0, rule w11-scene4d-fusion)", "", None)}
 
 
 def missing(model: str = "pi3") -> list[str]:
+    if model == "fusion":
+        return sorted(set(missing("pi3") + missing("vggt")))
     out = []
     if not PYTHON.is_file():
         out.append("the env envs/scene4d")

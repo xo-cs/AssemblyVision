@@ -82,6 +82,22 @@ class Scene4dTest(unittest.TestCase):
         self.assertEqual(len(P), 1)
         self.assertEqual(C.dtype, np.uint8)
 
+    def test_fusion_rule(self):
+        try:
+            import scipy  # noqa: F401                                     # in envs/scene4d only
+        except ImportError:
+            self.skipTest("scipy is in envs/scene4d")
+        def vox(ijk, depth, rank, frames):
+            ijk = np.array(ijk)
+            return {"ijk": ijk, "pts": ijk.astype(float), "col": np.full((len(ijk), 3), 9), "depth": np.array(depth, float),
+                    "rank": np.array(rank, float), "frames": np.array(frames)}
+        a = vox([[0, 0, 0], [5, 5, 5], [9, 9, 9], [20, 0, 0], [30, 0, 0]], [10, 10, 10, 10, 10], [.5, .9, .2, .9, .9], [3, 3, 3, 3, 1])
+        b = vox([[0, 0, 1], [5, 5, 6]], [10.1, 12], [.5, .1], [3, 3])
+        P, _, n = W.fuse_voxels(a, b)
+        kept = {tuple(x) for x in P.astype(int).tolist()}
+        self.assertEqual(kept, {(0, 0, 0), (0, 0, 1), (5, 5, 5), (20, 0, 0)})     # agree; surer of two apart; sure solo
+        self.assertEqual((n["agree"], n["apart"], n["solo_kept"]), ([1, 1], [1, 1], [1, 0]))
+
     def test_skeleton_alignment(self):
         J = walking(60)
         s, R, t = 3.0, rot(40), np.array([0.5, 1.0, 2.0])

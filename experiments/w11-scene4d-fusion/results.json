@@ -1,0 +1,128 @@
+{
+ "results": {
+  "pi3": {
+   "model": "Pi3 (yyfz233/Pi3, BSD-2-Clause)",
+   "copy": "run_20261121_060057_92cc",
+   "chunk": 80,
+   "peak_mb": 10068,
+   "fixed_s_per_video_min": 283.2,
+   "fixed_bg_points": 120291,
+   "fixed_coverage": 0.4541,
+   "fixed_holes": 0.4977,
+   "fixed_rot_deg": 1.13,
+   "fixed_bg_spread": 0.0308,
+   "fixed_cloud_noise": 0.00055,
+   "handheld_s_per_video_min": 321.7,
+   "handheld_bg_points": 132227,
+   "handheld_coverage": 0.6454,
+   "handheld_holes": 0.3474,
+   "coverage": 0.5497,
+   "holes": 0.4225,
+   "s_per_video_min": 321.7
+  },
+  "vggt": {
+   "model": "VGGT-1B (facebook/VGGT-1B, CC BY-NC 4.0)",
+   "copy": "run_20261121_060502_a9f0",
+   "chunk": 80,
+   "peak_mb": 13956,
+   "fixed_s_per_video_min": 387.3,
+   "fixed_bg_points": 137450,
+   "fixed_coverage": 0.4697,
+   "fixed_holes": 0.3676,
+   "fixed_rot_deg": 0.93,
+   "fixed_bg_spread": 0.0272,
+   "fixed_cloud_noise": 0.00059,
+   "handheld_s_per_video_min": 288.8,
+   "handheld_bg_points": 144255,
+   "handheld_coverage": 0.8391,
+   "handheld_holes": 0.0001,
+   "coverage": 0.6544,
+   "holes": 0.1838,
+   "s_per_video_min": 387.3
+  },
+  "fusion": {
+   "model": "Fusion of Pi3 and VGGT-1B (CC BY-NC 4.0, rule w11-scene4d-fusion)",
+   "copy": "run_20261121_060930_4c11",
+   "chunk": 80,
+   "peak_mb": 13956,
+   "fixed_s_per_video_min": 383.1,
+   "fixed_bg_points": 135640,
+   "fixed_fusion": {
+    "agree": [
+     277464,
+     330871
+    ],
+    "apart": [
+     192,
+     355
+    ],
+    "solo_kept": [
+     123482,
+     181212
+    ],
+    "voxels": [
+     1082413,
+     1270059
+    ]
+   },
+   "fixed_coverage": 0.3974,
+   "fixed_holes": 0.4877,
+   "fixed_rot_deg": 1.13,
+   "fixed_bg_spread": 0.0399,
+   "fixed_cloud_noise": 0.00045,
+   "handheld_s_per_video_min": 419.2,
+   "handheld_bg_points": 105924,
+   "handheld_fusion": {
+    "agree": [
+     45060,
+     53336
+    ],
+    "apart": [
+     0,
+     0
+    ],
+    "solo_kept": [
+     120612,
+     125585
+    ],
+    "voxels": [
+     610106,
+     506661
+    ]
+   },
+   "handheld_coverage": 0.4455,
+   "handheld_holes": 0.1786,
+   "coverage": 0.4214,
+   "holes": 0.3332,
+   "s_per_video_min": 419.2
+  }
+ },
+ "ranks": {
+  "pi3": {
+   "fixed_rot_deg": 2,
+   "fixed_bg_spread": 2,
+   "fixed_cloud_noise": 2,
+   "coverage": 2,
+   "holes": 3
+  },
+  "vggt": {
+   "fixed_rot_deg": 1,
+   "fixed_bg_spread": 1,
+   "fixed_cloud_noise": 3,
+   "coverage": 1,
+   "holes": 1
+  },
+  "fusion": {
+   "fixed_rot_deg": 2,
+   "fixed_bg_spread": 3,
+   "fixed_cloud_noise": 1,
+   "coverage": 3,
+   "holes": 2
+  }
+ },
+ "sums": {
+  "pi3": 11,
+  "vggt": 7,
+  "fusion": 11
+ }
+}

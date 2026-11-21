@@ -177,7 +177,7 @@ _RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "scene4d.overlap": (lambda v: 4 <= v <= 40, "4 to 40"),
     "scene4d.max_bg_points": (lambda v: 10000 <= v <= 190000, "10000 to 190000"),
     "scene4d.person_points": (lambda v: 100 <= v <= 10000, "100 to 10000"),
-    "scene4d.model": (lambda v: v in ("pi3", "pi3x", "vggt"), "pi3, pi3x or vggt"),
+    "scene4d.model": (lambda v: v in ("pi3", "pi3x", "vggt", "fusion"), "pi3, pi3x, vggt or fusion"),
     "scene4d.conf_drop": (lambda v: 0 <= v <= 0.9, "0 to 0.9"),
     "scene4d.edge_rtol": (lambda v: 0.005 <= v <= 1, "0.005 to 1"),
     "scene4d.voxel_div": (lambda v: 50 <= v <= 3000, "50 to 3000"),

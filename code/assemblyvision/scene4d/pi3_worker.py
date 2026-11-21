@@ -190,6 +190,80 @@ def chunked(model, frames: np.ndarray, chunk: int, overlap: int) -> dict:
     return {"pts": pts, "conf": conf, "c2w": c2w, "fits": fits}
 
 
+def chunked_onto(model, frames: np.ndarray, chunk: int, overlap: int, base: dict) -> dict:
+    """A second model on the same chunks, each chunk mapped directly onto the base part (chunked) by the
+    cameras of its frames, so the base cameras stay as they are (fusion, rule w11-scene4d-fusion)."""
+    S = len(frames)
+    pts = np.zeros(frames.shape[:3] + (3,), np.float32)
+    conf = np.zeros(frames.shape[:3], np.float32)
+    c2w = np.zeros((S, 4, 4), np.float32)
+    starts = [0] if S <= chunk else list(range(0, S - overlap, chunk - overlap))
+    done = 0
+    for a in starts:
+        b = min(S, a + chunk)
+        r = run_model(model, frames[a:b])
+        s, R, t = camera_sim3(r["c2w"], base["c2w"][a:b], r["pts"], base["pts"][a:b],
+                              (r["conf"] > 0.5) & (base["conf"][a:b] > 0.5))
+        T = np.eye(4)
+        T[:3, :3], T[:3, 3] = R, t
+        cw = r["c2w"].astype(np.float64)
+        cw[:, :3, 3] *= s
+        keep = slice(done - a, b - a)
+        pts[done:b] = (s * r["pts"][keep] @ R.T + t).astype(np.float32)
+        conf[done:b], c2w[done:b] = r["conf"][keep], (T @ cw)[keep].astype(np.float32)
+        done = b
+    return {"pts": pts, "conf": conf, "c2w": c2w}
+
+
+def voxel_stats(p: np.ndarray, c: np.ndarray, f: np.ndarray, q: np.ndarray, cams: np.ndarray, voxel: float,
+                origin: np.ndarray, dims: np.ndarray) -> dict:
+    """One model's points per voxel of a shared grid: index, mean point, median colour, mean distance to the
+    camera of the frame, mean confidence and its percentile (0..1), number of frames."""
+    ijk = np.floor((p - origin) / voxel).astype(np.int64)
+    key = ijk[:, 0] * dims[1] * dims[2] + ijk[:, 1] * dims[2] + ijk[:, 2]
+    u, inv, cnt = np.unique(key, return_inverse=True, return_counts=True)
+    inv = inv.ravel()
+    mean = lambda v: np.bincount(inv, weights=v, minlength=len(u)) / cnt
+    frames = np.bincount(np.unique(inv * (int(f.max()) + 1) + f) // (int(f.max()) + 1), minlength=len(u))
+    mid = np.r_[0, np.cumsum(cnt)[:-1]] + cnt // 2
+    conf = mean(q.astype(np.float64))
+    return {"ijk": np.stack([u // (dims[1] * dims[2]), (u // dims[2]) % dims[1], u % dims[2]], 1),
+            "pts": np.stack([mean(p[:, k]) for k in range(3)], 1),
+            "col": np.stack([c[np.lexsort((c[:, k], inv)), k][mid] for k in range(3)], 1),
+            "depth": mean(np.linalg.norm(p - cams[f], axis=1)), "conf": conf,
+            "rank": np.argsort(np.argsort(conf)) / max(len(conf) - 1, 1), "frames": frames}
+
+
+def fuse_voxels(a: dict, b: dict, tol: float = 0.02, solo_rank: float = 0.7) -> tuple[np.ndarray, np.ndarray, dict]:
+    """Rule w11-scene4d-fusion: keep voxels on which both models agree within tol of the depth; of two that
+    disagree the surer one (confidence percentile); a voxel seen by one model only if it is at or above
+    solo_rank of that model's confidences and seen in 2 or more frames. Returns (points, colours, counts)."""
+    from scipy.spatial import cKDTree
+
+    def side(x, y):
+        d, nn = cKDTree(y["ijk"]).query(x["ijk"], k=1, p=np.inf, distance_upper_bound=1.5)
+        has = np.isfinite(d)
+        j = np.where(has, nn, 0)
+        agree = has & (np.abs(x["depth"] - y["depth"][j]) <= tol * x["depth"])
+        surer = has & ~agree & (x["rank"] >= y["rank"][j])
+        solo = ~has & (x["rank"] >= solo_rank) & (x["frames"] >= 2)
+        return agree | surer | solo, int(agree.sum()), int((has & ~agree).sum()), int(solo.sum())
+    ka, agree_a, apart_a, solo_a = side(a, b)
+    kb, agree_b, apart_b, solo_b = side(b, a)
+    return (np.concatenate([a["pts"][ka], b["pts"][kb]]), np.concatenate([a["col"][ka], b["col"][kb]]),
+            {"agree": [agree_a, agree_b], "apart": [apart_a, apart_b], "solo_kept": [solo_a, solo_b],
+             "voxels": [len(ka), len(kb)]})
+
+
+def good_mask(job: dict, pts: np.ndarray, conf: np.ndarray, c2w: np.ndarray) -> np.ndarray:
+    """Per frame the most confident share of the pixels above an absolute floor, without depth edges."""
+    good = np.zeros_like(conf, bool)
+    for i in range(len(conf)):
+        thr = max(job.get("conf_min", 0.3), float(np.quantile(conf[i], job.get("conf_drop", 0.35))))
+        good[i] = (conf[i] >= thr) & ~edge_mask(pts[i], c2w[i, :3, 3], job.get("edge_rtol", 0.03))
+    return good
+
+
 def voxel_down(p: np.ndarray, c: np.ndarray, voxel: float, max_n: int, f: np.ndarray | None = None,
                min_frames: int = 1) -> tuple[np.ndarray, np.ndarray, float]:
     """Mean point and median colour per voxel; with f (the frame of each point) a voxel must be seen in
@@ -232,7 +306,18 @@ def run_piece(model, job: dict, piece: dict) -> dict:
     n, step = len(piece["boxes"]), int(job["step"])
     idx = list(range(0, n, step))
     frames = read_sampled(job["video"], piece["start"], idx, size)
-    r = chunked(model, frames, int(job["chunk"]), int(job["overlap"]))
+    second = None
+    if isinstance(model, dict):                                   # fusion: one model on the GPU at a time
+        m = model["pi3"].cuda()
+        r = chunked(m, frames, int(job["chunk"]), int(job["overlap"]))
+        m.cpu()
+        torch.cuda.empty_cache()
+        m = model["vggt"].cuda()
+        second = chunked_onto(m, frames, int(job["chunk"]), int(job["overlap"]), r)
+        m.cpu()
+        torch.cuda.empty_cache()
+    else:
+        r = chunked(model, frames, int(job["chunk"]), int(job["overlap"]))
     pts, conf, c2w = r["pts"], r["conf"], r["c2w"]
     S, h, w = conf.shape
     boxes = np.asarray(piece["boxes"], np.float64)[idx]
@@ -243,11 +328,7 @@ def run_piece(model, job: dict, piece: dict) -> dict:
             x0, x1 = int(max(0, (b[0] - pad) * sx)), int(min(w, (b[2] + pad) * sx + 1))
             y0, y1 = int(max(0, (b[1] - pad) * sy)), int(min(h, (b[3] + pad) * sy + 1))
             person[i, y0:y1, x0:x1] = True
-    # quality: per frame the most confident share of the pixels above an absolute floor, no depth edges
-    good = np.zeros_like(conf, bool)
-    for i in range(S):
-        thr = max(job.get("conf_min", 0.3), float(np.quantile(conf[i], job.get("conf_drop", 0.35))))
-        good[i] = (conf[i] >= thr) & ~edge_mask(pts[i], c2w[i, :3, 3], job.get("edge_rtol", 0.03))
+    good = good_mask(job, pts, conf, c2w)
     rng = np.random.default_rng(0)
     bg = good & ~person
     bp, bc = pts[bg], frames[bg]
@@ -256,15 +337,38 @@ def run_piece(model, job: dict, piece: dict) -> dict:
         sel = rng.choice(len(bp), 6_000_000, replace=False)
         bp, bc, bf = bp[sel], bc[sel], bf[sel]
     depth = float(np.median(np.linalg.norm(bp[::50] - c2w[0, :3, 3], axis=1))) if len(bp) else 1.0
-    bg_pts, bg_col, voxel = voxel_down(bp.astype(np.float64), bc.astype(np.float64), depth / job.get("voxel_div", 700),
-                                       int(job["max_bg"]), bf, 2 if S >= 4 else 1)
+    fusion = None
+    if second is None:
+        bg_pts, bg_col, voxel = voxel_down(bp.astype(np.float64), bc.astype(np.float64), depth / job.get("voxel_div", 700),
+                                           int(job["max_bg"]), bf, 2 if S >= 4 else 1)
+    else:
+        good2 = good_mask(job, second["pts"], second["conf"], second["c2w"])
+        bg2 = good2 & ~person
+        p2, c2, f2, q2 = second["pts"][bg2], frames[bg2], np.nonzero(bg2)[0], second["conf"][bg2]
+        q1 = conf[bg]
+        if len(q1) != len(bp):
+            q1 = q1[sel]
+        if len(p2) > 6_000_000:
+            sel2 = rng.choice(len(p2), 6_000_000, replace=False)
+            p2, c2, f2, q2 = p2[sel2], c2[sel2], f2[sel2], q2[sel2]
+        v0 = depth / job.get("voxel_div", 700)
+        lo = np.minimum(bp.min(0), p2.min(0)).astype(np.float64) - v0
+        dims = np.ceil((np.maximum(bp.max(0), p2.max(0)).astype(np.float64) - lo) / v0).astype(np.int64) + 2
+        a = voxel_stats(bp.astype(np.float64), bc.astype(np.int64), bf, q1, c2w[:, :3, 3].astype(np.float64), v0, lo, dims)
+        b = voxel_stats(p2.astype(np.float64), c2.astype(np.int64), f2, q2, c2w[:, :3, 3].astype(np.float64), v0, lo, dims)
+        P, C, fusion = fuse_voxels(a, b)
+        bg_pts, bg_col, voxel = voxel_down(P, C.astype(np.float64), v0, int(job["max_bg"]))
+    raw_s = 0.0
     bg_pts, bg_col, nn = drop_outliers(bg_pts, bg_col)
     med = float(np.median(nn)) if len(nn) else voxel
     bg_size = np.clip(nn * 1.6, 0.8 * med, 4 * med).astype(np.float32)          # point size: about the gap to the neighbours
     if job.get("raw_dir"):                                                    # rule tests only (tmp)
+        t_raw = time.monotonic()
         Path(job["raw_dir"]).mkdir(parents=True, exist_ok=True)
+        extra = {} if second is None else {"pts2": second["pts"].astype(np.float16), "conf2": second["conf"].astype(np.float16)}
         np.savez(Path(job["raw_dir"]) / f"{piece['name']}.npz", pts=pts.astype(np.float16),
-                            conf=conf.astype(np.float16), c2w=c2w, person=person, good=good, imgs=frames)
+                 conf=conf.astype(np.float16), c2w=c2w, person=person, good=good, **extra)
+        raw_s = time.monotonic() - t_raw
     P = int(job["person_pts"])
     pp = np.full((S, P, 3), np.nan, np.float16)
     pc = np.zeros((S, P, 3), np.uint8)
@@ -286,7 +390,8 @@ def run_piece(model, job: dict, piece: dict) -> dict:
                     kp3d[i, j] = pts[i, v, u]
     return {"frames": (piece["start"] + np.asarray(idx)).astype(np.int32), "c2w": c2w, "size": np.array([h, w], np.int32),
             "bg_pts": bg_pts, "bg_col": bg_col, "bg_size": bg_size, "person_pts": pp, "person_col": pc, "kp3d": kp3d,
-            "voxel": np.float32(voxel), "depth": np.float32(depth), "fits": json.dumps(r["fits"])}
+            "voxel": np.float32(voxel), "depth": np.float32(depth), "fits": json.dumps(r["fits"]),
+            "fusion": json.dumps(fusion), "_raw_s": raw_s}
 
 
 def main(job_path: str) -> int:
@@ -294,7 +399,11 @@ def main(job_path: str) -> int:
     out = Path(job["out_dir"])
     out.mkdir(parents=True, exist_ok=True)
     t0 = time.monotonic()
-    model = load_model(job.get("model", "pi3"))
+    if job.get("model") == "fusion":
+        model = {k: load_model(k).cpu() for k in ("pi3", "vggt")}
+        torch.cuda.empty_cache()
+    else:
+        model = load_model(job.get("model", "pi3"))
     for piece in job["pieces"]:
         t = time.monotonic()
         if (out / f"{piece['name']}.npz").is_file():
@@ -306,11 +415,12 @@ def main(job_path: str) -> int:
             print(json.dumps({"name": piece["name"], "failed": f"{type(e).__name__}: {e}"[:300]}), flush=True)
             torch.cuda.empty_cache()
             continue
+        raw_s = res.pop("_raw_s", 0.0)
         tmp = out / f"{piece['name']}.part.npz"
         np.savez_compressed(tmp, **res)
         tmp.replace(out / f"{piece['name']}.npz")
         print(json.dumps({"name": piece["name"], "samples": int(len(res["frames"])), "bg_points": int(len(res["bg_pts"])),
-                          "seconds": round(time.monotonic() - t, 1)}), flush=True)
+                          "seconds": round(time.monotonic() - t - raw_s, 1)}), flush=True)
     print(json.dumps({"done": True, "seconds": round(time.monotonic() - t0, 1),
                       "torch_peak_mb": round(torch.cuda.max_memory_allocated() / 1e6)}))
     return 0
