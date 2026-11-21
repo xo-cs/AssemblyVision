@@ -10,6 +10,7 @@ from assemblyvision.analysis import zero_shot as Z
 from assemblyvision.storage.files import REPO_ROOT
 from assemblyvision.tools import freeze as F
 from assemblyvision.evaluation import metrics as M
+from assemblyvision.tools import robustness as R
 from assemblyvision.tools import train_domain as T
 from assemblyvision.tools import validate_seg as V
 from assemblyvision.types import Step
@@ -153,6 +154,42 @@ class ValidateSegTest(unittest.TestCase):
         b = [Step("A", 2.0, 5.0, "x"), Step("B", 5.0, 10.0, "x")]             # another number of distinct boundaries
         r = V.agreement(a, b, 10.0, 10.0)
         self.assertEqual((r["boundaries"], r["max_boundary_difference_s"], r["mean_boundary_difference_s"]), (3, 1.0, 0.67))
+
+
+class RobustnessTest(unittest.TestCase):
+    def test_the_variants_of_the_rule(self):
+        seg = {"vlm_weight": 1.0, "siglip_weight": 1.0, "siglip_crop_weight": 1.0, "siglip_temp": 0.01}
+        v = R.weight_variants(seg)
+        self.assertEqual(len(v), 8)
+        self.assertEqual(dict(v)["vlm_weight x0.5"], {"vlm_weight": 0.5})
+        self.assertEqual(dict(v)["siglip_temp x2"], {"siglip_temp": 0.02})
+
+    def test_subsets_are_seeded_halves(self):
+        a, b, c = R.subsets([22, 22], 0), R.subsets([22, 22], 0), R.subsets([22, 22], 1)
+        self.assertTrue(all((x == y).all() for x, y in zip(a, b)))
+        self.assertFalse(all((x == y).all() for x, y in zip(a, c)))
+        self.assertEqual([len(x) for x in a], [11, 11])
+        self.assertEqual(len(set(a[0].tolist())), 11)
+
+    def test_verdicts(self):
+        self.assertEqual(R.summarise([], 93.2)["verdict"], "not tested")
+        self.assertEqual(R.summarise([93.0] * 8 + [80.0] * 2, 93.2)["verdict"], "robust")      # exactly 80 %
+        self.assertEqual(R.summarise([93.0] * 7 + [80.0] * 3, 93.2)["verdict"], "sensitive")
+        self.assertEqual(R.summarise([80.0], 93.2)["verdict"], "sensitive")
+        self.assertEqual(R.summarise([88.2], 93.2)["verdict"], "robust")
+        g = lambda v: {"summary": {"verdict": v}}
+        self.assertEqual(R.overall({"a": g("robust"), "b": g("robust")}), "robust overall")
+        self.assertIn("not tested", R.overall({"a": g("robust"), "c": g("not tested")}))
+        self.assertEqual(R.overall({"a": g("sensitive"), "c": g("not tested")}), "sensitive to: a")
+
+    def test_bank_is_the_mean_of_the_chosen(self):
+        e = [np.array([[1.0, 0.0], [0.0, 1.0], [-1.0, 0.0]])]
+        np.testing.assert_allclose(R.bank_from(e, [np.array([0, 1])])[0], [2 ** -0.5, 2 ** -0.5], atol=1e-6)
+
+    def test_the_author_template_has_the_phases_in_order(self):
+        from assemblyvision.analysis import phase_text as pt
+        got = pt.parse(R.AUTHOR_DIR / "TEMPLATE.md")[None]
+        self.assertEqual([p["name"] for p in got], [p["name"] for p in pt.phases("qisens")])
 
 
 if __name__ == "__main__":
