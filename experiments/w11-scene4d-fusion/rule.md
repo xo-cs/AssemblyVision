@@ -35,20 +35,24 @@ their numbers are compared with each other and not with the table of w11-scene4d
 The first four as in w11-scene4d-quality; for each measure lower is better unless noted.
 
 1. **Fixed camera rotation** (degrees), on the fixed clip.
-2. **Background spread**, on the fixed clip: the spread over time of the 3D point of each background
-   pixel as a share of its depth. The fusion has no per pixel track of its own, so it is measured on
-   the kept points: for each kept voxel the spread of the raw points of its source frames that fall in it
-   or in a neighbour voxel, as a share of the depth (median). The same computation is applied to Pi3 and
-   VGGT alone, so all three are measured the same way.
+2. **Background spread**, on the fixed clip: the measure of w11-scene4d-model on the per pixel points
+   (spread over time of the 3D point of a background pixel, as a share of its depth). For the fusion the
+   per pixel point follows the same rule as its voxels: both models valid and within 2 %, their mean;
+   both valid but apart, the one with the higher confidence percentile; one valid, that one if at or
+   above its 70th percentile. (Amended before any run: the first wording measured inside a voxel
+   neighbourhood, which bounds the spread by the voxel size and so could not separate the candidates.)
 3. **Cloud noise:** median distance of a background point to the plane through its 16 nearest
    neighbours, as a share of the median depth (fixed clip).
 4. **Coverage (higher is better):** the share of the image pixels of the sampled frames, outside the
    person boxes, that the final background cloud covers when projected into the Pi3 camera of the frame
-   (a pixel counts when a point lands within 1 pixel at 1/4 image resolution). Mean of both clips.
+   (a pixel counts when a point lands within 1 pixel at 1/4 image resolution). Mean of both clips. VGGT
+   alone is projected into its own cameras, as its cloud lies in its own world frame; the focal length of
+   each candidate's cameras is estimated from its own raw points.
 5. **Holes behind the person (lower is better):** the same projection, on the pixels inside the union of
    the person boxes over the part that are outside the person box in at least 20 % of the frames (so
    the background there was visible at some time): the share not covered. Mean of both clips.
-6. **Time per video minute** (s), the larger of the two clips, on the A4000. Gate: at most 600 s, as in
+6. **Time per video minute** (s), the larger of the two clips, on the A4000, without the time to write the
+   raw test points. Gate: at most 600 s, as in
    w11-scene4d-model. Peak GPU memory is recorded.
 
 ## Choice
@@ -62,7 +66,8 @@ the better rank, and the ranks are summed; the lowest sum is first.
 10 % on fixed camera rotation or cloud noise, and the screenshots show no visible double surfaces. Then
 scene4d.model = "fusion", and the 4D of the flagship (command for Khurshid) and the 6 public demo runs is
 made with it. **Otherwise** Pi3 improved stays: those 4D outputs are made with Pi3 improved, and the VGGT
-and Pi3X test files (weights, their hidden test run copies, raw test points) are removed.
+and Pi3X test files (their hidden test run copies and raw test points) are removed. The downloaded weights
+(10.5 GB) are not deleted without Khurshid's word, since they would have to be downloaded again.
 
 Licence: the fusion contains VGGT-1B (CC BY-NC 4.0), so it is non commercial research only; recorded.
 
