@@ -17,6 +17,7 @@ import argparse
 import csv
 import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -37,6 +38,19 @@ def read_labels(path: Path) -> list:
     with open(path, newline="", encoding="utf-8") as f:
         head = next(csv.reader(f))
     return read_steps_csv(path) if "start_s" in [h.strip() for h in head] else read_raw_csv(path)
+
+
+def read_annotator(path: Path) -> list:
+    """An annotator's file (step,label,start,end in m:ss, whole seconds, a gap of 1 s between a phase's end and the
+    next start): only the start times are boundaries, so each phase ends where the next one starts. The last phase
+    keeps its own end."""
+    steps = sorted(read_labels(path), key=lambda s: s.start_s)
+    return [replace(s, end_s=steps[i + 1].start_s) if i + 1 < len(steps) else s for i, s in enumerate(steps)]
+
+
+def annotator_name(path: Path) -> str:
+    """steps_raw_asel.csv -> asel."""
+    return Path(path).stem.rsplit("_", 1)[-1]
 
 
 def confusion(pred: list[str], true: list[str], labels: list[str]) -> np.ndarray:
@@ -79,10 +93,8 @@ def boundary_errors(pred: list, gt: list, duration: float) -> list[dict]:
 def agreement(a: list, b: list, duration: float, fps: float) -> dict:
     x, y = M.frames_from_steps(a, duration, fps), M.frames_from_steps(b, duration, fps)
     kappa, po, _ = M.cohen_kappa(x, y)
-    sa, sb = ({s.label: s for s in z if s.label != BG} for z in (a, b))       # each phase's start and end, by name
-    pairs = [(sa[k].start_s, sb[k].start_s) for k in sa if k in sb] + [(sa[k].end_s, sb[k].end_s) for k in sa if k in sb]
-    inside = [(p, q) for p, q in pairs if 1e-6 < p < duration - 1e-6 and 1e-6 < q < duration - 1e-6]
-    diffs = [abs(p - q) for p, q in inside]
+    sa, sb = ({s.label: s for s in z if s.label != BG} for z in (a, b))       # the phases' start times, by name
+    diffs = [abs(sa[k].start_s - sb[k].start_s) for k in sa if k in sb]
     return {"kappa": round(kappa, 4), "frame_agreement": round(100 * po, 2),
             "mean_boundary_difference_s": round(float(np.mean(diffs)), 2) if diffs else None,
             "max_boundary_difference_s": round(float(np.max(diffs)), 2) if diffs else None, "boundaries": len(diffs)}
@@ -124,7 +136,7 @@ def markdown(res: dict) -> str:
     if res.get("annotators"):
         a = res["annotators"]
         L += [f"Human agreement (the two annotators, independent): kappa {a['kappa']:.3f}, frame agreement "
-              f"{a['frame_agreement']:.2f} %, mean boundary difference {show(a['mean_boundary_difference_s'])} s, "
+              f"{a['frame_agreement']:.2f} %, mean difference of the phase starts {show(a['mean_boundary_difference_s'])} s, "
               f"largest {show(a['max_boundary_difference_s'])} s.", ""]
     for r in res["runs"]:
         x = r["metrics"]
@@ -164,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
             p.error("all runs must be from one data area")
         source = located[0][0]
         gt = read_labels(a.gt)
-        ann = [(f"annotator {'AB'[i]}", read_labels(x)) for i, x in enumerate(a.annotator)]
+        ann = [(f"annotator {annotator_name(x)}", read_annotator(x)) for x in a.annotator]
         runs = [validate_run(root, source, gt, ann, base) for _, root in located]
     except (AvError, OSError, ValueError, KeyError) as e:
         print(f"validate_seg: {type(e).__name__}: {e}", file=sys.stderr)

@@ -23,6 +23,12 @@ def clip_classes() -> list[str]:
     return [r["class"] for r in TD.read_csv(p) if r.get("class")] if p.is_file() else []
 
 
+def clip_drafts() -> dict[str, dict]:
+    """The draft labels of labels.csv by clip file (a row that names no clip is not used)."""
+    p = TD.FOLDER / "labels.csv"
+    return {r["file"]: r for r in TD.read_csv(p)} if p.is_file() else {}
+
+
 def clip_seconds(file: str) -> float:
     import cv2
     cap = cv2.VideoCapture(str(TD.FOLDER / file))
@@ -81,7 +87,13 @@ def build_labels_tab(app, gr):
         if task_key == L.CLIPS:
             f = st["items"][i]
             old = next((r for r in done if r["file"] == f), {})
-            top = f"<b>Clip {i + 1} of {len(st['items'])}</b> &middot; {len(done)} saved &middot; {v.esc(f)}"
+            draft = st.get("drafts", {}).get(f, {})
+            top = f"<b>Clip {i + 1} of {len(st['items'])}</b> &middot; {len(done)} saved &middot; {v.esc(f)}<br>" + (
+                "Your saved label is selected." if old else
+                f"Unchecked draft: {v.esc(draft['class'])}. Confirm it or choose another, then save." if draft.get("class")
+                else "No draft for this clip. Watch it and choose the class.")
+            old = old or {"class": draft.get("class"), "second_class": draft.get("second_class", ""),
+                          "change_s": draft.get("change_s", "")}
             return [st, top, gr.update(visible=True), hide,
                     gr.update(value=video_html(app._file_url(TD.FOLDER / f)), visible=True),
                     gr.update(choices=st["classes"], value=old.get("class") or None, visible=True, label="Class of this clip"),
@@ -124,7 +136,7 @@ def build_labels_tab(app, gr):
                 items = TD.videos()
                 if not items:
                     return closed("There are no clips in the train domain folder.")
-                return render({"task": k, "i": 0, "items": items, "classes": classes}, user)
+                return render({"task": k, "i": 0, "items": items, "classes": classes, "drafts": clip_drafts()}, user)
             if not run_id:
                 return closed("Choose a run.")
             paths = app.store.paths(run_id)

@@ -155,7 +155,15 @@ class ValidateSegTest(unittest.TestCase):
         a = [Step("A", 1.0, 5.0, "x"), Step("B", 6.0, 10.0, "x")]
         b = [Step("A", 2.0, 5.0, "x"), Step("B", 5.0, 10.0, "x")]             # another number of distinct boundaries
         r = V.agreement(a, b, 10.0, 10.0)
-        self.assertEqual((r["boundaries"], r["max_boundary_difference_s"], r["mean_boundary_difference_s"]), (3, 1.0, 0.67))
+        self.assertEqual((r["boundaries"], r["max_boundary_difference_s"], r["mean_boundary_difference_s"]), (2, 1.0, 1.0))
+
+    def test_an_annotator_file_uses_the_start_times(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "steps_raw_asel.csv"
+            p.write_text("step,label,start,end\n1,A,0:23,1:04\n2,B,1:05,2:00\n")
+            got = V.read_annotator(p)
+            self.assertEqual([(x.label, x.start_s, x.end_s) for x in got], [("A", 23.0, 65.0), ("B", 65.0, 121.0)])
+            self.assertEqual(V.annotator_name(p), "asel")
 
 
 class RobustnessTest(unittest.TestCase):
