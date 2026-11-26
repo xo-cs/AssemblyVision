@@ -15,6 +15,7 @@ from assemblyvision import validation_labels as VL
 from assemblyvision.evaluation import metrics as M
 from assemblyvision.output import extras as X
 from assemblyvision.tools import robustness as R
+from assemblyvision.tools import score_measurements as SM
 from assemblyvision.tools import train_domain as T
 from assemblyvision.tools import validate_seg as V
 from assemblyvision.types import Step
@@ -352,6 +353,29 @@ class HandEventTest(unittest.TestCase):
         det = {"frames": np.array([0, 60]), "offset": np.array([0, 0, 0]), "boxes": np.zeros((0, 4)), "cls": np.zeros(0, int), "conf": np.zeros(0)}
         x = np.r_[np.linspace(0, 200, 30), np.full(60, 200.0)]
         self.assertEqual(HE.wrist_events(np.arange(90), np.stack([x, x], 1), np.r_[0.0, np.abs(np.diff(x)) * 0.3], 100.0, 30.0, det, ["bottle"], 0.3, "left"), [])
+
+
+class ScoreMeasurementsTest(unittest.TestCase):
+    def test_events_match_one_to_one_within_a_second(self):
+        r = SM.match_events([10.0, 20.0, 30.0], [10.4, 10.6, 21.5, 30.9])
+        self.assertEqual((r["matched"], r["recall"], r["precision"]), (2, 0.667, 0.5))
+        self.assertEqual(SM.match_events([], [1.0])["recall"], None)
+
+    def test_agreement_leaves_out_cannot_tell_and_counts_coverage(self):
+        r = SM.agreement([("front", "front"), ("left", "right"), (SM.CANNOT, "front"), ("away", None)])
+        self.assertEqual((r["told"], r["scored"], r["agreement"], r["coverage"]), (3, 2, 0.5, 0.667))
+
+    def test_verdicts_use_the_frozen_targets(self):
+        self.assertEqual(SM.verdict(9, {"agreement": 0.75}), "meets the target")
+        self.assertEqual(SM.verdict(10, {"agreement": 0.69}), "misses the target")
+        self.assertEqual(SM.verdict(3, {"agreement": 0.85, "within_one": 0.94}), "misses the target")
+        self.assertEqual(SM.verdict(7, {"recall": 0.0, "precision": None}), "misses the target")
+        self.assertEqual(SM.verdict(7, {"recall": 0.8, "precision": None}), "-")
+        self.assertEqual(SM.verdict(1, {"boundary_mae_s": 8.09, "phases": 5, "phases_within_10_pct": 5}), "meets the target")
+
+    def test_a_measurement_without_labels_says_so(self):
+        self.assertIn("no labels yet", SM.fmt(2, None)[0][1])
+        self.assertTrue(all(SM.TARGETS[n] for n in range(1, 11)))
 
 
 if __name__ == "__main__":

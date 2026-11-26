@@ -1,9 +1,8 @@
 # Validation of the 10 company measurements
 
-**Status (2026-11-26).** All 10 have an implementation and the targets are frozen (section 2). **No measurement has been validated against hand labels yet**,
-so every "actual result" below is *not measured*, except process time, which has the phase labels. The targets are
-**proposals under review by Khurshid**; they are fixed before any label is scored, and the scorer is not written until
-then. Everything marked **experimental** stays so until it has ground truth.
+**Status (2026-11-26).** All 10 have an implementation, the targets are frozen (section 2) and the scorer is written
+(section 4). **No measurement has been scored against hand labels yet:** the results come from the command in section 4,
+which Khurshid runs on QiSens. Everything marked **experimental** stays so until it has ground truth.
 
 The added measures (cycle times, floor path, suggestions, tool and object events) are computed from a finished run by
 output/extras.py. They do not change steps.csv or metrics.csv of a run; the steps stay byte identical to tag
@@ -85,5 +84,39 @@ without showing any value:
 cd ~/AssemblyVision && find data/qisens/validation/labels -name '*.csv' | while read f; do echo "$f $(($(wc -l < "$f") - 1)) labels"; done
 ```
 
-**Not built, on purpose:** the scorer that compares these labels with the system. It waits until Khurshid has approved
-the targets above, so that they are fixed first.
+## 4. Scores against the hand labels
+
+**Scorer:** tools/score_measurements.py (written after the targets were frozen). For every labelled item it computes the
+system's own answer from the run's stored keypoints with the same code and settings as the metrics (the rules are in the
+tool's docstring), compares it with the label, and judges the result against the frozen target. Each annotator is scored
+alone; here that is **one annotator, Khurshid**, so no human agreement is known for these tasks. Items marked
+"cannot tell" by the annotator are left out; items where the system has no answer (for example no trunk measured at that
+frame) are counted as not covered and shown, not dropped silently.
+
+**Command (Khurshid runs it; CPU, prints summary numbers only):**
+
+```
+cd ~/AssemblyVision/code && source ~/AssemblyVision/av.sh
+python -m assemblyvision.tools.detect_objects --run ../data/qisens/runs/run_20261108_133251_1550
+python -m assemblyvision.tools.score_measurements --run ../data/qisens/runs/run_20261108_133251_1550 --gt ../data/qisens/annotations/steps_gt.csv
+```
+
+The first command is only needed for 7 and 8 (tool pickup and object placement); without it they are reported as not
+measured.
+
+**Results** (pasted unchanged from the printed table once Khurshid approves them):
+
+| # | measurement | annotator | result | target | verdict |
+| --- | --- | --- | --- | --- | --- |
+| 1 | process time | | *pending the command* | mean boundary error at most 10 s, each phase duration within 10 % | |
+| 2 | movement path | - | **no labels yet** (needs walks of known length) | within 20 % over a walk | - |
+| 3 | waist bending | | *pending the command* | exact band at least 80 %, within one band at least 95 % | |
+| 4 | repetitive work | | *pending the command* | F1 at least 0.70 | |
+| 5 | improvable motions | - | **no labels yet** (needs an engineer's rating of the suggestions) | at least 60 % rated useful | - |
+| 6 | hand travel | - | **no labels yet** (needs Label Studio wrist keypoints) | wrist within PCK@0.1 for at least 85 %; travel within 20 % | - |
+| 7 | tool pickup time | | *pending the command* | events within 1 s: recall and precision at least 0.70 | |
+| 8 | object placement time | | *pending the command* | events within 1 s: recall and precision at least 0.70 | |
+| 9 | two hand cooperation | | *pending the command* | agreement at least 75 % | |
+| 10 | gaze direction | | *pending the command* | agreement at least 70 % | |
+
+A task Khurshid did not label prints as "no labels yet" in place of a number.
