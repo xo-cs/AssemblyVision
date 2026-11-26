@@ -48,3 +48,25 @@ python -m assemblyvision.tools.train_domain run --gpu 0
 
 The command runs the 14 clips and the joined video, evaluates them, and writes experiments/w12-train-domain/results.json
 and table.md. If it stops, the same command continues from the runs already done.
+
+## Result (2026-11-26, one pass, tag validation-freeze-1, B zero shot untuned)
+
+| test | result | reference |
+| --- | --- | --- |
+| clip classification | **13 of 14 clips (92.86 %)** | chance 16.7 % (1 of 6), most frequent class 42.9 % (6 of 14) |
+| joined video (seed 20261121, no order given) | frame accuracy **89.69**, edit **90.91**, F1@10 / 25 / 50 **95.24 / 85.71 / 85.71**, boundary MAE **2.43 s** | |
+
+**The one misclassified clip:** 17352127_1920_1080_100fps.mp4 (7.9 s), true class **Locomotive Firing and Fueling**,
+predicted **Track and Ballast Maintenance**. In the joined video the same clip was missed too.
+
+**Limits:**
+- 14 short public clips (7 to 60 s), so one clip moves the accuracy by about 7 points.
+- Unbalanced classes: Track and Ballast Maintenance is 6 of the 14 clips, two classes have one clip each; the error went
+  to the largest class.
+- One annotator (Khurshid), so no agreement figure; 7 of the 14 clips had no draft label.
+- Gemini made the classes (a chat that watched the videos) and the descriptions (a second chat that saw only the class
+  table), so the class set fits these clips.
+- The run was stopped once for a meeting and continued; no clip was run twice and nothing was tuned.
+
+Details: experiments/w12-train-domain/table.md.
+

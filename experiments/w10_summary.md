@@ -116,6 +116,20 @@ Findings:
 
 Conclusion: B zero shot meets both critical gates on QiSens: frame accuracy median 93.40 (92.97 to 93.40) and 270.62 s for the full run.
 
+### w12-train-domain
+
+Public train domain test (rule experiments/w12-train-domain/rule.md, protocol docs_team/train_domain_test.md), 14 public
+railway maintenance clips, 6 classes, B zero shot untuned, one pass on tag validation-freeze-1 (2026-11-26).
+
+| test | frame acc / accuracy | edit | F1@10 | F1@25 | F1@50 | MAE s | reference |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| clip classification (14 clips) | 92.86 (13 of 14) | - | - | - | - | - | chance 16.7, most frequent class 42.9 |
+| joined video (seed 20261121) | 89.69 | 90.91 | 95.24 | 85.71 | 85.71 | 2.43 | |
+
+The one misclassified clip: 17352127_1920_1080_100fps.mp4, true Locomotive Firing and Fueling, predicted Track and
+Ballast Maintenance. Limits: 14 short clips (one clip is about 7 points), unbalanced classes (6 of 14 are Track and
+Ballast Maintenance), one annotator, and Gemini made the classes and the descriptions.
+
 ### w11-qisens-milestones
 
 QiSens runs of the Results list, to show the progress: the flagship rescored and labelled copies with another step engine (tools/milestone_run.py). Run by Khurshid on 2026-11-21, approved summary numbers only; everything else stays under the QiSens data area. Only the numbers Khurshid reported are listed.
