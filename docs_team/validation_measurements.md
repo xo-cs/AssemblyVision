@@ -1,6 +1,6 @@
 # Validation of the 10 company measurements
 
-**Status (2026-11-26).** All 10 have an implementation. **No measurement has been validated against hand labels yet**,
+**Status (2026-11-26).** All 10 have an implementation and the targets are frozen (section 2). **No measurement has been validated against hand labels yet**,
 so every "actual result" below is *not measured*, except process time, which has the phase labels. The targets are
 **proposals under review by Khurshid**; they are fixed before any label is scored, and the scorer is not written until
 then. Everything marked **experimental** stays so until it has ground truth.
@@ -37,6 +37,9 @@ at least 0.50), and long phase, long hand travel and long walking (at least 1.5 
 at least 3 phases; walking also at least 5 m). A metric measured on less than half of the phase gives no suggestion.
 
 ## 2. Validation table
+
+**Targets frozen on 2026-11-26.** Khurshid approved the proposed targets 1 to 10 exactly as written below, before any
+label was scored. They are not changed after a result is seen; a measurement that misses its target is reported as missing it.
 
 | # | measurement | method | ground truth (how a person measures it) | unit | proposed target | actual | known limitations |
 | --- | --- | --- | --- | --- | --- | --- | --- |
