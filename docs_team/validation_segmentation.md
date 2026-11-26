@@ -1,8 +1,7 @@
 # Segmentation validation report
 
-**Status.** Protocol, definitions and disclosure are final. The per phase tables are filled in after
-Khurshid runs the command in section 6 and approves the summary numbers. Nothing in this file was read from
-the QiSens data area; the numbers in section 2 are the approved summaries in experiments/w10_summary.md.
+**Status (2026-11-26).** Complete. All QiSens numbers are summaries that Khurshid ran and approved; nothing in this
+file was read from the QiSens data area.
 
 **Freeze.** All results below are for git tag `validation-freeze-1` (commit 866fba2). The tag fixes the code,
 the configs, the phase descriptions and the SHA256 of the model weights
@@ -18,10 +17,10 @@ the configs, the phase descriptions and the SHA256 of the model weights
 | length | 596 s |
 | frames | 17,892 |
 | classes | 5 ordered phases (Removal, Disassembly, Cleaning, Adjustment and Inspection, Assembly and Installation) plus intro / other |
-| annotators | 2, labelling independently |
-| agreement | Cohen's kappa about 0.98, mean boundary difference 1.5 s |
-| final labels | midpoint of the two annotators where they are within 2 s |
-| first boundary | decided by the team lead |
+| annotators | 2 (Asel and Kazi), labelling independently; whole seconds; only the start times are boundaries |
+| agreement | Cohen's kappa 0.980, frame agreement 98.49 %, mean start difference 1.80 s, largest 5.00 s (section 3) |
+| final labels | steps_gt.csv: midpoint of the two annotators where they differ by 2 s or less |
+| first boundary | set to 23 s (Asel) by the team lead, who checked it against the video |
 
 The final labels are built from the two annotators, so a score against them is not independent of either
 one. For that reason the system is also scored against **each annotator alone**. The agreement between the
@@ -48,13 +47,44 @@ full runs it gave frame accuracy 92.97 to 93.40, median 93.40 (w11-qisens-zero-s
 
 ## 3. Per phase results, confusion matrix, boundary errors
 
-*Pending the command in section 6.* For each run the tool gives:
+From tools/validate_seg.py, run by Khurshid on QiSens on 2026-11-26 at tag validation-freeze-1; approved summary
+numbers. The full tables (confusion matrices, per boundary errors) stay in data/qisens/validation/.
 
-- precision, recall and F1 per phase and for intro / other, counted on every video frame;
-- the frame level confusion matrix (6 x 6, rows true, columns predicted);
-- for each hand labelled boundary, the signed error of the nearest predicted boundary (positive: the system
-  is late);
-- all metrics against the final labels, against annotator A and against annotator B.
+**Human agreement (Asel against Kazi, the ceiling):** Cohen's kappa **0.980**, frame agreement **98.49 %**, mean
+difference of the phase start times **1.80 s**, largest **5.00 s**.
+
+**Frame accuracy against the final labels and against each annotator alone:**
+
+| run | final labels | against Asel | against Kazi |
+| --- | --- | --- | --- |
+| Engine B zero shot (flagship) | 93.20 | 93.21 | 92.38 |
+| Engine A (YOLO26 l) | 75.02 | 74.74 | 74.42 |
+| Engine B v1 | 67.26 | - | - |
+| Engine B v2 | 52.50 | - | - |
+
+**Per phase F1 of the flagship (every video frame):**
+
+| phase | F1 |
+| --- | --- |
+| intro / other | 23.08 |
+| Removal | 86.36 |
+| Disassembly | 88.60 |
+| Cleaning | 93.33 |
+| Adjustment and Inspection | 98.42 |
+| Assembly and Installation | 99.79 |
+
+**Interpretation.**
+- The flagship is **about 5 points below the human agreement ceiling** (93.20 against 98.49 frame agreement), and it
+  scores about the same against either annotator alone (93.21 and 92.38). So the result does not depend on whose
+  labels are used.
+- **Most of the remaining error is the intro:** 600 of the 690 intro frames (20 of 23 s) are predicted as Removal. The
+  system starts the first phase at the start of the video instead of at 23 s. Without the intro the five work phases
+  reach F1 86 to 100.
+- **All other errors lie between neighbouring phases:** the confusion matrix has no frame given to a phase that is not
+  next to the true one. That is expected from the ordered decoder, which can only move boundaries.
+- Removal and Disassembly have the lowest F1 of the work phases (86 and 89); the later phases are near the ceiling.
+
+These remain development results on a single video (section 5).
 
 ## 4. Metric definitions
 
@@ -117,8 +147,6 @@ These points limit what the results show and must accompany any quoted number.
 
 ## 6. Commands (Khurshid runs them; nothing here opens the QiSens data for Claude)
 
-Replace `ANNOTATOR_A.csv` and `ANNOTATOR_B.csv` with the two annotators' own label files:
-
 ```
 cd ~/AssemblyVision/code && source ~/AssemblyVision/av.sh
 python -m assemblyvision.tools.freeze --check --models
@@ -128,8 +156,8 @@ python -m assemblyvision.tools.validate_seg \
   --run ../data/qisens/runs/run_20261121_051432_2d75 \
   --run ../data/qisens/runs/run_20261121_051535_b39e \
   --gt ../data/qisens/annotations/steps_gt.csv \
-  --annotator ../data/qisens/annotations/ANNOTATOR_A.csv \
-  --annotator ../data/qisens/annotations/ANNOTATOR_B.csv
+  --annotator ../data/qisens/annotations/steps_raw_asel.csv \
+  --annotator ../data/qisens/annotations/steps_raw_kazi.csv
 ```
 
 CPU only, under a minute. Output: data/qisens/validation/validation_segmentation.{json,md}. The printed tables
