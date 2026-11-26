@@ -166,6 +166,7 @@ class GradioApp:
         self.port = port
         self._durations: dict[tuple[str, float], float | None] = {}
         self._reach: dict[tuple, tuple] = {}         # (run_id, phase, manifest and steps mtime) -> (png, coverage)
+        self._memo: dict[tuple, tuple] = {}           # (what, run_id) -> (file signature, value): per run caches
         # live sessions are filmed with consent and kept in the public area (data/public/live/)
         self.live = live or LiveManager(cfg, source_root("public", cfg["paths"], repo_root) / "live", port=port)
         from .auth import AuditLog
@@ -208,6 +209,36 @@ class GradioApp:
         """Runs shown on the page: with steps, or still queued or running (views.listed_runs)."""
         return v.listed_runs(self.store.list_runs())
 
+    RUN_FILES = ("manifest.json", "steps.csv", "metrics.csv", "eval.json", "body3d", "scene4d", "overlay", "objects.npz",
+                 "export")
+
+    def run_sig(self, run_id: str) -> tuple:
+        """The modification times of the files a view of the run depends on: a cached view is made again when one of
+        them changes (new output shows at once)."""
+        try:
+            root = self.store.paths(run_id).root
+        except (AvError, KeyError, ValueError):
+            return (run_id,)
+        out = []
+        for f in self.RUN_FILES:
+            try:
+                out.append((root / f).stat().st_mtime_ns)
+            except OSError:
+                out.append(0)
+        return tuple(out)
+
+    def memo(self, what: str, run_id: str, make):
+        """make() once per run and file signature; at most 48 entries are kept."""
+        sig = self.run_sig(run_id)
+        hit = self._memo.get((what, run_id))
+        if hit is not None and hit[0] == sig:
+            return hit[1]
+        val = make()
+        if len(self._memo) >= 48:
+            self._memo.pop(next(iter(self._memo)))
+        self._memo[(what, run_id)] = (sig, val)
+        return val
+
     def run_choices(self, current: str | None = None) -> list[tuple[str, str]]:
         """Results picker: the curated runs (curated_runs), labelled with engine, score and badges; the run
         shown now is added when it is not among them, so a value is never missing from the choices."""
@@ -243,6 +274,15 @@ class GradioApp:
         return b
 
     def curated_runs(self) -> list[dict]:
+        """curated_runs_uncached, cached on the run list, featured_runs.toml and the files of every finished run."""
+        runs = [r for r in self.store.list_runs() if r.get("has_steps") and r.get("status") in ("done", "partial")]
+        fe = json.dumps(self.featured(), sort_keys=True, default=str)           # the list's settings themselves
+        key = (fe, tuple((r["run_id"], r["status"], self.run_sig(r["run_id"])) for r in runs))
+        if getattr(self, "_curated_key", None) != key:
+            self._curated, self._curated_key = self.curated_runs_uncached(), key
+        return [dict(x) for x in self._curated]
+
+    def curated_runs_uncached(self) -> list[dict]:
         """The runs of the Results list: QiSens the pinned runs of docs_team/featured_runs.toml and every
         milestone copy; public one run per video (the one with the most output, then the newest) and at
         most [public] max_videos videos, preferred videos first. Only finished runs with steps and an
@@ -655,8 +695,7 @@ class GradioApp:
         if not parts:
             return head + "<p class='av-quiet'>No 3D body output for this run yet, so no floor map.</p>"
         fps = float(self.store.get_run(run_id)["ingest"]["cfr"]["fps"])
-        key = (run_id, tuple((p["name"], int(p["frames"][0]), len(p["frames"])) for p in parts))
-        if getattr(self, "_floor_key", None) != key:
+        def make():
             imgs = []
             for p in parts:
                 t0, t1 = p["frames"][0] / fps, p["frames"][-1] / fps
@@ -664,8 +703,8 @@ class GradioApp:
                                                   f"{p['name'].rsplit('_p', 1)[-1]}, {v.clock(t0)} to {v.clock(t1)}")
                 if img is not None:
                     imgs.append(v.img_html(img, "Floor map"))
-            self._floor_key, self._floor_html = key, "<div class='av-floor-grid'>" + "".join(imgs) + "</div>"
-        return head + self._floor_html
+            return "<div class='av-floor-grid'>" + "".join(imgs) + "</div>"
+        return head + self.memo("floor", run_id, make)
 
     def movement_html(self, run_id: str | None, mode: str) -> str:
         """The 3D or 4D tab: the player, or one calm grey line when the run has no such output."""
@@ -914,6 +953,11 @@ class GradioApp:
         return head + (v.banner(PUBLIC_NOTE) if r["source"] == "public" else "")
 
     def results(self, run_id: str | None) -> dict:
+        if not run_id:
+            return self.results_uncached(run_id)
+        return dict(self.memo("results", run_id, lambda: self.results_uncached(run_id)))
+
+    def results_uncached(self, run_id: str | None) -> dict:
         """Everything of the Results page for one run (TC-APP-10: reads only)."""
         from .charts import bending_bars, timeline
         if not run_id:

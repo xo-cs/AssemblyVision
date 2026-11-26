@@ -61,5 +61,29 @@ class CuratedRunsTest(unittest.TestCase):
                 self.assertEqual(sum(x["run_id"].endswith(("eeee", "abab")) for x in app.curated_runs()), 1)
 
 
+    def test_a_cached_view_is_made_again_when_the_run_gets_new_output(self):
+        import os
+        import time
+        from assemblyvision.ui.app import GradioApp
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            cfg = Config.load(overrides={"paths": {"public_root": str(root / "public"), "qisens_root": str(root / "qisens")}})
+            r = root / "public" / "runs" / "run_20260101_000000_aaaa"
+            r.mkdir(parents=True)
+            make_run(r)
+            m = json.loads((r / "manifest.json").read_text())
+            m.update(run_id=r.name, source="public", video="/x/a.mp4", shots={"items": []}, status="done")
+            (r / "manifest.json").write_text(json.dumps(m))
+            app = GradioApp(cfg, ["public"], repo_root=root)
+            calls = []
+            make = lambda: calls.append(1) or len(calls)
+            self.assertEqual((app.memo("x", r.name, make), app.memo("x", r.name, make)), (1, 1))      # cached
+            (r / "scene4d").mkdir()                                                                  # new output
+            self.assertEqual(app.memo("x", r.name, make), 2)
+            later = time.time() + 5
+            os.utime(r / "steps.csv", (later, later))                                                 # new steps
+            self.assertEqual(app.memo("x", r.name, make), 3)
+
+
 if __name__ == "__main__":
     unittest.main()
