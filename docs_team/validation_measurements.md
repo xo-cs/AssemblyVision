@@ -40,9 +40,9 @@ at least 3 phases; walking also at least 5 m). A metric measured on less than ha
 
 | # | measurement | method | ground truth (how a person measures it) | unit | proposed target | actual | known limitations |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | process time | phase boundaries from Engine B zero shot, duration = end minus start | the two annotators' phase boundaries (exists) | s | mean boundary error at most 10 s, each phase duration within 10 % | boundary MAE 8.09 s (flagship); see docs_team/validation_segmentation.md | one video; development result |
+| 1 | process time | phase boundaries from Engine B zero shot, duration = end minus start | the two annotators' phase boundaries (exists, two annotators) | s | mean boundary error at most 10 s, each phase duration within 10 % | boundary MAE 8.09 s (flagship); see docs_team/validation_segmentation.md | one video; development result |
 | 2 | movement path | mid hip on the GVHMR floor at 5 Hz, summed per shot part | walks between floor points whose distance is known | m | within 20 % over a walk | not measured | each shot part has its own world frame, so walks across parts are not joined; jitter adds length; GVHMR scale is estimated |
-| 3 | waist bending | trunk angle from shoulders and hips, in 4 bands | a person assigns the band on sampled frames | band | exact band at least 80 %, within one band at least 95 % | not measured | 2D: bending toward the camera is underestimated |
+| 3 | waist bending | trunk angle from shoulders and hips, in 4 bands | a person assigns the band on sampled frames (one annotator, Khurshid) | band | exact band at least 80 %, within one band at least 95 % | not measured | 2D: bending toward the camera is underestimated |
 | 4 | repetitive work | autocorrelation over 10 s windows | a person says repetitive or not for 10 s clips | yes/no | F1 at least 0.70 | not measured | misses cycles longer than 2 s |
 | 5 | improvable motions (**experimental**) | rule list on the measured metrics | an industrial engineer rates each suggestion as useful or not | share useful | at least 60 % rated useful | not measured | a judgement; the thresholds are defaults; inherits every limit of the metrics it uses |
 | 6 | hand travel | wrist path relative to the hip | wrist keypoints in short consecutive frame runs (Label Studio) | torso lengths | wrist within PCK@0.1 for at least 85 %; travel within 20 % | not measured | 2D; occluded hands |
@@ -72,6 +72,15 @@ labelled, and every annotator gets the same items. Two annotators per task would
 **The page.** The Labels page is no longer in the sidebar (2026-11-26); its code and all saved labels are kept. Labels
 are saved per annotator in `data/qisens/validation/labels/<run>/<task>/<user>.csv`. The data rules of
 docs_team/labelling_guide.md section 1 apply: no screenshots, no downloads, and clear the browser cache after a QiSens session.
+
+**Labels made so far.** Khurshid labelled the measurement tasks on the Labels page in the week of 2026-11-19, alone:
+**one annotator**, so no human agreement can be reported for these tasks and the human ceiling is unknown. The files
+are under `data/qisens/validation/labels/` (Claude cannot list that folder). To see which tasks have how many labels,
+without showing any value:
+
+```
+cd ~/AssemblyVision && find data/qisens/validation/labels -name '*.csv' | while read f; do echo "$f $(($(wc -l < "$f") - 1)) labels"; done
+```
 
 **Not built, on purpose:** the scorer that compares these labels with the system. It waits until Khurshid has approved
 the targets above, so that they are fixed first.
