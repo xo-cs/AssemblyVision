@@ -25,3 +25,9 @@ Web app speed in headless Chrome through the real app code (test copy, public ru
 | video | 9.70 | 8.65 |
 
 Before, 'open the run again' was not measured. The video already used range requests (HTTP 206, accept-ranges bytes) and starts in 0.05 s. Payload sizes depend on what the script clicks, so the video and 4D rows show what was loaded in this session, not a whole file. The 4D tab loads one shot part at a time (7.1 MB here); on a 100 Mbit/s network that adds about 0.6 s. The flagship QiSens run is measured by Khurshid with the same script.
+
+**After, once the prewarm has finished (two more measurements, 90 s after the start):** first page 0.74 and 0.71 s;
+interactive page 2.74 and 1.17 s; switch to Results 0.29 and 0.17 s; open a run 1.03 and 1.20 s, again 1.24 and 1.25 s;
+Movement tabs 3D 0.30 and 0.32 s, 4D 0.36 and 0.41 s, 2D 0.17 s; video start 0.05 s. So the 2.26 s first page above was
+the prewarm thread still running. The interactive page varies (1.2 to 2.7 s) because each measurement starts with an
+empty browser cache and loads about 160 script files. Targets met: every click within 1 s, a run opens within 2 s.

@@ -3,7 +3,7 @@
 Rule: experiments/w12-train-domain/rule.md (fixed before any run). Results: experiments/w12-train-domain/table.md.
 Code: git tag validation-freeze-1.
 
-**Status (2026-11-26).** Files complete; the test runs once on tag validation-freeze-1.
+**Status (2026-11-26).** Run once on tag validation-freeze-1: **13 of 14 clips correct (92.86 %); joined video frame accuracy 89.69**. Results and their reading: experiments/w12-train-domain/table.md.
 
 **How the labels were made (part of the protocol):**
 - **One annotator.** Khurshid confirmed or set the class of all 14 clips on the Labels page

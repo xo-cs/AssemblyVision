@@ -1,0 +1,437 @@
+{
+ "created_utc": "2026-11-26T06:06:51Z",
+ "freeze": {
+  "tag": "validation-freeze-1",
+  "tag_commit": "866fba2c387b659f7ad15019eacead182f476856",
+  "ran_on": "cf152c7212667496f76c3d57f41a332a2c0fc01f",
+  "method_unchanged": true,
+  "changed": []
+ },
+ "setting": "B zero shot, untuned",
+ "seed": 20261121,
+ "min_segment_s": {
+  "two_labels": 2.0,
+  "joined": 5.0
+ },
+ "clip_test": {
+  "items": 14,
+  "accuracy": 92.86,
+  "per_class": {
+   "Track and Ballast Maintenance": {
+    "support": 6,
+    "precision": 0.8571428571428571,
+    "recall": 1.0,
+    "f1": 0.9230769230769231
+   },
+   "Equipment and Machinery Coordination": {
+    "support": 2,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0
+   },
+   "Washing and Cleaning": {
+    "support": 2,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0
+   },
+   "Rolling Stock and Coupler Work": {
+    "support": 1,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0
+   },
+   "Metal Fabrication and Grinding": {
+    "support": 1,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0
+   },
+   "Locomotive Firing and Fueling": {
+    "support": 2,
+    "precision": 1.0,
+    "recall": 0.5,
+    "f1": 0.6666666666666666
+   }
+  },
+  "confusion": [
+   [
+    6,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    2,
+    0,
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    2,
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0,
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0,
+    0,
+    1,
+    0
+   ],
+   [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1
+   ]
+  ],
+  "classes": [
+   "Track and Ballast Maintenance",
+   "Equipment and Machinery Coordination",
+   "Washing and Cleaning",
+   "Rolling Stock and Coupler Work",
+   "Metal Fabrication and Grinding",
+   "Locomotive Firing and Fueling"
+  ]
+ },
+ "clips": {
+  "11996794_1920_1080_25fps.mp4": {
+   "run": "run_20261126_051752_f169",
+   "true": [
+    "Track and Ballast Maintenance"
+   ],
+   "pred": "Track and Ballast Maintenance",
+   "lead": 2.7873,
+   "correct": true
+  },
+  "12557849_3840_2160_30fps.mp4": {
+   "run": "run_20261126_051818_b66e",
+   "true": [
+    "Equipment and Machinery Coordination"
+   ],
+   "pred": "Equipment and Machinery Coordination",
+   "lead": 19.1192,
+   "correct": true
+  },
+  "12752516_3840_2160_60fps.mp4": {
+   "run": "run_20261126_052025_c0a0",
+   "true": [
+    "Washing and Cleaning"
+   ],
+   "pred": "Washing and Cleaning",
+   "lead": 6.0498,
+   "correct": true
+  },
+  "14832877_3840_2160_60fps.mp4": {
+   "run": "run_20261126_055533_cd99",
+   "true": [
+    "Rolling Stock and Coupler Work"
+   ],
+   "pred": "Rolling Stock and Coupler Work",
+   "lead": 6.8794,
+   "correct": true
+  },
+  "15809710_3840_2160_32fps.mp4": {
+   "run": "run_20261126_055706_599a",
+   "true": [
+    "Metal Fabrication and Grinding"
+   ],
+   "pred": "Metal Fabrication and Grinding",
+   "lead": 7.8735,
+   "correct": true
+  },
+  "16222743-uhd_3840_2160_24fps.mp4": {
+   "run": "run_20261126_055822_26cb",
+   "true": [
+    "Track and Ballast Maintenance"
+   ],
+   "pred": "Track and Ballast Maintenance",
+   "lead": 4.4999,
+   "correct": true
+  },
+  "16222745-uhd_3840_2160_24fps.mp4": {
+   "run": "run_20261126_055852_e8d0",
+   "true": [
+    "Track and Ballast Maintenance"
+   ],
+   "pred": "Track and Ballast Maintenance",
+   "lead": 2.5174,
+   "correct": true
+  },
+  "16222746-uhd_3840_2160_24fps.mp4": {
+   "run": "run_20261126_055921_17d4",
+   "true": [
+    "Track and Ballast Maintenance"
+   ],
+   "pred": "Track and Ballast Maintenance",
+   "lead": 3.3142,
+   "correct": true
+  },
+  "16592337_2880_2160_30fps.mp4": {
+   "run": "run_20261126_055949_a1bf",
+   "true": [
+    "Washing and Cleaning"
+   ],
+   "pred": "Washing and Cleaning",
+   "lead": 1.572,
+   "correct": true
+  },
+  "17352127_1920_1080_100fps.mp4": {
+   "run": "run_20261126_060009_5bc0",
+   "true": [
+    "Locomotive Firing and Fueling"
+   ],
+   "pred": "Track and Ballast Maintenance",
+   "lead": 1.0274,
+   "correct": false
+  },
+  "17377645_1920_1080_60fps.mp4": {
+   "run": "run_20261126_060035_0d39",
+   "true": [
+    "Locomotive Firing and Fueling"
+   ],
+   "pred": "Locomotive Firing and Fueling",
+   "lead": 12.7347,
+   "correct": true
+  },
+  "17437409_1920_1080_60fps.mp4": {
+   "run": "run_20261126_060121_de7b",
+   "true": [
+    "Track and Ballast Maintenance"
+   ],
+   "pred": "Track and Ballast Maintenance",
+   "lead": 1.396,
+   "correct": true
+  },
+  "19478306-hd_1920_1080_25fps.mp4": {
+   "run": "run_20261126_060148_ba3c",
+   "true": [
+    "Track and Ballast Maintenance"
+   ],
+   "pred": "Track and Ballast Maintenance",
+   "lead": 2.4187,
+   "correct": true
+  },
+  "19497506-hd_1920_1080_25fps.mp4": {
+   "run": "run_20261126_060209_3525",
+   "true": [
+    "Equipment and Machinery Coordination"
+   ],
+   "pred": "Equipment and Machinery Coordination",
+   "lead": 0.904,
+   "correct": true
+  }
+ },
+ "joined_test": {
+  "metrics": {
+   "frames": 3860,
+   "frame_accuracy": 89.69,
+   "edit": 90.91,
+   "f1_10": 95.24,
+   "f1_25": 85.71,
+   "f1_50": 85.71,
+   "boundary_mae_s": 2.43
+  },
+  "boundaries": [
+   {
+    "gt_s": 28.1,
+    "pred_s": 28.001,
+    "error_s": 0.099
+   },
+   {
+    "gt_s": 45.633,
+    "pred_s": 46.001,
+    "error_s": 0.368
+   },
+   {
+    "gt_s": 53.0,
+    "pred_s": 53.001,
+    "error_s": 0.001
+   },
+   {
+    "gt_s": 75.067,
+    "pred_s": 58.001,
+    "error_s": 17.066
+   },
+   {
+    "gt_s": 108.833,
+    "pred_s": 109.002,
+    "error_s": 0.169
+   },
+   {
+    "gt_s": 132.133,
+    "pred_s": 132.003,
+    "error_s": 0.13
+   },
+   {
+    "gt_s": 192.2,
+    "pred_s": 192.004,
+    "error_s": 0.196
+   },
+   {
+    "gt_s": 200.067,
+    "pred_s": 192.004,
+    "error_s": 8.063
+   },
+   {
+    "gt_s": 218.5,
+    "pred_s": 219.004,
+    "error_s": 0.504
+   },
+   {
+    "gt_s": 234.133,
+    "pred_s": 234.005,
+    "error_s": 0.128
+   },
+   {
+    "gt_s": 257.3,
+    "pred_s": 257.305,
+    "error_s": 0.005
+   }
+  ],
+  "pred_segments": [
+   [
+    "Track and Ballast Maintenance",
+    0.0,
+    28.0
+   ],
+   [
+    "Rolling Stock and Coupler Work",
+    28.0,
+    46.0
+   ],
+   [
+    "Track and Ballast Maintenance",
+    46.0,
+    53.0
+   ],
+   [
+    "Equipment and Machinery Coordination",
+    53.0,
+    58.0
+   ],
+   [
+    "Track and Ballast Maintenance",
+    58.0,
+    109.0
+   ],
+   [
+    "Locomotive Firing and Fueling",
+    109.0,
+    132.0
+   ],
+   [
+    "Equipment and Machinery Coordination",
+    132.0,
+    192.0
+   ],
+   [
+    "Track and Ballast Maintenance",
+    192.0,
+    219.0
+   ],
+   [
+    "Metal Fabrication and Grinding",
+    219.0,
+    234.0
+   ],
+   [
+    "Washing and Cleaning",
+    234.0,
+    257.31
+   ]
+  ],
+  "gt_segments": [
+   [
+    "Track and Ballast Maintenance",
+    0.0,
+    28.1
+   ],
+   [
+    "Rolling Stock and Coupler Work",
+    28.1,
+    45.633
+   ],
+   [
+    "Track and Ballast Maintenance",
+    45.633,
+    53.0
+   ],
+   [
+    "Equipment and Machinery Coordination",
+    53.0,
+    75.067
+   ],
+   [
+    "Track and Ballast Maintenance",
+    75.067,
+    108.833
+   ],
+   [
+    "Locomotive Firing and Fueling",
+    108.833,
+    132.133
+   ],
+   [
+    "Equipment and Machinery Coordination",
+    132.133,
+    192.2
+   ],
+   [
+    "Locomotive Firing and Fueling",
+    192.2,
+    200.067
+   ],
+   [
+    "Track and Ballast Maintenance",
+    200.067,
+    218.5
+   ],
+   [
+    "Metal Fabrication and Grinding",
+    218.5,
+    234.133
+   ],
+   [
+    "Washing and Cleaning",
+    234.133,
+    257.3
+   ]
+  ]
+ },
+ "order": [
+  "16222746-uhd_3840_2160_24fps.mp4",
+  "19478306-hd_1920_1080_25fps.mp4",
+  "14832877_3840_2160_60fps.mp4",
+  "17437409_1920_1080_60fps.mp4",
+  "19497506-hd_1920_1080_25fps.mp4",
+  "16222745-uhd_3840_2160_24fps.mp4",
+  "11996794_1920_1080_25fps.mp4",
+  "17377645_1920_1080_60fps.mp4",
+  "12557849_3840_2160_30fps.mp4",
+  "17352127_1920_1080_100fps.mp4",
+  "16222743-uhd_3840_2160_24fps.mp4",
+  "15809710_3840_2160_32fps.mp4",
+  "12752516_3840_2160_60fps.mp4",
+  "16592337_2880_2160_30fps.mp4"
+ ]
+}
