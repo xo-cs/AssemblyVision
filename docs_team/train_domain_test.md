@@ -3,8 +3,23 @@
 Rule: experiments/w12-train-domain/rule.md (fixed before any run). Results: experiments/w12-train-domain/table.md.
 Code: git tag validation-freeze-1.
 
-**Status.** Folder, templates, label page and command are ready. **The test has not been run**, and it is not run
-until Khurshid says the Gemini files are in.
+**Status (2026-11-26).** Files complete; the test runs once on tag validation-freeze-1.
+
+**How the labels were made (part of the protocol):**
+- **One annotator.** Khurshid confirmed or set the class of all 14 clips on the Labels page
+  (annotations/khurshid.csv). labels.csv is that file. There is no second annotator, so no agreement can be reported.
+- **7 of the 14 clips had no Gemini draft**, because the draft named them video_1.mp4 to video_7.mp4, which do not exist.
+  Khurshid labelled those 7 alone, without a draft.
+- For the other 7, the Gemini draft and Khurshid's label agree on all 7.
+- No clip has a second class.
+- Class counts: Track and Ballast Maintenance 6, Equipment and Machinery Coordination 2, Washing and Cleaning 2, Locomotive
+  Firing and Fueling 2, Rolling Stock and Coupler Work 1, Metal Fabrication and Grinding 1. Chance: 1 / 6 = 16.7 %, the
+  most frequent class 6 / 14 = 42.9 %.
+
+**Files, with the changes made:** format fixes only (labels.csv header change_time to change_s, "* " bullets to "- ",
+"Differs from:" to "Distinguishes:", final newlines). descriptions_short.md (3 "> " lines per class, from the same second
+Gemini chat, which saw only the class table) was merged under each class heading of descriptions.md. Every original is
+kept in originals/.
 
 ## Files in data/public/videos/train_domain/
 
