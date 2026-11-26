@@ -61,7 +61,7 @@ STAGE_NAMES = {"ingest": "Ingest", "shots": "Shots", "reference": "Reference fra
                "tracking": "Tracking", "vlm_scores": "Phase scores (VLM)", "siglip_scores": "Phase scores (SigLIP)",
                "segmentation": "Steps", "metrics": "Motion metrics", "overlay": "Overlay video",
                "body3d": "3D body", "eval": "Evaluation"}
-PAGES = (("new", "New analysis"), ("results", "Results"), ("runs", "Runs"), ("live", "Live"), ("labels", "Labels"))
+PAGES = (("new", "New analysis"), ("results", "Results"), ("runs", "Runs"), ("live", "Live"))   # Labels: page kept, not in the sidebar
 UI_DIR = Path(__file__).resolve().parent
 NO_LABELS = "No hand labels for this video, so accuracy cannot be scored."
 
