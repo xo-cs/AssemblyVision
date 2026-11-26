@@ -24,7 +24,8 @@ MANIFEST = REPO_ROOT / "docs_team" / "freeze" / f"{TAG}.json"
 METHOD = ("code/assemblyvision", "code/configs", "code/requirements-pinned.txt", "code/requirements-ci.lock",
           "docs_team/phase_descriptions.md", "docs_team/phase_descriptions_other.md",
           "docs_team/phase_descriptions_ikea_asm.md")
-NOT_METHOD = ("code/assemblyvision/ui/",)         # the app's pages do not change a result
+# the app's pages and the report do not change steps, scores or metrics.csv (the report's added measures are new files)
+NOT_METHOD = ("code/assemblyvision/ui/", "code/assemblyvision/output/report.py", "code/assemblyvision/tools/freeze.py")
 MODELS = ("yolo26x-pose.pt", "yolo26l-pose.pt", "engine_b/w10-engine-b-v1.pt", "engine_b/w10-engine-b-v2.pt",
           "Qwen3VL-8B-Instruct-Q4_K_M.gguf", "mmproj-Qwen3VL-8B-Instruct-F16.gguf", "siglip2",
           "scene4d/pi3/model.safetensors")

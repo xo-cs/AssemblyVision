@@ -4,7 +4,7 @@
     python -m assemblyvision.tools.check_outputs --run RUN_DIR
 
 Builds each output through the code the app and the report use: process timeline, skeleton overlay video,
-movement heatmaps, cycle time view and the PDF report. The run's files are not changed; the test PDF lies in the
+movement heatmaps, cycle time graph, the added measures and the PDF report. The run's files are not changed; the test PDF lies in the
 run's tmp folder and is removed. Prints only a status per output and the path length per phase, no frame and
 no image. Also writes <data area>/validation/outputs_<run>.md.
 """
@@ -90,9 +90,16 @@ def check(root: Path, source: str, app) -> dict:
     has_reach = "<img" in (reach or "")
     add("movement heatmap (floor map, GVHMR, metres)", "ok" if floors else "missing", f"{floors} of {len(pieces)} shot parts")
     add("movement heatmap (hand reach, 2D)", "ok" if has_reach else "missing", "shown" if has_reach else "not available")
-    base = r.get("baseline") or []
-    add("cycle time graph", "partial" if base else "missing",
-        f"table only ({len(base)} phases, median and quartiles); there is no graph" if base else "no cycle baseline")
+    from ..output import extras as X
+    extra = X.compute(root)
+    graph = X.cycle_png(extra["cycles"])
+    add("cycle time graph", "ok" if graph is not None else "missing", f"{len(extra['cycles'])} phase cycles, in Results and the PDF")
+    placed = sum(f["path_m"] is not None for f in extra["floor_path"])
+    add("movement path in metres (GVHMR floor)", "ok" if placed else "missing", f"{placed} of {len(extra['floor_path'])} phases; not validated")
+    measured_events = bool(extra["event_rows"])
+    add("tool pickup and object placement (experimental)", "ok" if measured_events else "missing",
+        f"{sum(e['kind'] == 'pickup' for e in extra['events'])} pickups, {sum(e['kind'] == 'placement' for e in extra['events'])} placements"
+        if measured_events else "no object detection for this run (tools/detect_objects.py)")
     (root / "tmp").mkdir(exist_ok=True)
     with tempfile.NamedTemporaryFile(suffix=".pdf", dir=root / "tmp") as f:
         rep = R.build(root)
@@ -102,9 +109,10 @@ def check(root: Path, source: str, app) -> dict:
     measured = sum(x.get("value") not in ("", None) for x in rep["metrics"])
     add("report PDF: measured baseline", "ok" if pages and measured else "problem",
         f"{pages} pages, {len(rep['steps'])} steps, {measured} of {len(rep['metrics'])} metrics with a value")
-    add("report PDF: labelled improvement suggestions", "missing", "the report has no suggestion section; no code generates suggestions")
+    n = len(rep["extra"]["suggestions"])
+    add("report PDF: labelled improvement suggestions (experimental)", "ok", f"{n} suggestions with evidence" if n else "section present, no rule triggered")
     return {"created_utc": utc_now(), "freeze": freeze.record(), "run": rid, "source": source, "outputs": rows,
-            "floor_path": floor_path(pieces, steps, fps), "body3d_parts": len(pieces)}
+            "floor_path": extra["floor_path"], "body3d_parts": len(pieces)}
 
 
 def markdown(res: dict) -> str:

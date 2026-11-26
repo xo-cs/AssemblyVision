@@ -6,12 +6,14 @@ from pathlib import Path
 import numpy as np
 
 from assemblyvision.analysis import clip_classes as C
+from assemblyvision.analysis import hand_events as HE
 from assemblyvision.analysis import zero_shot as Z
 from assemblyvision.storage.files import REPO_ROOT
 from assemblyvision.tools import check_outputs as CO
 from assemblyvision.tools import freeze as F
 from assemblyvision import validation_labels as VL
 from assemblyvision.evaluation import metrics as M
+from assemblyvision.output import extras as X
 from assemblyvision.tools import robustness as R
 from assemblyvision.tools import train_domain as T
 from assemblyvision.tools import validate_seg as V
@@ -273,6 +275,83 @@ class FloorPathTest(unittest.TestCase):
 
     def test_a_phase_without_body3d(self):
         self.assertIsNone(CO.floor_path([], [{"label": "A", "start_s": 0.0, "end_s": 1.0}], 30.0)[0]["path_m"])
+
+
+class ExtrasTest(unittest.TestCase):
+    steps = [{"label": "other", "start_s": 0.0, "end_s": 5.0}, {"label": "A", "start_s": 5.0, "end_s": 15.0},
+             {"label": "B", "start_s": 15.0, "end_s": 25.0}, {"label": "A", "start_s": 25.0, "end_s": 40.0}, {"label": "C", "start_s": 40.0, "end_s": 50.0}]
+
+    def test_cycles_count_a_repeated_phase(self):
+        c = X.cycles(self.steps)
+        self.assertEqual([(r["phase"], r["cycle"], r["duration_s"]) for r in c], [("A", 1, 10.0), ("B", 1, 10.0), ("A", 2, 15.0), ("C", 1, 10.0)])
+        self.assertEqual(X.cycle_png(c).shape[2], 3)
+        self.assertIsNone(X.cycle_png([]))
+
+    def test_time_ranges(self):
+        f = np.arange(0, 300)
+        m = (f >= 30) & (f < 120) | (f >= 200) & (f < 210)                  # 3 s, and 0.33 s (too short)
+        self.assertEqual(X.stretches(f, m, 30.0, 0.0, 10.0), [[1.0, 4.0]])
+
+    def rows(self, label, start, **values):
+        return [{"label": label, "start_s": str(start), "metric": k, "value": str(v), "coverage": "0.9"} for k, v in values.items()]
+
+    def test_rules_carry_their_evidence(self):
+        c = X.cycles(self.steps)
+        m = self.rows("A", 5.0, bend_b0_s=2, bend_b1_s=2, bend_b2_s=1, bend_b3_s=5, idle_share=0.4, two_hand_simultaneous=0.1)
+        m += self.rows("B", 15.0, bend_b0_s=9, bend_b1_s=1, bend_b2_s=0, bend_b3_s=0, idle_share=0.1, two_hand_simultaneous=0.8)
+        got = X.rule_suggestions(c, m, [], {(5.0, "bend"): [[6.0, 11.0]]})
+        by = {s["rule"]: s for s in got}
+        self.assertEqual(set(by), {"deep bending", "long idle", "low two hand use", "long phase"})    # A cycle 2: 15 s, median 10 s
+        self.assertEqual((by["deep bending"]["value"], by["deep bending"]["time_ranges"]), (0.5, [[6.0, 11.0]]))
+        self.assertEqual(by["long idle"]["time_ranges"], [[5.0, 15.0]])
+        self.assertIn("0.25", by["low two hand use"]["threshold"])
+
+    def test_a_badly_covered_or_missing_metric_gives_no_suggestion(self):
+        c = X.cycles(self.steps)
+        m = self.rows("A", 5.0, idle_share=0.9)
+        m[0]["coverage"] = "0.2"
+        m += self.rows("B", 15.0, idle_share="")
+        self.assertEqual([x["rule"] for x in X.rule_suggestions(c, m, [], {})], ["long phase"])
+
+    def test_the_rows_are_marked_experimental(self):
+        e = {"cycles": X.cycles(self.steps), "floor_path": [{"path_m": 1.5, "coverage": 1.0}] * 4, "suggestions": [],
+             "event_rows": [{**X.cycles(self.steps)[0], "metric": "tool_pickup_count", "value": 2, "unit": "count"}]}
+        r = X.metric_rows(e, "run")
+        self.assertIn("not_validated", next(x for x in r if x["metric"] == "movement_path_floor")["flags"])
+        self.assertIn("experimental", next(x for x in r if x["metric"] == "tool_pickup_count")["flags"])
+        self.assertIn("experimental", next(x for x in r if x["metric"] == "improvable_motions")["flags"])
+
+
+class HandEventTest(unittest.TestCase):
+    def scene(self, object_follows):
+        """A wrist reaches an object at x = 300, stops, then leaves to x = 500, with or without the object."""
+        T, fps = 120, 30.0
+        x = np.r_[np.linspace(100, 300, 30), np.full(30, 300.0), np.linspace(300, 500, 30), np.full(30, 500.0)]
+        wrist = np.stack([x, np.full(T, 200.0)], 1)
+        speed = np.r_[0.0, np.abs(np.diff(x)) * fps / 100.0]
+        frames, boxes, offset = [], [], [0]
+        for f in range(0, T, 15):
+            cx = x[f] if object_follows and f >= 60 else 300.0
+            frames.append(f)
+            boxes.append([cx - 10, 190, cx + 10, 210])
+            offset.append(len(boxes))
+        det = {"frames": np.array(frames), "offset": np.array(offset), "boxes": np.array(boxes, float),
+               "cls": np.zeros(len(boxes), int), "conf": np.full(len(boxes), 0.9)}
+        return HE.wrist_events(np.arange(T), wrist, speed, 100.0, fps, det, ["bottle"], 0.3, "right")
+
+    def test_the_object_goes_with_the_hand_is_a_pickup(self):
+        e = self.scene(True)
+        self.assertEqual([x["kind"] for x in e], ["pickup"])
+        self.assertAlmostEqual(e[0]["t_s"], 1.0, delta=0.1)
+        self.assertGreater(e[0]["reach_s"], 0.5)
+
+    def test_the_object_stays_is_a_placement(self):
+        self.assertEqual([x["kind"] for x in self.scene(False)], ["placement"])
+
+    def test_no_object_no_event(self):
+        det = {"frames": np.array([0, 60]), "offset": np.array([0, 0, 0]), "boxes": np.zeros((0, 4)), "cls": np.zeros(0, int), "conf": np.zeros(0)}
+        x = np.r_[np.linspace(0, 200, 30), np.full(60, 200.0)]
+        self.assertEqual(HE.wrist_events(np.arange(90), np.stack([x, x], 1), np.r_[0.0, np.abs(np.diff(x)) * 0.3], 100.0, 30.0, det, ["bottle"], 0.3, "left"), [])
 
 
 if __name__ == "__main__":

@@ -187,6 +187,13 @@ def build(root: Path, steps_csv: Path | None = None, metrics_csv: Path | None = 
     if (root / "eval.json").is_file() and (revision is None or revision.get("number") == 0):   # eval of the run as computed
         e = json.loads((root / "eval.json").read_text())
         ev = {"gt_file": e.get("gt_file"), "metrics": e.get("metrics")}
+    from . import extras as X
+    try:
+        extra = X.compute(root, steps_csv, metrics_csv)
+        added = X.metric_rows(extra, manifest.get("run_id"))
+    except (OSError, ValueError, KeyError) as e:                  # the report of the run itself never depends on these
+        extra, added = {"cycles": [], "floor_path": [], "events": [], "event_rows": [], "suggestions": [],
+                        "notes": [f"added measures not available ({type(e).__name__})"]}, []
     return {"report_version": 1, "run_id": manifest.get("run_id"), "source": manifest.get("source"),
             "video": Path(manifest.get("video", "")).name, "duration_s": cfr.get("duration_s"),
             "timestamps": {"run_created_utc": manifest.get("created_utc"), "run_finished_utc": manifest.get("finished_utc"),
@@ -195,7 +202,7 @@ def build(root: Path, steps_csv: Path | None = None, metrics_csv: Path | None = 
             "status": manifest.get("status"), "step_engine": manifest.get("config", {}).get("seg_a", {}).get("engine"),
             "effective_engine": source_label(next((s["source"] for s in phases), None)) or None,
             "steps": steps, "phases_found": len(phases), "phases_expected": len(vocab),
-            "metrics": read_metrics(metrics_csv or root / "metrics.csv"), "eval": ev,
+            "metrics": read_metrics(metrics_csv or root / "metrics.csv") + added, "extra": extra, "eval": ev,
             "notices": manifest.get("notices", []), "provenance": provenance(manifest)}
 
 
@@ -268,6 +275,9 @@ def write_pdf(path: Path, rep: dict) -> None:
             mlines.append(f"{r.get('step', ''):>4}  {r.get('label', '')[:28]:<28} {r.get('metric', '')[:22]:<22} "
                           f"{r.get('value', ''):>10} {r.get('unit', ''):<8} {r.get('coverage', ''):>6}  {r.get('flags', '')}")
         text_page(pdf, "Motion metrics", mlines)
+        if rep.get("extra"):
+            from . import extras as X
+            X.add_pages(pdf, rep, text_page)
         nlines = [f"[{n.get('stage', '')}] {n.get('code', '')} {n.get('text', '')}"
                   + (f" ({n['detail']})" if n.get("detail") else "") for n in rep["notices"]] or ["none"]
         pv = rep["provenance"]

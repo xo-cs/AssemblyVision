@@ -706,7 +706,32 @@ class GradioApp:
                  v.flag_pills(b.get("flags", ""))] for b in self.store.get_baseline(run_id)]
         return v.section_title("Cycle baseline", "Duration per phase over all its cycles: median and quartiles.") \
             + v.table(["Phase", "Cycles", "Median", "Q1", "Q3", "Flags"], rows, num={1, 2, 3, 4}, raw={0, 5},
-                      empty="No cycle baseline for this run.")
+                      empty="No cycle baseline for this run.") + self.extras_html(run_id)
+
+    def extras_html(self, run_id: str) -> str:
+        """Cycle time graph, the added measures and the rule based suggestions (output/extras.py)."""
+        from ..output import extras as X
+        root = self.store.paths(run_id).root
+        key = (run_id, *[(root / f).stat().st_mtime if (root / f).exists() else 0
+                         for f in ("steps.csv", "metrics.csv", "objects.npz", "body3d")])
+        if getattr(self, "_extra_key", None) != key:
+            try:
+                self._extra, self._extra_key = X.compute(root), key
+            except (OSError, ValueError, KeyError) as e:
+                return v.note(f"Added measures not available ({type(e).__name__}).")
+        e = self._extra
+        out = v.section_title("Cycle times", "Duration of each phase; one bar per cycle when a phase repeats.") \
+            + v.img_html(X.cycle_png(e["cycles"]), "Cycle time graph")
+        rows = [[v.esc(c["phase"]), c["cycle"], "-" if f["path_m"] is None else f"{f['path_m']:.2f} m", f"{100 * f['coverage']:.0f} %"]
+                for c, f in zip(e["cycles"], e["floor_path"])]
+        out += v.section_title("Movement path on the floor", "Mid hip on the GVHMR floor in metres, inside each shot part. Not validated.") \
+            + v.table(["Phase", "Cycle", "Path", "Phase covered"], rows, num={1, 2, 3}, raw={0}, empty="This run has no 3D body output.")
+        out += v.section_title("Improvement suggestions", "Suggestions, not findings: rule based on the metrics, experimental and not validated. "
+                               "A person must check the video before acting.")
+        s_rows = [[v.esc(s["phase"]), v.esc(s["rule"]), v.esc(s["suggestion"]), v.esc(f"{s['metric']} = {s['value']} {s['unit']} ({s['threshold']})"),
+                   v.esc(", ".join(f"{a:.0f} to {b:.0f} s" for a, b in s["time_ranges"]))] for s in e["suggestions"]]
+        out += v.table(["Phase", "Rule", "Suggestion", "Evidence", "Time ranges"], s_rows, raw={0, 1, 2, 3, 4}, empty="No rule was triggered.")
+        return out + "".join(v.note(n) for n in e["notes"])
 
     def eval_text(self, run_id: str) -> str:
         ev = self.store.get_eval(run_id)
@@ -1118,6 +1143,7 @@ class GradioApp:
                                 with gr.Column(visible=False, elem_classes=["av-mv-panel"]) as mv_p4:
                                     mv4_html = gr.HTML()
                             eval_html = gr.HTML(elem_classes=["av-card"], visible=False)
+                            cycle_html = gr.HTML(elem_classes=["av-card"])
                             notices_html = gr.HTML(elem_classes=["av-card"])
 
                         # --- Runs ---------------------------------------------------------
@@ -1158,10 +1184,10 @@ class GradioApp:
                            else v.note("No back bending values for this run.")),
                         gr.update(choices=self.reach_choices(run_id) if run_id else [ALL_PHASES], value=ALL_PHASES),
                         self.reach_html(run_id),
-                        gr.update(value=r["eval_html"], visible=bool(r["eval_html"])), r["notices_html"],
+                        gr.update(value=r["eval_html"], visible=bool(r["eval_html"])), r["baseline_html"], r["notices_html"],
                         self.run_id_html(run_id)]
             results_out = [res_head, res_kpis, note, video_card, video_head, overlay, timeline_img, steps_html, step_dd,
-                           metrics_html, bend_img, reach_dd, reach_html, eval_html, notices_html, run_id_box]
+                           metrics_html, bend_img, reach_dd, reach_html, eval_html, cycle_html, notices_html, run_id_box]
 
             def fill_results(run_id):
                 try:
