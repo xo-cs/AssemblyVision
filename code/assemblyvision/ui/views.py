@@ -330,15 +330,21 @@ def progress_bar(frac: float) -> str:
 
 
 def img_html(rgb: np.ndarray | None, alt: str) -> str:
-    """A chart (RGB array) as an inline PNG, so it is never written to a cache file."""
+    """A chart (RGB array) as an inline image, so it is never written to a cache file: lossless WebP (the same pixels
+    as PNG, about 5 times smaller), PNG if WebP cannot be written."""
     if rgb is None:
         return ""
     import cv2
-    ok, buf = cv2.imencode(".png", cv2.cvtColor(np.asarray(rgb), cv2.COLOR_RGB2BGR))
+    bgr = cv2.cvtColor(np.asarray(rgb), cv2.COLOR_RGB2BGR)
+    ok, buf = cv2.imencode(".webp", bgr, [cv2.IMWRITE_WEBP_QUALITY, 101])
+    kind = "webp"
+    if not ok:
+        ok, buf = cv2.imencode(".png", bgr, [cv2.IMWRITE_PNG_COMPRESSION, 9])
+        kind = "png"
     if not ok:
         return ""
     return (f"<img class='av-chart' alt='{esc(alt)}' "
-            f"src='data:image/png;base64,{base64.b64encode(buf.tobytes()).decode()}'>")
+            f"src='data:image/{kind};base64,{base64.b64encode(buf.tobytes()).decode()}'>")
 
 
 # --- trunk band colours ------------------------------------------------------------------

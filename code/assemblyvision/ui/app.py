@@ -153,6 +153,23 @@ def _theme(gr):
         table_border_color="#e5e5e5", table_even_background_fill="#ffffff", table_odd_background_fill="#ffffff")
 
 
+class TextGZip:
+    """gzip for the page, scripts, styles and JSON. Never for the files route (video with range requests, 3D and 4D
+    data, images) or the event stream (Starlette leaves text/event-stream alone too)."""
+
+    SKIP = ("/file=", "/gradio_api/file", "/queue/data", "/heartbeat", "/stream")
+
+    def __init__(self, app):
+        from starlette.middleware.gzip import GZipMiddleware
+        self.app, self.gz = app, GZipMiddleware(app, minimum_size=1024, compresslevel=5)
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http" and not any(x in scope.get("path", "") for x in self.SKIP):
+            await self.gz(scope, receive, send)
+        else:
+            await self.app(scope, receive, send)
+
+
 class GradioApp:
     def __init__(self, cfg: Config, sources: list[str], repo_root: Path = REPO_ROOT, worker_cmd=None,
                  port: int = PORT, live=None):
@@ -211,6 +228,19 @@ class GradioApp:
 
     RUN_FILES = ("manifest.json", "steps.csv", "metrics.csv", "eval.json", "body3d", "scene4d", "overlay", "objects.npz",
                  "export")
+
+    def prewarm(self) -> None:
+        """Fill the per run caches of the listed runs in the background, so even the first open after a start is fast."""
+        import threading
+
+        def go():
+            for r in self.curated_runs():
+                for f in (self.results, self.floor_html, self.reach_html, self.extras_html):
+                    try:
+                        f(r["run_id"])
+                    except Exception:                  # a cache that could not be filled is made on the first visit
+                        pass
+        threading.Thread(target=go, name="av-prewarm", daemon=True).start()
 
     def run_sig(self, run_id: str) -> tuple:
         """The modification times of the files a view of the run depends on: a cached view is made again when one of
@@ -751,14 +781,10 @@ class GradioApp:
         """Cycle time graph, the added measures and the rule based suggestions (output/extras.py)."""
         from ..output import extras as X
         root = self.store.paths(run_id).root
-        key = (run_id, *[(root / f).stat().st_mtime if (root / f).exists() else 0
-                         for f in ("steps.csv", "metrics.csv", "objects.npz", "body3d")])
-        if getattr(self, "_extra_key", None) != key:
-            try:
-                self._extra, self._extra_key = X.compute(root), key
-            except (OSError, ValueError, KeyError) as e:
-                return v.note(f"Added measures not available ({type(e).__name__}).")
-        e = self._extra
+        try:
+            e = self.memo("extras", run_id, lambda: X.compute(root))
+        except (OSError, ValueError, KeyError) as err:
+            return v.note(f"Added measures not available ({type(err).__name__}).")
         out = v.section_title("Cycle times", "Duration of each phase; one bar per cycle when a phase repeats.") \
             + v.img_html(X.cycle_png(e["cycles"]), "Cycle time graph")
         rows = [[v.esc(c["phase"]), c["cycle"], "-" if f["path_m"] is None else f"{f['path_m']:.2f} m", f"{100 * f['coverage']:.0f} %"]
@@ -1370,14 +1396,17 @@ class GradioApp:
         users = getattr(self, "users", None)
         check_bind(host, share, port, login=users is not None and bool(users.names()))
         import gradio as gr
+        from starlette.middleware import Middleware
         gr.set_static_paths([str(root / "runs") for root in self.store.roots.values()] + [str(UI_DIR / "static")])
         demo = self.build()
         demo.queue(default_concurrency_limit=4)
+        self.prewarm()
         demo.launch(server_name=host, server_port=port, share=False, inbrowser=False, show_api=False,
                     auth=users.check if users is not None else None,
                     auth_message="AssemblyVision: log in with your user name and password.",
                     allowed_paths=[str(r) for r in self.store.roots.values()] + [str(UI_DIR / "static")],
-                    max_file_size=f"{self.cfg['ui']['max_upload_mb']}mb")
+                    max_file_size=f"{self.cfg['ui']['max_upload_mb']}mb",
+                    app_kwargs={"middleware": [Middleware(TextGZip)]})
 
 
 # the step engines the page offers (label, preset); the other presets of config.ENGINE_PRESETS stay usable in code
