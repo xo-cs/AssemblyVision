@@ -84,6 +84,11 @@ difference of the phase start times **1.80 s**, largest **5.00 s**.
   next to the true one. That is expected from the ordered decoder, which can only move boundaries.
 - Removal and Disassembly have the lowest F1 of the work phases (86 and 89); the later phases are near the ceiling.
 
+**Robustness on the same video** (experiments/w12-robustness, rule fixed before the runs): weights at 0.5x and 2x, n = 8,
+90.04 to 94.40 (median 93.20); random halves of the descriptions, n = 20, 90.55 to 94.40 (median 93.20); VLM sampling 3 s
+and 2 frames, 93.40; pose YOLO26 l instead of x, 94.01. Every variant lies within 5 points of 93.20, so the result is
+robust in every tested group. The independent descriptions of three team members (group c) are not tested yet.
+
 These remain development results on a single video (section 5).
 
 ## 4. Metric definitions
