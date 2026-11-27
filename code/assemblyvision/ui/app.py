@@ -1133,11 +1133,11 @@ class GradioApp:
                             with gr.Column(elem_classes=["av-card"]):
                                 gr.HTML(v.section_title("Video", "An mp4 or avi file from the data folders, "
                                                         "or a new upload."))
-                                mode = gr.Radio(["Existing video", "Upload a video"], value="Existing video",
+                                mode = gr.Radio(["Existing video", "Upload a video"], value="Upload a video",
                                                 show_label=False, container=False, elem_classes=["av-seg"])
                                 video_dd = gr.Dropdown(label="Video", choices=self.video_choices(), value=None,
-                                                       elem_classes=["av-plain"])
-                                with gr.Column(visible=False) as up_col:
+                                                       elem_classes=["av-plain"], visible=False)
+                                with gr.Column(visible=True) as up_col:
                                     up_src = gr.Radio(self.sources, value=self.sources[0], label="Save to",
                                                       visible=len(self.sources) > 1, elem_classes=["av-seg"])
                                     upload = gr.File(label="Video file (mp4 or avi)", file_types=[".mp4", ".avi"],
@@ -1198,7 +1198,7 @@ class GradioApp:
                                 exp_msg = gr.HTML()
                                 exp_files = gr.File(label="Report files", file_count="multiple", interactive=False,
                                                     visible=False)
-                                with gr.Accordion("Correct phases (advanced)", open=False, elem_classes=["av-accordion"]):
+                                with gr.Accordion("Correct phases", open=True, elem_classes=["av-accordion"]):
                                     gr.HTML("<p class='av-hint'>Move a boundary (time in seconds), recompute the "
                                             "metrics, then approve: the corrected version is saved as a new revision "
                                             "and the original stays.</p>")
