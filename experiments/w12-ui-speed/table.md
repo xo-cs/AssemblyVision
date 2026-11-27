@@ -31,3 +31,19 @@ interactive page 2.74 and 1.17 s; switch to Results 0.29 and 0.17 s; open a run 
 Movement tabs 3D 0.30 and 0.32 s, 4D 0.36 and 0.41 s, 2D 0.17 s; video start 0.05 s. So the 2.26 s first page above was
 the prewarm thread still running. The interactive page varies (1.2 to 2.7 s) because each measurement starts with an
 empty browser cache and loads about 160 script files. Targets met: every click within 1 s, a run opens within 2 s.
+
+## Round 2 (2026-11-27), after Khurshid's flagship measurement
+
+Flagship QiSens run, measured by Khurshid with scripts/ui_timing.py: first page 0.68 s, interactive 1.10 s, Results 0.19 s,
+**open the run 10.90 s the first time** and 1.27 s the second, tabs 3D 0.24 s, 4D 0.34 s, 2D 0.12 s, video 0.05 s.
+
+Likely cause of the slow first open: the per run cache keyed on every file of the run, so a new objects.npz (from
+detect_objects after the app start) threw away the warm Results view, and the prewarm only ran at the start. Fixes:
+each view is keyed only on the files it reads; a keep warm loop refills the listed runs every minute (and logs a run
+that takes over 1 s or fails); the floor maps load only when their section is opened; the 3D and 4D player files are
+served as compact copies (4D positions as int16 with an offset and a scale, largest error 0.02 mm on this run; NaN kept;
+gzip). The event stream (text/event-stream) cannot be gzipped by Starlette, so it was made smaller instead.
+
+Public run after these fixes: open a run 1.06 s, again 1.21 s; tabs 0.16 to 0.28 s; Gradio events 0.82 MB (was 1.28);
+3D and 4D data 3.92 MB (was 7.36); the whole run's 4D files 120.8 MB to 62.4 MB, 3D files 3.5 MB to 0.67 MB. No 3D or 4D
+file is loaded before its tab is opened (0 requests). The flagship re-measurement is Khurshid's.

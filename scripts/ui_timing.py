@@ -192,6 +192,8 @@ def measure(base: str, user: str, password: str, run_id: str, profile: Path) -> 
         got = c.until(f"(() => document.querySelector('.av-run-id')?.innerText?.includes({json.dumps(run_id)}) "
                       "&& document.querySelectorAll('.av-kpi, .kpi, .av-card').length > 3)()", timeout=90)
         T["open the run again"] = None if got is None else round(time.monotonic() - t1 - 0.3, 3)
+        c.pump(1.0)
+        res["player_files_before_any_tab"] = sum(".player." in r["url"] for r in c.responses.values())
         for tab in ("3D", "4D", "2D"):
             c.js(f"""(() => {{ const t = Array.from(document.querySelectorAll('.av-mv-mode label')).find(x => x.innerText.trim() === {tab!r});
                 (t.querySelector('input') || t).click(); }})()""")
@@ -258,6 +260,7 @@ def main() -> int:
     for k, v in res["payload_by_kind"].items():
         print(f"  payload {k:<34} {v['requests']:>3} requests {v['bytes'] / 1e6:8.2f} MB")
     print(f"  video: {res['video']}; text responses over 20 kB without compression: {res['uncompressed_text_over_20kB']}")
+    print(f"  3D or 4D files loaded before any Movement tab was opened: {res.get('player_files_before_any_tab')}")
     for e in res.get("open_run_events", [])[:8]:
         print(f"  open run event fn {e['fn_index']}: {e['s']:.2f} s  {e['what'][:80]}")
     for r in res["largest"][:8]:

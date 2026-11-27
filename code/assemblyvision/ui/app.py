@@ -233,16 +233,32 @@ class GradioApp:
         """Fill the per run caches of the listed runs in the background, so even the first open after a start is fast."""
         import threading
 
-        def go():
-            for r in self.curated_runs():
-                for f in (self.results, self.floor_html, self.reach_html, self.extras_html):
-                    try:
-                        f(r["run_id"])
-                    except Exception:                  # a cache that could not be filled is made on the first visit
-                        pass
-        threading.Thread(target=go, name="av-prewarm", daemon=True).start()
+        import logging
+        import time as T
+        from . import player_files as PF
+        log = logging.getLogger("assemblyvision.ui")
 
-    def run_sig(self, run_id: str) -> tuple:
+        def warm_once():
+            for r in self.curated_runs():
+                rid, t0, failed = r["run_id"], T.monotonic(), []
+                for name, f in (("results", self.results), ("floor", self.floor_html), ("reach", self.reach_html),
+                                ("extras", self.extras_html), ("3D", lambda x: self.player_html(x, "3D")),
+                                ("players", lambda x: PF.make_all(self.store.paths(x).root))):
+                    try:
+                        f(rid)
+                    except Exception as e:             # a cache that could not be filled is made on the first visit
+                        failed.append(f"{name}: {type(e).__name__}")
+                took = T.monotonic() - t0
+                if took > 1.0 or failed:
+                    log.info("warm %s: %.1f s%s", rid, took, f", not warmed: {failed}" if failed else "")
+
+        def go():
+            while True:                                # at the start, then every minute: new output is warmed too
+                warm_once()
+                T.sleep(60)
+        threading.Thread(target=go, name="av-keep-warm", daemon=True).start()
+
+    def run_sig(self, run_id: str, files: tuple | None = None) -> tuple:
         """The modification times of the files a view of the run depends on: a cached view is made again when one of
         them changes (new output shows at once)."""
         try:
@@ -250,16 +266,20 @@ class GradioApp:
         except (AvError, KeyError, ValueError):
             return (run_id,)
         out = []
-        for f in self.RUN_FILES:
+        for f in files or self.RUN_FILES:
             try:
                 out.append((root / f).stat().st_mtime_ns)
             except OSError:
                 out.append(0)
         return tuple(out)
 
+    VIEW_FILES = {"results": ("manifest.json", "steps.csv", "metrics.csv", "eval.json", "export", "overlay", "body3d"),
+                  "floor": ("body3d",), "extras": ("manifest.json", "steps.csv", "metrics.csv", "objects.npz", "body3d")}
+
     def memo(self, what: str, run_id: str, make):
-        """make() once per run and file signature; at most 48 entries are kept."""
-        sig = self.run_sig(run_id)
+        """make() once per run and the signature of the files this view reads (VIEW_FILES, else all of RUN_FILES), so
+        a new file the view does not use (for example objects.npz) leaves it cached; at most 48 entries are kept."""
+        sig = self.run_sig(run_id, self.VIEW_FILES.get(what))
         hit = self._memo.get((what, run_id))
         if hit is not None and hit[0] == sig:
             return hit[1]
@@ -682,6 +702,7 @@ class GradioApp:
         """The three.js player (static/player.js) for the 3D or 4D view of a run, every part in order."""
         import html as H
         import json as J
+        from . import player_files as PF
         root = self.store.paths(run_id).root
         fps = float(self.store.get_run(run_id)["ingest"]["cfr"]["fps"])
         parts = []
@@ -692,15 +713,21 @@ class GradioApp:
                 f = root / "body3d" / f"{p['name']}.player.json"
                 if not f.is_file() or f.stat().st_mtime < (root / "body3d" / f"{p['name']}.npz").stat().st_mtime:
                     f.write_text(J.dumps(BV.player_data(p, fps)))
-                parts.append({"json": self._file_url(f), "t0": int(p["frames"][0]) / fps, "t1": int(p["frames"][-1]) / fps,
+                gz = PF.ready(PF.out_dir(root, "3d") / (f.name + ".gz"), f)
+                parts.append({"json": self._file_url(f), "json_gz": self._file_url(gz) if gz else None,
+                              "t0": int(p["frames"][0]) / fps, "t1": int(p["frames"][-1]) / fps,
                               "n": len(p["frames"]), "fps": fps,
                               "label": f"{p['shot_id'].rsplit('-', 1)[-1]} part {p['name'].rsplit('_p', 1)[-1]}"})
         else:
             from .. import scene4d as S4
             for p in S4.load_parts(root):
                 d = root / "scene4d"
-                parts.append({"json": self._file_url(d / f"{p['name']}.player.json"),
-                              "bin": self._file_url(d / f"{p['name']}.player.bin"), "t0": p["start"] / fps,
+                j, b = d / f"{p['name']}.player.json", d / f"{p['name']}.player.bin"
+                jo, bo = PF.paths_4d(j, b, PF.out_dir(root, "4d"))
+                both = PF.ready(jo, j, b) and PF.ready(bo, j, b)
+                parts.append({"json": self._file_url(j), "bin": self._file_url(b),
+                              "json_gz": self._file_url(jo) if both else None, "bin_gz": self._file_url(bo) if both else None,
+                              "t0": p["start"] / fps,
                               "t1": p["end"] / fps, "n": p["end"] - p["start"] + 1, "fps": fps,
                               "label": f"{p['name'].rsplit('-', 1)[-1].replace('_p', ' part ')}"})
         if not parts:
@@ -1207,7 +1234,9 @@ class GradioApp:
                                                                    elem_classes=["av-plain", "av-field"], min_width=280,
                                                                    scale=0)
                                         reach_html = gr.HTML()
-                                        floor_html = gr.HTML()
+                                        with gr.Accordion("Floor map per shot part (3D body, metres)", open=False,
+                                                          elem_classes=["av-accordion"]) as floor_acc:
+                                            floor_html = gr.HTML()
                                 with gr.Column(visible=False, elem_classes=["av-mv-panel"]) as mv_p3:
                                     mv3_html = gr.HTML()
                                 with gr.Column(visible=False, elem_classes=["av-mv-panel"]) as mv_p4:
@@ -1362,10 +1391,11 @@ class GradioApp:
                 """A new run: 2D is always filled; 3D and 4D only when their tab shows (players load data). A hidden
                 panel is left as it is (it is filled again when shown): clearing it raced with a switch to 3D or 4D
                 made while this ran, and wiped the player just shown."""
-                return [self.floor_html(run_id),
+                return [gr.Accordion(open=False), "",          # the floor maps load when their section is opened
                         self.movement_html(run_id, "3D") if mode == "3D" else gr.skip(),
                         self.movement_html(run_id, "4D") if mode == "4D" else gr.skip()]
-            run_dd.change(on_mv_run, [run_dd, mv_mode], [floor_html, mv3_html, mv4_html], show_progress="hidden")
+            run_dd.change(on_mv_run, [run_dd, mv_mode], [floor_acc, floor_html, mv3_html, mv4_html], show_progress="hidden")
+            floor_acc.expand(lambda r: self.floor_html(r), run_dd, floor_html, show_progress="hidden")
             def files_update(files):
                 return gr.update(value=files or None, visible=bool(files))
             run_dd.change(lambda r: [self.correction_rows(r), "", "", files_update(self.export_files(r))], run_dd,

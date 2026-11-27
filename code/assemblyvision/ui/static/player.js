@@ -24,16 +24,37 @@ function el(tag, attrs = {}, parent = null) {
   return e;
 }
 
+// the compact copies (gzip; 4D positions as int16 with an offset and a scale, ui/player_files.py) when the browser
+// can unzip them, else the original files
+const GZ = typeof DecompressionStream !== "undefined";
+async function fetchBuf(url) {
+  const r = await fetch(url);
+  return url.endsWith(".gz") ? new Response(r.body.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer()
+                             : r.arrayBuffer();
+}
+
 async function loadPart(part) {
   if (part.data) return part.data;
-  const head = await (await fetch(part.json)).json();
+  const useGz = GZ && part.json_gz && (!part.bin || part.bin_gz);
+  const head = JSON.parse(new TextDecoder().decode(await fetchBuf(useGz ? part.json_gz : part.json)));
   let buf = null;
-  if (part.bin) buf = await (await fetch(part.bin)).arrayBuffer();
+  if (part.bin) buf = await fetchBuf(useGz ? part.bin_gz : part.bin);
+  const done = {};
   const block = (k) => {
     const b = head[k];
     if (!b) return null;
+    if (done[k]) return done[k];
     const n = b.shape.reduce((a, x) => a * x, 1);
-    return b.dtype === "f32" ? new Float32Array(buf, b.offset, n) : new Uint8Array(buf, b.offset, n);
+    let out;
+    if (b.dtype === "q16") {                         // value = min + (q + 32767) * scale; -32768 is NaN
+      const q = new Int16Array(buf, b.offset, n);
+      out = new Float32Array(n);
+      for (let i = 0; i < n; i++) out[i] = q[i] === -32768 ? NaN : b.min + (q[i] + 32767) * b.scale;
+    } else {
+      out = b.dtype === "f32" ? new Float32Array(buf, b.offset, n) : new Uint8Array(buf, b.offset, n);
+    }
+    done[k] = out;
+    return out;
   };
   part.data = { head, block };
   return part.data;
