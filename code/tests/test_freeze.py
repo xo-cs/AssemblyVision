@@ -388,7 +388,8 @@ class ScoreMeasurementsTest(unittest.TestCase):
         self.assertIn("PCK part missed", SM.verdict(6, {"pck": 0.5}))
 
     def test_a_measurement_without_labels_says_so(self):
-        self.assertIn("no labels yet", SM.fmt(2, None)[0][1])
+        self.assertIn("not validated on QiSens", SM.fmt(2, None)[0][1])     # measure 2 has no walk of known length
+        self.assertIn("no labels yet", SM.fmt(3, None)[0][1])
         self.assertTrue(all(SM.TARGETS[n] for n in range(1, 11)))
 
 
