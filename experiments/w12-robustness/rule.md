@@ -75,3 +75,11 @@ You write visual descriptions for a video classifier. Below are 5 work phases of
 5. Assembly and Installation: the worker puts the parts back together and mounts them onto the bogie or train (fitting, bolting, tightening).
 Format exactly: '## <phase name>' then 22 lines starting with '- '.
 ```
+
+### Second amendment of group c (2026-11-28, before the replacement is generated)
+
+Qwen3 4B stopped after one phase (incomplete). Replaced by Phi 4 mini instruct (different family), decided by Khurshid on
+2026-11-28 after seeing only Qwen3's incomplete output, before any group c score existed. Qwen3's output is kept in
+group_c/ as a record. Same prompt, temperature, seed and one generation rule; Phi 4 mini instruct as GGUF Q4_K_M with our
+llama.cpp on GPU1. If its output is incomplete too, it is not rerun: group c is then scored on the complete authors and
+the report says so.
