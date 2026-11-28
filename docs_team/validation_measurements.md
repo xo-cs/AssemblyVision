@@ -53,36 +53,36 @@ label was scored. They are not changed after a result is seen; a measurement tha
 | 9 | two hand cooperation | both wrists above a speed threshold | a person says both, one or no hand works, on 3 s clips | class | agreement at least 75 % | not measured | fast idle motion counts as work; a holding hand counts as idle |
 | 10 | gaze direction | yaw from nose, eyes and ears | a person assigns the head direction on sampled frames | class | agreement at least 70 % | not measured | head, not eyes; poor when the face is small or turned away |
 
-## 3. Smallest hand labelled ground truth (short QiSens clips)
+## 3. Hand labelled ground truth (round 2, from 2026-11-28)
 
-Items are drawn with a fixed seed from the frames where the worker is tracked, so no system output decides what is
-labelled, and every annotator gets the same items. Two annotators per task would also give the human agreement.
+The first Labels page held the train domain clip classes, not measurement ground truth, so measurement labelling starts
+with round 2. Items are drawn with a fixed seed from the frames where the worker is tracked, evenly over the phases (the
+linked hand labels give the phases), so no system output decides what is labelled and every annotator gets the same
+items. **Asel and Kazi each do all items**, so the kappa between them can be reported.
 
-| # | task on the **Labels** page | amount | about |
+| page | task | items | measurements |
 | --- | --- | --- | --- |
-| 1 | none needed (phase labels exist) | | |
-| 2 | no page: mark 5 straight walks and take their floor distance from a known length in the scene (for example the rail gauge, 1,435 mm, if the track is visible and standard). A short walk over a taped distance with the same camera would be better | 5 walks | 30 min |
-| 3 | Waist bending: trunk angle band | 100 frames | 15 min |
-| 4 | Repetitive work | 30 clips of 10 s | 15 min |
-| 5 | no page: an engineer rates the suggestions in the PDF | all suggestions of the flagship | 20 min |
-| 6 | Label Studio (existing workflow): wrist keypoints | 5 runs of 10 consecutive frames | 20 min |
-| 7 | Tool pickup moments | one 2 minute window | 10 min |
-| 8 | Object placement moments | one 2 minute window | 10 min |
-| 9 | Two hand cooperation | 40 clips of 3 s | 15 min |
-| 10 | Gaze: head direction | 100 frames | 15 min |
+| Labels (team) | Frames: trunk band (B0 under 20, B1 20 to 45, B2 45 to 60, B3 over 60 degrees, or cannot see), both hands working (yes, no, cannot see), gaze (towards the hands or the work, left, right, up, away, cannot see; left and right as seen in the image) | 100 frames | 3, 9, 10 |
+| Labels (team) | Wrists: click the left and the right wrist, or mark it not visible | 50 frames | 6 (PCK@0.1) |
+| Labels (team) | Events: in one 2 minute clip, mark each repeated cycle start, tool pickup and object placement | 1 clip | 4, 7, 8 |
+| Ratings (mentor only) | The run's suggestions with their evidence: useful, partly useful or not useful, optional comment | 4 on the flagship | 5 |
 
-**The page.** The Labels page is no longer in the sidebar (2026-11-26); its code and all saved labels are kept. Labels
-are saved per annotator in `data/qisens/validation/labels/<run>/<task>/<user>.csv`. The data rules of
-docs_team/labelling_guide.md section 1 apply: no screenshots, no downloads, and clear the browser cache after a QiSens session.
+**The 2 minute clip** is chosen by a fixed rule, without anyone looking at the video: among the phases of at least 2
+minutes, the one where the wrists move most (median wrist speed relative to the hip); its middle 2 minutes.
 
-**Labels made so far.** Khurshid labelled the measurement tasks on the Labels page in the week of 2026-11-19, alone:
-**one annotator**, so no human agreement can be reported for these tasks and the human ceiling is unknown. The files
-are under `data/qisens/validation/labels/` (Claude cannot list that folder). To see which tasks have how many labels,
-without showing any value:
+**Rules of the comparison (fixed before any label is scored):** trunk band from the trunk angle at the frame; both hands
+working = both wrists active in at least half of the frames within 1 s; gaze: the system's "down" counts as towards the
+hands or the work, "front" (facing the camera) and the label "up" have no counterpart and count as misses; wrist PCK@0.1 =
+within 0.1 of the longer side of the worker's tracked box; repetitive work in 10 s windows of the clip, where a window
+with at least two cycle starts counts as repetitive (**limit:** the system finds short repeated motions of 0.4 to 2 s,
+while the annotators mark work cycles, so the two do not measure quite the same thing); events matched one to one within
+1 s; suggestions: the share rated useful. Hand travel can only be scored for its PCK part; the travel itself needs
+consecutive frames.
 
-```
-cd ~/AssemblyVision && find data/qisens/validation/labels -name '*.csv' | while read f; do echo "$f $(($(wc -l < "$f") - 1)) labels"; done
-```
+**Access.** Labels is shown to the team's accounts and hidden from the mentor; Ratings is shown only to the mentor. Every
+save checks the account on the server, so the page address alone does not open a task. Labels are saved per annotator in
+`data/qisens/validation/labels/<run>/<task>/<user>.csv`. The data rules of docs_team/labelling_guide.md section 1 apply:
+no screenshots, no downloads, and clear the browser cache after a QiSens session.
 
 ## 4. Scores against the hand labels
 
@@ -101,8 +101,8 @@ python -m assemblyvision.tools.detect_objects --run ../data/qisens/runs/run_2026
 python -m assemblyvision.tools.score_measurements --run ../data/qisens/runs/run_20261108_133251_1550 --gt ../data/qisens/annotations/steps_gt.csv
 ```
 
-The first command is only needed for 7 and 8 (tool pickup and object placement); without it they are reported as not
-measured.
+The first command is only needed for 7 and 8 (objects.npz exists already from round 1). The same score command reads the
+round 2 labels; a task nobody has labelled prints "no labels yet".
 
 **Results, round 1** (run by Khurshid on QiSens on 2026-11-28, recorded unchanged). At that time only the phase labels
 existed; the earlier Labels page had held the train domain clip classes, not measurement ground truth.
