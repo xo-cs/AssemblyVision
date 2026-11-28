@@ -192,6 +192,51 @@ def system_wrists(F: Frames, boxes: dict, f: int) -> tuple:
     return pts, PCK * float(max(box[2] - box[0], box[3] - box[1]))
 
 
+def system_trunk_points(F: Frames, f: int, m: dict):
+    """(angle deg, band "B0".."B3", mid hip xy, mid shoulder xy, torso px) of the system at the frame: the 2D trunk angle of
+    the metric (motion.subject_trunk on the cleaned keypoints, against the image vertical), or None."""
+    from ..analysis.cleaning import L_HIP, L_SHO, R_HIP, R_SHO
+    from ..analysis.motion import band_of, subject_trunk
+    w = F.at(f)
+    if w is None:
+        return None
+    s = F.subjects[w[0]]
+    _, ang = subject_trunk(s.cs)
+    a = ang[w[1]]
+    if not np.isfinite(a):
+        return None
+    xy = s.cs.xy[w[1]].astype(np.float64)
+    hip, sho = (xy[L_HIP] + xy[R_HIP]) / 2, (xy[L_SHO] + xy[R_SHO]) / 2
+    return float(a), L2.BAND_NAMES[int(band_of(np.array([a]), m["angle_bands"])[0])], hip, sho, float(s.cs.torso or np.linalg.norm(sho - hip))
+
+
+def score_trunk_clicks(F: Frames, rows: list[dict], m: dict) -> dict:
+    """#3 from the clicked hip and shoulder midpoints: band agreement, within one band, mean absolute angle difference, and
+    the point errors in px and as a share of the torso length (PCK style: also the share within 0.1 torso)."""
+    told = [r for r in rows if r.get("trunk") == L2.TRUNK_CLICKS]
+    cannot = sum(r.get("trunk") == L2.TRUNK_CANNOT for r in rows)
+    pairs, dang, dh, ds = [], [], [], []
+    for r in told:
+        got = system_trunk_points(F, int(r["frame"]), m)
+        if got is None:
+            pairs.append((r["band"], None))
+            continue
+        a, band, hip, sho, torso = got
+        pairs.append((r["band"], band))
+        dang.append(abs(a - float(r["angle_deg"])))
+        dh.append((float(np.hypot(*(hip - [float(r["hip_x"]), float(r["hip_y"])]))), torso))
+        ds.append((float(np.hypot(*(sho - [float(r["shoulder_x"]), float(r["shoulder_y"])]))), torso))
+    both = [(h, x) for h, x in pairs if x is not None]
+    idx = L2.BAND_NAMES.index
+    stat = lambda d: {"mean_px": round(float(np.mean([e for e, _ in d])), 1), "mean_torso": round(float(np.mean([e / t for e, t in d])), 3),
+                      "within_0_1_torso": round(float(np.mean([e / t <= 0.1 for e, t in d])), 3)} if d else None
+    return {"labels": len(rows), "told": len(told), "cannot_see": cannot, "scored": len(both),
+            "coverage": round(len(both) / len(told), 3) if told else None,
+            "agreement": round(sum(h == x for h, x in both) / len(both), 3) if both else None,
+            "within_one": round(sum(abs(idx(h) - idx(x)) <= 1 for h, x in both) / len(both), 3) if both else None,
+            "angle_mae_deg": round(float(np.mean(dang)), 2) if dang else None, "hip_error": stat(dh), "shoulder_error": stat(ds)}
+
+
 def kappa_of(a: dict, b: dict, skip: str) -> dict | None:
     """Cohen's kappa of two annotators on their common items (items either marked skip are left out)."""
     from ..evaluation.metrics import cohen_kappa
@@ -216,18 +261,14 @@ def score_round2(root: Path, area: Path, F: Frames, m_all: dict, cfg, fps: float
         for n, (col, sysf, skip) in q.items():
             per = {}
             for user, rows in frames.items():
-                if n == 3:
-                    pairs = [(r[col], sysf(r)) for r in rows]
-                    idx = lambda t: next((i for i, b in enumerate(BANDS) if t and (t == b or t.startswith(f"B{i} "))), None)
-                    pairs = [(h if h != skip else CANNOT, None if s is None else L2.TRUNK[idx(s)]) for h, s in pairs]
-                    res = agreement(pairs)
-                    near = [(h, s) for h, s in pairs if h != CANNOT and s is not None]
-                    res["within_one"] = round(sum(abs(L2.TRUNK.index(h) - L2.TRUNK.index(s)) <= 1 for h, s in near) / len(near), 3) if near else None
+                if n == 3:                             # only the clicked trunk answers; old band radio answers are ignored
+                    res = score_trunk_clicks(F, L2.drop_old_bands(rows)[0], m)
                 else:
                     res = agreement([(r[col] if r[col] != skip else CANNOT, sysf(r)) for r in rows])
                 per[user] = res
             ann = list(frames)
-            kap = kappa_of({r["item"]: r[col] for r in frames[ann[0]]}, {r["item"]: r[col] for r in frames[ann[1]]}, skip) \
+            key = (lambda r: r["band"] if r.get("trunk") == L2.TRUNK_CLICKS else skip) if n == 3 else (lambda r: r[col])
+            kap = kappa_of({r["item"]: key(r) for r in frames[ann[0]]}, {r["item"]: key(r) for r in frames[ann[1]]}, skip) \
                 if len(ann) >= 2 else None
             out[n] = {"annotators": per, "between_annotators": kap, "task": "frames"}
     wrists = {f.stem: VL.read(f) for f in sorted((base / "wrists").glob("*.csv"))}
@@ -426,6 +467,11 @@ def fmt(n: int, r: dict | None) -> list[tuple[str, str, str]]:
             t = f"{x['labels']} labels, {x['told']} not 'cannot tell', {x['scored']} with a system answer: agreement {x['agreement']}"
             if n == 3:
                 t += f", within one band {x['within_one']}"
+                if "angle_mae_deg" in x:
+                    he, se = x["hip_error"] or {}, x["shoulder_error"] or {}
+                    t += (f"; mean angle difference {x['angle_mae_deg']} deg; hip point error {he.get('mean_px')} px "
+                          f"({he.get('mean_torso')} torso, {he.get('within_0_1_torso')} within 0.1 torso), shoulder point "
+                          f"error {se.get('mean_px')} px ({se.get('mean_torso')} torso, {se.get('within_0_1_torso')} within 0.1 torso)")
             if n == 4:
                 t += f", F1 {x['f1']}" + (f" ({x['cycle_starts']} cycle starts in 10 s windows)" if "cycle_starts" in x else "")
         rows.append((user, t, verdict(n, x)))

@@ -201,11 +201,18 @@ GAZE2 = ["towards the hands or the work", "left (in the image)", "right (in the 
 EVENT_KINDS = ["cycle start", "tool pickup", "object placement"]
 RATINGS = ["useful", "partly useful", "not useful"]
 GT_TASKS = {
-    "frames": {"title": "Frames: trunk band, both hands, gaze (100 frames)", "n": 100},
+    "frames": {"title": "Frames: trunk angle (two clicks), both hands, gaze (100 frames)", "n": 100},
     "wrists": {"title": "Wrists: click left and right (50 frames)", "n": 50},
     "events": {"title": "Events: cycle starts, tool pickups, object placements (2 minute clip)", "span_s": 120.0},
 }
-FRAME_FIELDS = ["item", "frame", "time_s", "phase", "trunk", "hands", "gaze", "user", "utc"]
+# trunk: "clicks" (hip and shoulder midpoints clicked, angle computed) or "cannot see"; the band radio answers of the
+# first version (2026-11-28) are dropped (drop_old_bands), since nobody can judge 20, 45 or 60 degrees by eye
+FRAME_FIELDS = ["item", "frame", "time_s", "phase", "trunk", "hip_x", "hip_y", "shoulder_x", "shoulder_y", "angle_deg",
+                "band", "hands", "gaze", "user", "utc"]
+TRUNK_CLICKS, TRUNK_CANNOT = "clicks", "cannot see"
+BAND_NAMES = ["B0", "B1", "B2", "B3"]
+BAND_TEXT = {"B0": "B0 (under 20 degrees)", "B1": "B1 (20 to 45 degrees)", "B2": "B2 (45 to 60 degrees)",
+             "B3": "B3 (over 60 degrees)"}
 WRIST_FIELDS = ["item", "frame", "time_s", "phase", "left_x", "left_y", "right_x", "right_y", "user", "utc"]
 EVENT_FIELDS = ["item", "time_s", "kind", "user", "utc"]
 RATING_FIELDS = ["item", "rule", "phase", "cycle", "rating", "comment", "user", "utc"]
@@ -299,12 +306,43 @@ def _replace(path: Path, key: str, value, row: dict, fields: list[str]) -> None:
     _write(path, sorted(rows, key=lambda r: float(r.get("time_s") or r.get("item") or 0)), fields)
 
 
-def save_frame(path: Path, item: dict, trunk: str, hands: str, gaze: str, user: str) -> None:
-    if trunk not in TRUNK or hands not in HANDS or gaze not in GAZE2:
-        raise ValueError("answer all three questions")
-    _replace(path, "item", item["item"], {"item": item["item"], "frame": item["frame"], "time_s": item["time_s"],
-                                          "phase": item["phase"], "trunk": trunk, "hands": hands, "gaze": gaze,
-                                          "user": user, "utc": utc_now()}, FRAME_FIELDS)
+def trunk_angle_band(hip, shoulder, edges=(20.0, 45.0, 60.0)) -> tuple[float, str]:
+    """(angle in degrees, band) from the clicked hip and shoulder midpoints, exactly as the system computes its trunk angle
+    (analysis/motion.trunk_angle: mid shoulder minus mid hip against the upward image vertical, 2D image pixels) and its
+    band (motion.band_of with motion.angle_bands)."""
+    from .analysis.motion import band_of, trunk_angle
+    a = float(trunk_angle(np.asarray(shoulder, np.float64), np.asarray(hip, np.float64)))
+    return a, BAND_NAMES[int(band_of(np.array([a]), list(edges))[0])]
+
+
+def drop_old_bands(rows: list[dict]) -> tuple[list[dict], int]:
+    """The rows with every band radio answer of the first version removed (hands and gaze kept); and how many."""
+    out, n = [], 0
+    for r in rows:
+        r = {k: r.get(k, "") for k in FRAME_FIELDS}
+        if r["trunk"] not in (TRUNK_CLICKS, TRUNK_CANNOT, ""):
+            r.update(trunk="", hip_x="", hip_y="", shoulder_x="", shoulder_y="", angle_deg="", band="")
+            n += 1
+        out.append(r)
+    return out, n
+
+
+def save_frame(path: Path, item: dict, trunk, hands: str, gaze: str, user: str, edges=(20.0, 45.0, 60.0)) -> None:
+    """trunk: TRUNK_CANNOT, or ((hip x, y), (shoulder x, y)) in pixels of the original frame."""
+    if hands not in HANDS or gaze not in GAZE2 or trunk is None:
+        raise ValueError("answer all three questions (two trunk clicks or cannot see)")
+    row = {"item": item["item"], "frame": item["frame"], "time_s": item["time_s"], "phase": item["phase"], "hands": hands,
+           "gaze": gaze, "user": user, "utc": utc_now(), "hip_x": "", "hip_y": "", "shoulder_x": "", "shoulder_y": "",
+           "angle_deg": "", "band": ""}
+    if trunk == TRUNK_CANNOT:
+        row["trunk"] = TRUNK_CANNOT
+    else:
+        (hx, hy), (sx, sy) = trunk
+        a, band = trunk_angle_band((hx, hy), (sx, sy), edges)
+        row.update(trunk=TRUNK_CLICKS, hip_x=round(float(hx), 1), hip_y=round(float(hy), 1), shoulder_x=round(float(sx), 1),
+                   shoulder_y=round(float(sy), 1), angle_deg=round(a, 2), band=band)
+    rows, _ = drop_old_bands([r for r in read(path) if str(r["item"]) != str(item["item"])])
+    _write(path, sorted(rows + [row], key=lambda r: int(r["item"])), FRAME_FIELDS)
 
 
 def save_wrists(path: Path, item: dict, left, right, user: str) -> None:

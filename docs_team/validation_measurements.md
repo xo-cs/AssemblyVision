@@ -62,7 +62,7 @@ items. **Asel and Kazi each do all items**, so the kappa between them can be rep
 
 | page | task | items | measurements |
 | --- | --- | --- | --- |
-| Labels (team) | Frames: trunk band (B0 under 20, B1 20 to 45, B2 45 to 60, B3 over 60 degrees, or cannot see), both hands working (yes, no, cannot see), gaze (towards the hands or the work, left, right, up, away, cannot see; left and right as seen in the image) | 100 frames | 3, 9, 10 |
+| Labels (team) | Frames: trunk angle from two clicks (hip midpoint, then shoulder midpoint; the page shows the angle and its band B0 under 20, B1 20 to 45, B2 45 to 60, B3 over 60), or cannot see; both hands working (yes, no, cannot see), gaze (towards the hands or the work, left, right, up, away, cannot see; left and right as seen in the image) | 100 frames | 3, 9, 10 |
 | Labels (team) | Wrists: click the left and the right wrist, or mark it not visible | 50 frames | 6 (PCK@0.1) |
 | Labels (team) | Events: in one 2 minute clip, mark each repeated cycle start, tool pickup and object placement | 1 clip | 4, 7, 8 |
 | Ratings (mentor only) | The run's suggestions with their evidence: useful, partly useful or not useful, optional comment | 4 on the flagship | 5 |
@@ -70,7 +70,18 @@ items. **Asel and Kazi each do all items**, so the kappa between them can be rep
 **The 2 minute clip** is chosen by a fixed rule, without anyone looking at the video: among the phases of at least 2
 minutes, the one where the wrists move most (median wrist speed relative to the hip); its middle 2 minutes.
 
-**Rules of the comparison (fixed before any label is scored):** trunk band from the trunk angle at the frame; both hands
+**Trunk (measure 3), changed on 2026-11-28 before any trunk label was scored:** the band radio buttons were replaced by
+two clicks, because nobody can judge 20, 45 or 60 degrees by eye. **The system's trunk angle is 2D:** the line from the
+mid hip to the mid shoulder of the cleaned image keypoints against the upward image vertical (analysis/motion.trunk_angle,
+atan2(|dx|, -dy)), not the 3D body. The clicked angle is computed with that same function, so both are image angles and
+the comparison is like for like. **Limit:** an image angle underestimates bending toward or away from the camera, for the
+person and the system alike, so the score says how well the system finds the keypoints, not how well it measures the true
+3D bending. Scored: exact band agreement and within one band (targets unchanged), the mean absolute angle difference in
+degrees, and the hip and shoulder point errors in pixels, as a share of the torso length and as the share within 0.1 of
+the torso length. The band answers of the first version are not used (tools/migrate_frame_labels.py drops them from saved
+files and keeps the hands and gaze answers).
+
+**Rules of the comparison (fixed before any label is scored):** both hands
 working = both wrists active in at least half of the frames within 1 s; gaze: the system's "down" counts as towards the
 hands or the work, "front" (facing the camera) and the label "up" have no counterpart and count as misses; wrist PCK@0.1 =
 within 0.1 of the longer side of the worker's tracked box; repetitive work in 10 s windows of the clip, where a window

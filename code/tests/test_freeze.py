@@ -397,6 +397,35 @@ class ScoreMeasurementsTest(unittest.TestCase):
         with mock.patch.object(RP, "cjk_font", return_value="Noto Sans CJK JP"):
             self.assertEqual(RP.video_title(rep), "メンテナンス.mp4")
 
+    def test_the_clicked_trunk_angle_is_the_systems_definition(self):
+        from assemblyvision.analysis.motion import trunk_angle
+        self.assertEqual(VL.trunk_angle_band((100, 200), (100, 100)), (0.0, "B0"))        # upright: shoulder above the hip
+        a, band = VL.trunk_angle_band((100, 200), (200, 100))
+        self.assertAlmostEqual(a, 45.0)
+        self.assertEqual(band, "B2")                                                      # 45 is the first value of B2
+        self.assertEqual(VL.trunk_angle_band((100, 200), (0, 200))[1], "B3")               # lying flat, either side
+        hip, sho = np.array([310.0, 420.0]), np.array([352.0, 300.0])
+        self.assertAlmostEqual(VL.trunk_angle_band(hip, sho)[0], float(trunk_angle(sho, hip)))
+
+    def test_old_band_answers_are_dropped_and_hands_and_gaze_kept(self):
+        old = [{"item": "0", "frame": "5", "trunk": "B1 (20 to 45 degrees)", "hands": "yes", "gaze": "up"},
+               {"item": "1", "frame": "9", "trunk": "cannot see", "hands": "no", "gaze": "away"}]
+        rows, n = VL.drop_old_bands(old)
+        self.assertEqual(n, 1)
+        self.assertEqual((rows[0]["trunk"], rows[0]["hands"], rows[0]["gaze"]), ("", "yes", "up"))
+        self.assertEqual(rows[1]["trunk"], "cannot see")
+
+    def test_a_saved_trunk_keeps_points_angle_and_band(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "asel.csv"
+            it = {"item": 2, "frame": 30, "time_s": 1.0, "phase": "A"}
+            VL.save_frame(p, it, ((100.0, 200.0), (130.0, 100.0)), "yes", VL.GAZE2[0], "asel")
+            r = VL.read(p)[0]
+            self.assertEqual((r["trunk"], r["band"], r["hip_x"], r["shoulder_y"]), ("clicks", "B0", "100.0", "100.0"))
+            self.assertAlmostEqual(float(r["angle_deg"]), 16.7, places=1)
+            with self.assertRaises(ValueError):
+                VL.save_frame(p, it, None, "yes", VL.GAZE2[0], "asel")
+
     def test_a_measurement_without_labels_says_so(self):
         self.assertIn("not validated on QiSens", SM.fmt(2, None)[0][1])     # measure 2 has no walk of known length
         self.assertIn("no labels yet", SM.fmt(3, None)[0][1])
