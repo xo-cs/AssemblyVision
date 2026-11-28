@@ -62,26 +62,19 @@ Everything runs on the server. Labelling happens only in the browser **on Khursh
 
 ## 6. Measurement labels in the app (Labels page)
 
-For the team's accounts only (the mentor's account does not see this page). Open **Labels** in the app, choose the task
-and the run, press **Open**. Label alone and do not look at the system's result first. The rules of section 1 apply: no
-screenshots, no downloads (the page has no download button), clear the browser cache after a QiSens session.
+For the team's accounts only (the mentor's account does not see this page). Since 2026-11-28 there is **one annotator,
+Khurshid**. Open **Labels** in the app, choose the task and the run, press **Open**. Label alone and do not look at the
+system's result first. The rules of section 1 apply: no screenshots, no downloads (the page has no download button), clear
+the browser cache after a QiSens session.
 
-**Frames (100 frames), three questions per frame:**
-1. **Trunk: two clicks, not a guess.** Nobody can judge 20, 45 or 60 degrees by eye, so the angle is measured from your
-   clicks. Click (1) the **midpoint of the hips** (halfway between the two hip joints), then (2) the **midpoint of the
-   shoulders** (halfway between the two shoulder joints). The page draws the line between them and a thin vertical line
-   through the hip point, and shows the angle in degrees and its band: B0 under 20, B1 20 to 45, B2 45 to 60, B3 over 60.
-   If a point is off, press **Redo clicks**. If the hips or the shoulders cannot be seen, press **Trunk: cannot see**.
-   The angle is computed exactly like the system's (the line from the hip midpoint to the shoulder midpoint against the
-   vertical of the image), so it is an angle in the image: bending toward or away from the camera looks smaller.
-2. **Are both hands working?** yes, no, or cannot see.
-3. **Gaze direction:** towards the hands or the work, left, right, up, away from the camera, or cannot see. Left and right
+**Frames (30 frames), two questions per frame:**
+1. **Are both hands working?** yes, no, or cannot see. Yes only if both hands do the task (holding, turning, guiding a part
+   or tool), even if they do different things. A hand that only braces the body or rests counts as no.
+2. **Gaze direction:** towards the hands or the work, left, right, up, away from the camera, or cannot see. Left and right
    are as seen in the image.
 
-**Wrists (50 frames):** click the worker's left wrist (their own left), then the right one; or mark one not visible.
+The trunk angle and the wrists are no longer labelled here: they are checked automatically on the public COCO keypoints
+(experiments/w12-coco-pose).
 
 **Events (one 2 minute clip):** play the clip and press **Cycle start** when the same work cycle begins again, **Tool
 pickup** when a hand closes on a tool, **Object placement** when a hand lets go of a placed object.
-
-Asel and Kazi each do every item, so the agreement between them can be reported.
-

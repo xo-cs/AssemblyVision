@@ -439,8 +439,9 @@ class ScoreMeasurementsTest(unittest.TestCase):
         self.assertEqual([sum(x["phase"] == p for x in sub) for p in "ABCDE"], [6] * 5)
 
     def test_a_measurement_without_labels_says_so(self):
-        self.assertIn("not validated on QiSens", SM.fmt(2, None)[0][1])     # measure 2 has no walk of known length
-        self.assertIn("no labels yet", SM.fmt(3, None)[0][1])
+        self.assertIn("needs a walk of known distance", SM.fmt(2, None)[0][1])
+        self.assertIn("no labels yet", SM.fmt(9, None)[0][1])
+        self.assertIn("coco_pose", SM.fmt(3, None)[0][1])
         self.assertTrue(all(SM.TARGETS[n] for n in range(1, 11)))
 
 

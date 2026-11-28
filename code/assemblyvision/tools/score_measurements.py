@@ -266,11 +266,7 @@ def score_round2(root: Path, area: Path, F: Frames, m_all: dict, cfg, fps: float
                 else:
                     res = agreement([(r[col] if r[col] != skip else CANNOT, sysf(r)) for r in rows])
                 per[user] = res
-            ann = list(frames)
-            key = (lambda r: r["band"] if r.get("trunk") == L2.TRUNK_CLICKS else skip) if n == 3 else (lambda r: r[col])
-            kap = kappa_of({r["item"]: key(r) for r in frames[ann[0]]}, {r["item"]: key(r) for r in frames[ann[1]]}, skip) \
-                if len(ann) >= 2 else None
-            out[n] = {"annotators": per, "between_annotators": kap, "task": "frames"}
+            out[n] = {"annotators": per, "task": "frames"}       # one annotator (khurshid) since 2026-11-28
     wrists = {f.stem: VL.read(f) for f in sorted((base / "wrists").glob("*.csv"))}
     if wrists:
         boxes = subject_boxes(m_all, root)
@@ -375,6 +371,22 @@ def verdict(n: int, r: dict) -> str:
     return "-"
 
 
+COCO_RESULTS = Path(__file__).resolve().parents[3] / "experiments" / "w12-coco-pose" / "results.json"
+
+
+def coco_scores() -> dict:
+    """#3 and #6 from the COCO pose check (experiments/w12-coco-pose), when it has been run."""
+    if not COCO_RESULTS.is_file():
+        return {}
+    c = json.loads(COCO_RESULTS.read_text())
+    t, tb = c["trunk_all"], c["trunk_bent"]
+    return {3: {"coco": True, "persons": t["persons"], "scored": t["scored"], "agreement": t.get("exact_band"),
+                "within_one": t.get("within_one_band"), "angle_mae_deg": t.get("angle_mae_deg"),
+                "bent": {k: tb.get(k) for k in ("persons", "scored", "exact_band", "within_one_band", "angle_mae_deg")}},
+            6: {"coco": True, "pck": c["wrist_pck_all"], "pck_joints": {k: v["all"] for k, v in c["pck"].items()},
+                "persons": c["persons"]}}
+
+
 def score(root: Path, gt_path: Path | None) -> dict:
     from ..evaluation import metrics as M
     from ..evaluation.steps_io import read_steps_csv
@@ -397,6 +409,9 @@ def score(root: Path, gt_path: Path | None) -> dict:
         out[1] = {"labels": "two annotators (final labels)", "boundary_mae_s": mae, "phases": len(g), "phases_within_10_pct": within,
                   "duration_error_pct": {k: round(100 * (p.get(k, 0) - v) / v, 1) for k, v in g.items()}}
     out.update(score_round2(root, area, F, m_all, cfg, fps))
+    out.pop(3, None)                                   # #3 and #6 are validated on COCO (2026-11-28), not on QiSens labels
+    out.pop(6, None)
+    out.update(coco_scores())
     events = None
     for n, task in TASK_OF.items():
         if n in out:                                   # the round 2 labels of this measurement are used
@@ -446,9 +461,19 @@ def score(root: Path, gt_path: Path | None) -> dict:
 def fmt(n: int, r: dict | None) -> list[tuple[str, str, str]]:
     """(annotator, result text, verdict) rows of one measurement."""
     if r is None:
-        why = {2: "not validated on QiSens: no walk of known length in the video", 5: "no labels yet (needs an engineer's rating of the suggestions)",
+        why = {2: "not validated: needs a walk of known distance (future work)",
+               3: "not scored: run tools/coco_pose.py (COCO pose check)", 6: "not scored: run tools/coco_pose.py (COCO pose check)", 5: "no labels yet (needs an engineer's rating of the suggestions)",
                6: "no labels yet (needs Label Studio wrist keypoints)", 1: "no final phase labels given (--gt)"}
         return [("-", why.get(n, "no labels yet"), "-")]
+    if r.get("coco"):
+        if n == 3:
+            b = r["bent"]
+            return [("COCO 2017 val (public)", f"{r['scored']} of {r['persons']} persons: exact band {r['agreement']}, within one band "
+                     f"{r['within_one']}, mean angle difference {r['angle_mae_deg']} deg; bent (over 45 deg), {b['scored']} persons: exact "
+                     f"band {b['exact_band']}, within one band {b['within_one_band']}, mean difference {b['angle_mae_deg']} deg", verdict(3, r))]
+        j = r["pck_joints"]
+        return [("COCO 2017 val (public)", f"wrist PCK@0.1 {r['pck']} (left {j['left wrist']}, right {j['right wrist']}), "
+                 f"{r['persons']} persons", verdict(6, r))]
     if n == 1:
         t = f"boundary MAE {r['boundary_mae_s']} s; {r['phases_within_10_pct']} of {r['phases']} phase durations within 10 %"
         return [(r["labels"], t, verdict(1, r))]
@@ -475,16 +500,14 @@ def fmt(n: int, r: dict | None) -> list[tuple[str, str, str]]:
             if n == 4:
                 t += f", F1 {x['f1']}" + (f" ({x['cycle_starts']} cycle starts in 10 s windows)" if "cycle_starts" in x else "")
         rows.append((user, t, verdict(n, x)))
-    k = r.get("between_annotators")
-    if k:
-        rows.append(("between the annotators", f"{k['items']} common items: kappa {k['kappa']}, agreement {k['agreement']}", "human agreement"))
     return rows
 
 
 def markdown(res: dict) -> str:
     f = res["freeze"]
     L = [f"# Measurement scores of {res['run']}", "", f"Freeze: {f['tag']} ({f['tag_commit'][:7]}), ran on {f['ran_on'][:7]}, "
-         f"method unchanged: {f['method_unchanged']}. Targets frozen on {res['targets_frozen']}.", "",
+         f"method unchanged: {f['method_unchanged']}. Targets frozen on {res['targets_frozen']}. Hand labels: one annotator. "
+         "#3 and #6 are validated on COCO 2017 val, which is not factory footage.", "",
          "| # | measurement | annotator | result | target | verdict |", "| --- | --- | --- | --- | --- | --- |"]
     for n in range(1, 11):
         for user, text, v in fmt(n, res["results"].get(str(n))):

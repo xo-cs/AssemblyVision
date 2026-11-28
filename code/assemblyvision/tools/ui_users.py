@@ -7,7 +7,6 @@
     python -m assemblyvision.tools.ui_users check NAME      # asks for a password and says if it is accepted
     python -m assemblyvision.tools.ui_users list
     python -m assemblyvision.tools.ui_users remove NAME
-    python -m assemblyvision.tools.ui_users purge-labels NAME   # deletes NAME's label files in every data area (counts only)
 """
 from __future__ import annotations
 
@@ -18,7 +17,7 @@ import sys
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="python -m assemblyvision.tools.ui_users")
-    p.add_argument("action", choices=("add", "passwd", "check", "list", "remove", "purge-labels"))
+    p.add_argument("action", choices=("add", "passwd", "check", "list", "remove"))
     p.add_argument("name", nargs="?")
     args = p.parse_args(argv)
     from ..ui.auth import Users
@@ -31,8 +30,6 @@ def main(argv: list[str] | None = None) -> int:
     if args.action == "remove":
         print("removed" if users.remove(args.name) else "no such user")
         return 0
-    if args.action == "purge-labels":
-        return purge_labels(args.name)
     from ..ui.auth import norm_name, verify_password
     name = norm_name(args.name)
     if args.action in ("passwd", "check") and name not in users.load():
@@ -57,25 +54,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
-def purge_labels(name: str) -> int:
-    """Delete every label file of one account (Labels page tasks, their .v1 backups, train domain clip classes) in every
-    data area; prints only how many files per area, never a label value."""
-    from ..config import Config
-    from ..storage.files import SOURCES, source_root
-    from ..ui.auth import NAME_RE, norm_name
-    name = norm_name(name)
-    if not NAME_RE.fullmatch(name):
-        print("not a valid user name", file=sys.stderr)
-        return 1
-    paths = Config.load()["paths"]
-    for src in SOURCES:
-        area = source_root(src, paths)
-        files = [f for pat in (f"validation/labels/*/*/{name}.csv", f"validation/labels/*/*/{name}.csv.v1",
-                               f"videos/*/annotations/{name}.csv") for f in area.glob(pat)]
-        for f in files:
-            f.unlink()
-        print(f"{src}: {len(files)} label files of {name} deleted")
-    return 0
-

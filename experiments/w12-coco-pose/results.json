@@ -1,0 +1,79 @@
+{
+ "created_utc": "2026-11-28T06:56:00Z",
+ "freeze": {
+  "tag": "validation-freeze-1",
+  "tag_commit": "866fba2c387b659f7ad15019eacead182f476856",
+  "ran_on": "726baedb4813a118eb35920f0325b4bc7163db33",
+  "method_unchanged": true,
+  "changed": []
+ },
+ "prediction": {
+  "model": "yolo26x-pose",
+  "imgsz": 640,
+  "conf": 0.1,
+  "fp32": true,
+  "tf32": true,
+  "images": 2693,
+  "date_utc": "2026-11-28T06:54:51Z"
+ },
+ "persons": 2878,
+ "matched": 2828,
+ "match_rate": 0.983,
+ "pck": {
+  "left shoulder": {
+   "all": 0.964,
+   "matched": 0.981,
+   "labelled": 2878
+  },
+  "right shoulder": {
+   "all": 0.967,
+   "matched": 0.984,
+   "labelled": 2878
+  },
+  "left hip": {
+   "all": 0.938,
+   "matched": 0.954,
+   "labelled": 2878
+  },
+  "right hip": {
+   "all": 0.939,
+   "matched": 0.955,
+   "labelled": 2878
+  },
+  "left wrist": {
+   "all": 0.934,
+   "matched": 0.947,
+   "labelled": 2170
+  },
+  "right wrist": {
+   "all": 0.936,
+   "matched": 0.949,
+   "labelled": 2195
+  }
+ },
+ "trunk_all": {
+  "persons": 2878,
+  "scored": 2800,
+  "coverage": 0.973,
+  "angle_mae_deg": 2.58,
+  "angle_median_deg": 1.61,
+  "exact_band": 0.955,
+  "within_one_band": 0.999
+ },
+ "trunk_bent": {
+  "persons": 155,
+  "scored": 150,
+  "coverage": 0.968,
+  "angle_mae_deg": 7.0,
+  "angle_median_deg": 4.52,
+  "exact_band": 0.747,
+  "within_one_band": 1.0
+ },
+ "human_band_counts": [
+  2407,
+  316,
+  77,
+  78
+ ],
+ "wrist_pck_all": 0.935
+}

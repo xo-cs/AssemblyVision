@@ -56,7 +56,8 @@ def build_gt_tab(app, gr):
                           "the browser cache after a QiSens session."))
     with gr.Column(elem_classes=["av-card"]):
         with gr.Row():
-            task = gr.Dropdown([(t["title"], k) for k, t in L.GT_TASKS.items()], value="frames", label="Task", scale=2)
+            task = gr.Dropdown([(t["title"], k) for k, t in L.GT_TASKS.items() if k != "wrists"],    # wrists: COCO since 2026-11-28
+                               value="frames", label="Task", scale=2)
             run = gr.Dropdown([], label="Run", scale=2)
             open_b = gr.Button("Open", variant="primary", elem_classes=["av-fit"], scale=0)
         head = gr.HTML(f"<p class='av-hint'>{FLAGSHIP_HINT}</p>")
