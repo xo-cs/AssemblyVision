@@ -44,3 +44,34 @@ Every variant is listed, not only the best.
 - The worst value of every group is reported next to the verdict, even when the group passes.
 
 The rule is not changed after a result. A failed group is reported as it is, and 93.20 is then quoted together with that sensitivity.
+
+## Amendment of group c (2026-11-28, before any generation)
+
+Khurshid's decision: the human authors are replaced by **three local text only language models of different families**,
+because no independent human authors are available. Fixed here, before any model writes anything:
+
+- **Authors:** Qwen3 4B, Llama 3.2 3B Instruct and Gemma 3 4B it, GGUF Q4_K_M, run with our llama.cpp (llama-server) on
+  GPU1. If one is unavailable, another small model of a different family replaces it and the reason is recorded.
+- **Input:** only the prompt below, the same text for all three, as one user message through each model's own chat
+  template. No image, video, result, run or other file goes into any model. Qwen3's thinking mode is switched off through
+  the chat template (enable_thinking = false), so the prompt stays identical.
+- **Sampling:** temperature 0.7, seed 20261128, at most 4,096 new tokens, **one generation per model**. No second try.
+- **Output:** saved raw (experiments/w12-robustness/group_c/), then only format fixes (the exact phase headings, the
+  "- " line prefix, removing text outside the five sections); no sentence is added, removed or reworded. If a model writes
+  more or fewer than 22 lines for a phase, they are kept as written and the count is recorded.
+- **Scoring:** the frozen method; only the SigLIP text changes, exactly as groups b and c are defined above (the VLM prompt
+  keeps the frozen short descriptions). Verdict rule unchanged.
+- **Limit:** language models may share knowledge with the model that wrote the frozen descriptions, so this tests the
+  wording, not fully independent authors.
+
+The prompt:
+
+```
+You write visual descriptions for a video classifier. Below are 5 work phases of train bogie maintenance in a factory. For each phase, write 22 short sentences describing what a camera would SEE during that phase: tools, parts, what the hands and body do, the state of the parts, wide and close views. Do not use the phase names inside the sentences.
+1. Removal: the worker takes components off the train or bogie (for example wheelsets, covers, brake parts) and moves them away.
+2. Disassembly: the worker takes the removed components apart into smaller parts (unbolting, separating, opening housings).
+3. Cleaning: the worker cleans the parts (washing, brushing, wiping, blowing off dirt, grease or rust).
+4. Adjustment and Inspection: the worker checks and measures the parts (gauges, measuring tools, visual checks) and adjusts them.
+5. Assembly and Installation: the worker puts the parts back together and mounts them onto the bogie or train (fitting, bolting, tightening).
+Format exactly: '## <phase name>' then 22 lines starting with '- '.
+```
