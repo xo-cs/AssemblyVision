@@ -8,6 +8,8 @@ page in the sidebar is not the only guard.
 """
 from __future__ import annotations
 
+import html
+
 import numpy as np
 
 from .. import validation_labels as L
@@ -242,8 +244,8 @@ def build_gt_tab(app, gr):
 
 
 def build_ratings_tab(app, gr):
-    gr.HTML(v.page_header("Ratings", "Rate the improvement suggestions of a run. Each one is a rule based suggestion with its "
-                          "evidence; please say whether it would be useful to a person improving this work."))
+    gr.HTML(v.page_header("Ratings", "Watch the clip, then rate: useful = you would act on it, partly useful = right idea but "
+                          "not quite, not useful = wrong or obvious."))
     with gr.Column(elem_classes=["av-card"]):
         with gr.Row():
             run = gr.Dropdown([], label="Run", scale=3)
@@ -265,11 +267,26 @@ def build_ratings_tab(app, gr):
         i, s = st["i"], st["items"][st["i"]]
         done = L.read(L.gt_path(st["area"], st["run"], "ratings", user))
         old = next((r for r in done if int(r["item"]) == i), {})
+        from ..output.extras import plain_evidence
         ranges = ", ".join(f"{a:.0f} to {b:.0f} s" for a, b in s["time_ranges"])
-        body_html = (f"<p><b>Suggestion {i + 1} of {len(st['items'])}</b> &middot; {len(done)} rated</p>"
-                     f"<p><b>{v.esc(s['phase'])}</b>, cycle {s['cycle']}: {v.esc(s['suggestion'])}</p>"
-                     f"<p class='av-hint'>Evidence: {v.esc(s['metric'])} = {s['value']} {v.esc(s['unit'])}; rule threshold "
-                     f"{v.esc(s['threshold'])}; time ranges {v.esc(ranges)}. The suggestion is rule based and not validated.</p>")
+        off, t0 = st["offset"], s["time_ranges"][0][0]
+        player = "<p class='av-quiet'>The video of this run is not available.</p>"
+        if st["video"]:                                # the run's overlay (or source) video, streamed with range requests
+            src = html.escape(f"{st['video']}#t={max(0.0, t0 - off):.2f}", quote=True)
+            player = (f"<video controls preload='metadata' controlslist='nodownload noplaybackrate' disablepictureinpicture "
+                      f"oncontextmenu='return false' style='width:100%;max-height:440px;background:#000' src='{src}'></video>")
+            if len(s["time_ranges"]) > 1:
+                player += "<div class='av-rate-ranges'>" + "".join(
+                    f"<button class='av-range-btn' data-seek='{max(0.0, a - off):.2f}'>Range {k + 1} ({v.clock(a)} to {v.clock(b)})</button>"
+                    for k, (a, b) in enumerate(s["time_ranges"])) + "</div>"
+            else:
+                a, b = s["time_ranges"][0]
+                player += f"<p class='av-hint'>Clip {v.clock(a)} to {v.clock(b)}.</p>"
+        body_html = (f"<div class='av-rate'><p><b>Suggestion {i + 1} of {len(st['items'])}</b> &middot; {len(done)} rated</p>"
+                     f"{player}<p><b>{v.esc(s['phase'])}</b>, cycle {s['cycle']}: {v.esc(s['suggestion'])}</p>"
+                     f"<p>{v.esc(plain_evidence(s))}</p>"
+                     f"<p class='av-hint' style='font-size:12px'>Details: {v.esc(s['metric'])} = {s['value']} {v.esc(s['unit'])}; "
+                     f"rule threshold {v.esc(s['threshold'])}; time ranges {v.esc(ranges)}. Rule based, not validated.</p></div>")
         return [st, "", gr.update(visible=True), body_html, gr.update(value=old.get("rating") or None),
                 gr.update(value=old.get("comment", "")), msg]
 
@@ -283,7 +300,12 @@ def build_ratings_tab(app, gr):
             items = app.memo("extras", run_id, lambda: X.compute(root))["suggestions"]
             if not items:
                 raise ValueError("This run has no suggestions.")
-            return render({"i": 0, "items": items, "run": run_id, "area": str(root.parent.parent)}, user)
+            ov = app.store.overlay_path(run_id)
+            src = app.compare_source(run_id) if ov else None       # the overlay starts at the first shot: its offset
+            paths = app.store.paths(run_id)
+            video = app._file_url(ov) if ov else (app._file_url(paths.cfr) if paths.cfr.is_file() else None)
+            return render({"i": 0, "items": items, "run": run_id, "area": str(root.parent.parent), "video": video,
+                           "offset": src[1] if (ov and src) else 0.0}, user)
         except (ValueError, OSError, KeyError, AvError) as e:
             return [None, f"<p class='av-quiet'>{v.esc(str(e))}</p>", gr.update(visible=False), "", gr.skip(), gr.skip(), ""]
 

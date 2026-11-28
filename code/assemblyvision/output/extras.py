@@ -160,9 +160,10 @@ def rule_suggestions(cyc: list[dict], metrics: list[dict], floor: list[dict], ra
         except ValueError:
             return False
 
-    def add(c, rule, metric, value, unit, threshold, text, tr=None):
+    def add(c, rule, metric, value, unit, threshold, text, tr=None, median=None):
         out.append({"rule": rule, "phase": c["phase"], "cycle": c["cycle"], "metric": metric, "value": round(float(value), 3), "unit": unit,
-                    "threshold": threshold, "time_ranges": tr or [[c["start_s"], c["end_s"]]], "suggestion": text})
+                    "threshold": threshold, "time_ranges": tr or [[c["start_s"], c["end_s"]]], "suggestion": text,
+                    **({"median": round(float(median), 3)} if median is not None else {})})
     out: list[dict] = []
     speed: dict[int, float] = {}
     travel: dict[int, float] = {}
@@ -207,19 +208,19 @@ def rule_suggestions(cyc: list[dict], metrics: list[dict], floor: list[dict], ra
         for c in cyc:
             if med > 0 and c["duration_s"] >= RELATIVE * med:
                 add(c, "long phase", "duration_s", c["duration_s"], "s", f">= {RELATIVE} x the median phase ({med:.0f} s)",
-                    "This phase takes much longer than the others. Check it first for waiting or rework.")
+                    "This phase takes much longer than the others. Check it first for waiting or rework.", median=med)
     if len(travel) >= 3:
         med = statistics.median(travel.values())
         for i, x in travel.items():
             if med > 0 and x >= RELATIVE * med:
                 add(cyc[i], "long hand travel", "hand travel per minute", x, "torso lengths/min", f">= {RELATIVE} x the median phase ({med:.0f})",
-                    "The hands travel far in this phase. Check whether parts and tools can be placed closer.")
+                    "The hands travel far in this phase. Check whether parts and tools can be placed closer.", median=med)
     if len(speed) >= 3:
         med = statistics.median(speed.values())
         for i, (x, total) in walk.items():
             if med > 0 and x >= RELATIVE * med and total >= MIN_PATH_M:
                 add(cyc[i], "long walking", "movement_path_floor per minute", x, "m/min", f">= {RELATIVE} x the median phase ({med:.1f}) and {MIN_PATH_M} m",
-                    "The worker walks more in this phase. Check the layout of parts, tools and the work position.")
+                    "The worker walks more in this phase. Check the layout of parts, tools and the work position.", median=med)
     return sorted(out, key=lambda s: (s["time_ranges"][0][0], s["rule"]))
 
 
@@ -283,6 +284,30 @@ def metric_rows(extra: dict, run_id: str) -> list[dict]:
         n = sum(s["phase"] == c["phase"] and s["cycle"] == c["cycle"] for s in extra["suggestions"])
         add(c, "improvable_motions", n, "count", "", f"{EXPERIMENTAL},rule_list")
     return out
+
+
+def plain_evidence(s: dict) -> str:
+    """The evidence of a suggestion in plain words for an engineer (the exact numbers stay in the details)."""
+    v, med = float(s["value"]), s.get("median")
+    pct = lambda x: f"{100 * x:.0f} %"
+    rule = s["rule"]
+    if rule == "deep bending":
+        return f"The trunk is bent forward more than 60 degrees for {pct(v)} of the measured time in this phase (the rule flags 10 % or more)."
+    if rule == "long bending":
+        return f"The trunk is bent forward more than 45 degrees for {pct(v)} of the measured time in this phase (the rule flags 25 % or more)."
+    if rule == "long idle":
+        return f"The worker is idle (hardly moving) for {pct(v)} of this phase (the rule flags 25 % or more)."
+    if rule == "low two hand use":
+        return f"When the hands move, both move together only {pct(v)} of the time (the rule flags less than 25 %)."
+    if rule == "repetitive motion":
+        return f"A short motion repeats in {pct(v)} of the 10 second windows of this phase (the rule flags 50 % or more)."
+    if rule == "long phase" and med:
+        return f"This phase takes about {v / med:.1f} times as long as the median phase ({v:.0f} s against {med:.0f} s)."
+    if rule == "long hand travel" and med:
+        return f"The hands move about {v / med:.1f} times more than in the median phase ({v:.1f} against {med:.0f} torso lengths per minute)."
+    if rule == "long walking" and med:
+        return f"The worker walks about {v / med:.1f} times more than in the median phase ({v:.1f} against {med:.1f} m per minute)."
+    return f"{s['metric']} is {s['value']} {s['unit']} (rule threshold {s['threshold']})."
 
 
 def suggestion_lines(extra: dict) -> list[str]:

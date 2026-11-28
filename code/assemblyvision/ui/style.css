@@ -76,6 +76,7 @@ body, gradio-app, .gradio-container, .main, .wrap.app { background: var(--av-bg)
 #nav-results { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 3v18h18'/%3E%3Cpath d='M7 15l4-4 3 3 5-6'/%3E%3C/svg%3E"); }
 #nav-runs { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 6h13M8 12h13M8 18h13'/%3E%3Cpath d='M3.5 6h.01M3.5 12h.01M3.5 18h.01'/%3E%3C/svg%3E"); }
 #nav-live { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 10l5-3v10l-5-3z'/%3E%3Crect x='3' y='6' width='12' height='12' rx='2'/%3E%3C/svg%3E"); }
+#nav-ratings { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3.5l2.6 5.3 5.9.9-4.25 4.15 1 5.85L12 16.95 6.75 19.7l1-5.85L3.5 9.7l5.9-.9z'/%3E%3C/svg%3E"); }
 #nav-labels { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12V4h8l10 10-8 8z'/%3E%3Ccircle cx='7.5' cy='8.5' r='1.2'/%3E%3C/svg%3E"); }
 
 #av-sidebar .av-side-foot { margin-top: auto !important; }
@@ -458,3 +459,8 @@ img.av-chart { width: 100%; height: auto; display: block; }
 #av-pages .av-subtabs .tabitem { padding: 6px 0 0 0 !important; }
 .av-floor-grid { display: flex; flex-wrap: wrap; gap: 10px; }
 .av-floor-grid img.av-chart { width: 300px; max-width: 100%; }
+
+/* Ratings page: range buttons under the clip */
+.av-rate-ranges { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.av-range-btn { border: 1px solid #d4d4d2; background: #fff; border-radius: 8px; padding: 5px 10px; font-size: 13px; cursor: pointer; }
+.av-range-btn:hover { background: #f4f4f3; }

@@ -12,6 +12,16 @@
     box.dispatchEvent(new Event("input", { bubbles: true }));
   });
 
+  // Ratings page: a "Range n" button jumps the clip player above it to that range and plays it
+  document.addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-seek]");
+    if (!b) return;
+    const v = b.closest(".av-rate")?.querySelector("video");
+    if (!v) return;
+    v.currentTime = parseFloat(b.dataset.seek);
+    v.play().catch(() => {});
+  });
+
   // --- Live camera ------------------------------------------------------------------
   // Gradio 5.50 webcam (#lv-camera): a "grant webcam access" element first, then one
   // record button whose icon title is "start recording", "spinner" (waiting) or
