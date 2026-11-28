@@ -16,3 +16,12 @@ written), <key>.server.log. The format fixed versions are docs_team/independent_
 "- " prefix only; a check confirmed that the sentences are unchanged). The checksums match the Hugging Face listings.
 
 So group c is scored on two authors (Llama 3.2 and Gemma 3); the robustness tool lists Qwen3 as incomplete, not scored.
+
+## Replacement of Qwen3 (second amendment of the rule, 2026-11-28)
+
+| key | model | file (models/text_llm) | SHA256 | licence | output |
+| --- | --- | --- | --- | --- | --- |
+| llm_phi4mini | Phi 4 mini instruct, Q4_K_M (bartowski/microsoft_Phi-4-mini-instruct-GGUF; Microsoft publishes no GGUF) | microsoft_Phi-4-mini-instruct-Q4_K_M.gguf | 01999f17c39cc3074afae5e9c539bc82d45f2dd7faa3917c66cbef76fce8c0c2 | MIT | **incomplete:** all five headings, but the model fell into repetition and was cut off at the 4,096 token limit (finish reason "length", the last line breaks off mid sentence). Lines per phase, distinct in brackets: Removal 36 (36), Disassembly 28 (25), Cleaning 38 (19), Adjustment and Inspection 27 (12), Assembly and Installation 275 (7). |
+
+Following Khurshid's instruction, it was not rerun and not format fixed, and it is not used for group c. Removing the
+repeated lines would remove sentences, which the rule does not allow. Group c stays scored on Llama 3.2 and Gemma 3.

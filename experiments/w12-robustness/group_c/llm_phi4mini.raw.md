@@ -1,0 +1,413 @@
+## Removal
+- Worker wearing safety gloves and harness.
+- Worker holding a wheelset with both hands.
+- Worker using a wrench to unbolt a component.
+- Worker moving a wheelset away from the bogie.
+- Worker placing a removed wheelset on a trolley.
+- Worker inspecting a removed component.
+- Worker using a pry bar to detach a cover.
+- Worker examining a brake part.
+- Worker using a screwdriver to open a housing.
+- Worker removing a cover with a flat tool.
+- Worker carrying a broken component to a bin.
+- Worker inspecting a wheelset for wear.
+- Worker using a hoist to lift a heavy component.
+- Worker checking a component against a part number.
+- Worker placing a removed component on a clean cloth.
+- Worker examining a cover for damage.
+- Worker using a brush to clean a small part.
+- Worker wiping a wheelset with a cloth.
+- Worker blowing compressed air to remove dust.
+- Worker using a flashlight to inspect a component.
+- Worker placing a removed wheelset near the trolley.
+- Worker removing a cover and placing it in a bag.
+- Worker examining a brake component for cracks.
+- Worker using a hoist to lower a lifted component.
+- Worker placing a removed component in a designated area.
+- Worker using a torque wrench on a bolt.
+- Worker inspecting a wheelset for debris.
+- Worker using a pry bar to remove a cover carefully.
+- Worker examining a component with a magnifying glass.
+- Worker placing a removed component on a clean surface.
+- Worker using a screwdriver to open a cover.
+- Worker using a pry bar to detach a housing.
+- Worker inspecting a removed wheelset for defects.
+- Worker carrying a removed component to a storage area.
+- Worker using a hoist to lift a heavy part.
+- Worker placing a removed component in a bin for sorting.
+
+## Disassembly
+- Worker wearing safety glasses and gloves.
+- Worker holding a component with a pair of pliers.
+- Worker using a wrench to unbolt a part.
+- Worker separating a bolt from a housing.
+- Worker examining a broken part.
+- Worker using a pry bar to open a housing.
+- Worker inspecting a component for loose parts.
+- Worker using a screwdriver to unscrew bolts.
+- Worker examining a part for wear.
+- Worker separating a worn-out component.
+- Worker examining a bolt with a magnifying glass.
+- Worker placing a removed bolt in a container.
+- Worker using a screwdriver to loosen a tight bolt.
+- Worker examining a housing for damage.
+- Worker separating a housing from a bolt.
+- Worker examining a housing for any hidden damage.
+- Worker using a hammer to gently tap a housing open.
+- Worker placing a housing in a designated area.
+- Worker using a pry bar to remove a cover.
+- Worker examining a component for any foreign objects.
+- Worker using a screwdriver to remove a cover.
+- Worker separating a cover from a housing.
+- Worker examining a housing for any hidden damage.
+- Worker using a pair of pliers to remove a broken part.
+- Worker examining a housing for any hidden damage.
+- Worker separating a housing with force.
+- Worker examining a housing for any hidden damage.
+- Worker placing a removed part in a container.
+
+## Cleaning
+- Worker wearing a mask and safety goggles.
+- Worker using a hose to spray water on a component.
+- Worker using a brush to scrub off dirt from a component.
+- Worker wiping a component with a rag.
+- Worker examining a component for rust.
+- Worker using compressed air to blow off dust from a component.
+- Worker using a wire brush to remove rust from a component.
+- Worker examining a component for grease.
+- Worker using a degreaser to clean a component.
+- Worker wiping a component with a cloth soaked in cleaner.
+- Worker examining a component for any remaining dirt.
+- Worker using a brush to remove grease from a component.
+- Worker wiping a component with a dry cloth.
+- Worker examining a component for any remaining dirt.
+- Worker using a hose to spray cleaner on a component.
+- Worker using compressed air to blow off remaining cleaner.
+- Worker wiping a component with a clean cloth.
+- Worker examining a component for any remaining dirt.
+- Worker using a wire brush to remove grease from a component.
+- Worker wiping a component with a clean cloth.
+- Worker examining a component for any remaining dirt.
+- Worker using a brush to remove dirt from a component.
+- Worker wiping a component with a clean cloth.
+- Worker examining a component for any remaining dirt.
+- Worker using compressed air to blow off remaining dirt.
+- Worker wiping a component with a clean cloth.
+- Worker examining a component for any remaining dirt.
+- Worker using a brush to remove dirt from a component.
+- Worker wiping a component with a clean cloth.
+- Worker examining a component for any remaining dirt.
+- Worker using compressed air to blow off remaining dirt.
+- Worker wiping a component with a clean cloth.
+- Worker examining a component for any remaining dirt.
+- Worker using a brush to remove dirt from a component.
+- Worker wiping a component with a clean cloth.
+- Worker examining a component for any remaining dirt.
+- Worker using compressed air to blow off remaining dirt.
+- Worker wiping a component with a clean cloth.
+
+## Adjustment and Inspection
+- Worker wearing safety glasses and a protective suit.
+- Worker holding a gauge to measure a component.
+- Worker using a caliper to measure a part.
+- Worker examining a component with a magnifying glass.
+- Worker adjusting a bolt with a torque wrench.
+- Worker using a wrench to loosen a bolt.
+- Worker examining a component for wear.
+- Worker using a screwdriver to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a screwdriver to tighten a bolt.
+- Worker checking a component against a part number.
+- Worker adjusting a component with a pair of pliers.
+- Worker using a screwdriver to loosen a tight bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a screwdriver to loosen a tight bolt.
+- Worker adjusting a component with a pair of pliers.
+- Worker using a screwdriver to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a screwdriver to loosen a tight bolt.
+- Worker examining a component for any hidden damage.
+- Worker adjusting a component with a pair of pliers.
+- Worker using a screwdriver to loosen a tight bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a screwdriver to loosen a tight bolt.
+- Worker examining a component for any hidden damage.
+- Worker examining a component for any hidden damage.
+- Worker using a screwdriver to loosen a tight bolt.
+
+## Assembly and Installation
+- Worker wearing a protective suit and safety glasses.
+- Worker holding a bolt with a wrench.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for fit.
+- Worker using a screwdriver to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a screwdriver to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a screwdriver to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a component for any hidden damage.
+- Worker using a wrench to tighten a bolt.
+- Worker examining a
