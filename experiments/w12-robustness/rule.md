@@ -83,3 +83,10 @@ Qwen3 4B stopped after one phase (incomplete). Replaced by Phi 4 mini instruct (
 group_c/ as a record. Same prompt, temperature, seed and one generation rule; Phi 4 mini instruct as GGUF Q4_K_M with our
 llama.cpp on GPU1. If its output is incomplete too, it is not rerun: group c is then scored on the complete authors and
 the report says so.
+
+### Third amendment of group c (2026-11-28, before the third author is generated)
+
+Phi 4 mini also incomplete (repetition, cut at 4,096 tokens). Third author: Mistral 7B Instruct v0.3 (different family),
+chosen by Khurshid on 2026-11-28 after seeing only the two incomplete outputs, before any group c score existed. Same
+prompt, temperature, seed, token limit, one generation. If incomplete: no further replacement, group c is scored on two
+authors and all attempts are reported.
