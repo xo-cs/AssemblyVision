@@ -104,19 +104,27 @@ python -m assemblyvision.tools.score_measurements --run ../data/qisens/runs/run_
 The first command is only needed for 7 and 8 (tool pickup and object placement); without it they are reported as not
 measured.
 
-**Results** (pasted unchanged from the printed table once Khurshid approves them):
+**Results, round 1** (run by Khurshid on QiSens on 2026-11-28, recorded unchanged). At that time only the phase labels
+existed; the earlier Labels page had held the train domain clip classes, not measurement ground truth.
 
 | # | measurement | annotator | result | target | verdict |
 | --- | --- | --- | --- | --- | --- |
-| 1 | process time | | *pending the command* | mean boundary error at most 10 s, each phase duration within 10 % | |
-| 2 | movement path | - | **no labels yet** (needs walks of known length) | within 20 % over a walk | - |
-| 3 | waist bending | | *pending the command* | exact band at least 80 %, within one band at least 95 % | |
-| 4 | repetitive work | | *pending the command* | F1 at least 0.70 | |
-| 5 | improvable motions | - | **no labels yet** (needs an engineer's rating of the suggestions) | at least 60 % rated useful | - |
-| 6 | hand travel | - | **no labels yet** (needs Label Studio wrist keypoints) | wrist within PCK@0.1 for at least 85 %; travel within 20 % | - |
-| 7 | tool pickup time | | *pending the command* | events within 1 s: recall and precision at least 0.70 | |
-| 8 | object placement time | | *pending the command* | events within 1 s: recall and precision at least 0.70 | |
-| 9 | two hand cooperation | | *pending the command* | agreement at least 75 % | |
-| 10 | gaze direction | | *pending the command* | agreement at least 70 % | |
+| 1 | process time | two annotators (final labels) | boundary MAE 8.093 s; 4 of 5 phase durations within 10 % | mean boundary error at most 10 s, each phase duration within 10 % | **misses the target** (the frozen target needs all 5 phases) |
+| 2 | movement path | - | **not validated on QiSens:** no walk of known length exists in the video | within 20 % over a walk | - |
+| 3 | waist bending | - | no labels yet | exact band at least 80 %, within one band at least 95 % | - |
+| 4 | repetitive work | - | no labels yet | F1 at least 0.70 | - |
+| 5 | improvable motions | - | no labels yet | at least 60 % rated useful | - |
+| 6 | hand travel | - | no labels yet | wrist within PCK@0.1 for at least 85 %; travel within 20 % | - |
+| 7 | tool pickup time | - | no labels yet | events within 1 s: recall and precision at least 0.70 | - |
+| 8 | object placement time | - | no labels yet | events within 1 s: recall and precision at least 0.70 | - |
+| 9 | two hand cooperation | - | no labels yet | agreement at least 75 % | - |
+| 10 | gaze direction | - | no labels yet | agreement at least 70 % | - |
+
+The flagship's movement path per phase (GVHMR floor, metres, **not validated**): Removal 23.82, Disassembly 6.04,
+Cleaning 12.74, Adjustment and Inspection 6.56, Assembly and Installation 33.6.
+
+**Limit of measure 2.** The path cannot be validated on the QiSens video: it has no walk between points of known
+distance, and the floor scale of GVHMR is estimated from the body. A validation needs a new short recording with a taped
+distance; until then the path is shown as not validated.
 
 A task Khurshid did not label prints as "no labels yet" in place of a number.

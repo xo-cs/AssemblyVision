@@ -1,8 +1,8 @@
 # Demo outputs: end to end check
 
 Checked with tools/check_outputs.py, which builds each output through the code the app and the report use and changes
-nothing in the run. Result on a public demo run (run_20261120_075124_83fe). **The flagship has not been checked yet:**
-that needs the commands below.
+nothing in the run. Results on a public demo run (run_20261120_075124_83fe) and, run by Khurshid on 2026-11-28, on the
+flagship run_20261108_133251_1550.
 
 | output | status | note |
 | --- | --- | --- |
@@ -14,6 +14,11 @@ that needs the commands below.
 | tool pickup and object placement | runs, **experimental** | **0 events on 3 public runs**; the COCO detector has almost no workshop tools |
 | improvement report (PDF): measured baseline | works | timeline, steps, metrics, notices, provenance |
 | improvement report (PDF): suggestions | works, **experimental** | rule based, each with metric, value, threshold and time ranges, labelled as suggestions and not findings |
+
+**Flagship (2026-11-28, Khurshid):** all 9 outputs ok: timeline, overlay, floor and hand heatmaps, cycle time graph, path
+in metres for 5 of 5 phases, tool pickup 0 and object placement 2 (experimental), PDF of 8 pages with 111 of 130 metrics
+with a value, 4 suggestions. Path per phase (m, not validated): Removal 23.82, Disassembly 6.04, Cleaning 12.74, Adjustment
+and Inspection 6.56, Assembly and Installation 33.6.
 
 **Known limits for the demo.** The ordered decoder finds each phase once per video, so the graph has one cycle per phase
 and shows no spread of cycle times. The suggestion thresholds are team defaults, not ergonomic limits. Do not present a
