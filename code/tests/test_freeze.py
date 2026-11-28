@@ -387,6 +387,16 @@ class ScoreMeasurementsTest(unittest.TestCase):
         self.assertEqual(SM.verdict(5, {"useful": 0.75}), "meets the target")
         self.assertIn("PCK part missed", SM.verdict(6, {"pck": 0.5}))
 
+    def test_the_pdf_title_without_a_cjk_font(self):
+        from unittest import mock
+        from assemblyvision.output import report as RP
+        rep = {"video": "メンテナンス.mp4", "duration_s": 596.4, "source": "qisens"}
+        with mock.patch.object(RP, "cjk_font", return_value=None):
+            self.assertEqual(RP.video_title(rep), "QiSens video (9.9 min)")
+            self.assertEqual(RP.video_title({"video": "a.mp4"}), "a.mp4")
+        with mock.patch.object(RP, "cjk_font", return_value="Noto Sans CJK JP"):
+            self.assertEqual(RP.video_title(rep), "メンテナンス.mp4")
+
     def test_a_measurement_without_labels_says_so(self):
         self.assertIn("not validated on QiSens", SM.fmt(2, None)[0][1])     # measure 2 has no walk of known length
         self.assertIn("no labels yet", SM.fmt(3, None)[0][1])

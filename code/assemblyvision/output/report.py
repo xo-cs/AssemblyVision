@@ -214,9 +214,37 @@ def write_csv(path: Path, rows: list[dict], cols: list[str]) -> None:
             w.writerow({c: "" if r.get(c) is None else r.get(c) for c in cols})
 
 
+CJK_FONT = "Noto Sans CJK JP"           # a system font of the server (/usr/share/fonts), only read
+
+
+def cjk_font() -> str | None:
+    """The CJK font, if Matplotlib can find it."""
+    from matplotlib import font_manager
+    return CJK_FONT if any(f.name == CJK_FONT for f in font_manager.fontManager.ttflist) else None
+
+
+def video_title(rep: dict) -> str:
+    """The video's name for the PDF: the file name, or, when it has characters no font here can show, a neutral title
+    ("QiSens video (9.9 min)") so that no glyph is missing."""
+    name = rep.get("video") or ""
+    if name.isascii() or cjk_font():
+        return name
+    mins = f" ({float(rep['duration_s']) / 60:.1f} min)" if rep.get("duration_s") else ""
+    return ("QiSens video" if rep.get("source") == "qisens" else "Video") + mins
+
+
 def write_pdf(path: Path, rep: dict) -> None:
     import matplotlib
     matplotlib.use("Agg")
+    from matplotlib import pyplot as plt
+    cjk = cjk_font()
+    fonts = {"font.family": ["DejaVu Sans"] + ([cjk] if cjk else []),
+             "font.monospace": ["DejaVu Sans Mono"] + ([cjk] if cjk else []), "pdf.fonttype": 42}
+    with plt.rc_context(fonts):                # Japanese, Chinese and Korean characters fall back to the CJK font
+        _write_pdf(path, rep)
+
+
+def _write_pdf(path: Path, rep: dict) -> None:
     from matplotlib import pyplot as plt
     from matplotlib.backends.backend_pdf import PdfPages
 
@@ -233,7 +261,7 @@ def write_pdf(path: Path, rep: dict) -> None:
         fig = plt.figure(figsize=(8.27, 11.69))
         fig.text(0.07, 0.96, "AssemblyVision run report", fontsize=16, weight="bold", va="top")
         ts = rep["timestamps"]
-        head = [f"Run {rep['run_id']} ({rep['source']}), video {rep['video']}, {rep['duration_s']} s",
+        head = [f"Run {rep['run_id']} ({rep['source']}), video {video_title(rep)}, {rep['duration_s']} s",
                 f"Revision {rev['number']} ({rev['by']}: {rev['note']})" + (f", based on rev {rev['based_on']}"
                                                                            if rev.get("based_on") is not None else ""),
                 f"Run created {ts['run_created_utc']}, finished {ts['run_finished_utc']}, exported {ts['exported_utc']}",
