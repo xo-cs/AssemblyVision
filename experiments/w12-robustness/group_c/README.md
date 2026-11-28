@@ -25,3 +25,12 @@ So group c is scored on two authors (Llama 3.2 and Gemma 3); the robustness tool
 
 Following Khurshid's instruction, it was not rerun and not format fixed, and it is not used for group c. Removing the
 repeated lines would remove sentences, which the rule does not allow. Group c stays scored on Llama 3.2 and Gemma 3.
+
+## Third author (third amendment of the rule, 2026-11-28)
+
+| key | model | file (models/text_llm) | SHA256 | licence | output |
+| --- | --- | --- | --- | --- | --- |
+| llm_mistral7b | Mistral 7B Instruct v0.3, Q4_K_M (bartowski/Mistral-7B-Instruct-v0.3-GGUF; Mistral publishes no GGUF) | Mistral-7B-Instruct-v0.3-Q4_K_M.gguf | 1270d22c0fbb3d092fb725d4d96c457b7b687a5f5a715abe1e818da303e562b6 | Apache 2.0 | complete: all five phases, 21 distinct lines each (asked for 22; kept as written), finish reason "stop", 2,912 tokens |
+
+Format fix: the model numbered its lines (1. to 21.); the numbers were replaced by the "- " prefix. Group c is now scored on
+Llama 3.2, Gemma 3 and Mistral 7B.

@@ -202,8 +202,10 @@ class RobustnessTest(unittest.TestCase):
     def test_the_llm_author_files_and_an_incomplete_one(self):
         from assemblyvision.analysis import phase_text as pt
         wanted = [p["name"] for p in pt.phases("qisens")]
-        self.assertEqual(R.AUTHORS, ("llm_qwen3", "llm_llama32", "llm_gemma3"))
-        self.assertEqual([p["name"] for p in R.author_phases("llm_llama32", wanted)], wanted)
+        self.assertEqual(R.AUTHORS, ("llm_llama32", "llm_gemma3", "llm_mistral7b"))
+        for a in R.AUTHORS:
+            self.assertEqual([p["name"] for p in R.author_phases(a, wanted)], wanted)
+        self.assertEqual(set(R.REPLACED), {"llm_qwen3", "llm_phi4mini"})
         self.assertEqual(R.author_phases("llm_qwen3", wanted), [])           # Qwen3 wrote only the first phase
         self.assertIsNone(R.author_phases("nobody", wanted))
 

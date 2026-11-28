@@ -1,0 +1,17 @@
+server: CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=1 /home/qisens/AssemblyVision/third_party/llama.cpp/build/bin/llama-server -m /home/qisens/AssemblyVision/models/text_llm/Mistral-7B-Instruct-v0.3-Q4_K_M.gguf --host 127.0.0.1 --port 8095 -ngl 99 -c 8192 --parallel 1 --no-webui --jinja --seed 20261128
+
+request POST /v1/chat/completions:
+{
+ "messages": [
+  {
+   "role": "user",
+   "content": "You write visual descriptions for a video classifier. Below are 5 work phases of train bogie maintenance in a factory. For each phase, write 22 short sentences describing what a camera would SEE during that phase: tools, parts, what the hands and body do, the state of the parts, wide and close views. Do not use the phase names inside the sentences.\n1. Removal: the worker takes components off the train or bogie (for example wheelsets, covers, brake parts) and moves them away.\n2. Disassembly: the worker takes the removed components apart into smaller parts (unbolting, separating, opening housings).\n3. Cleaning: the worker cleans the parts (washing, brushing, wiping, blowing off dirt, grease or rust).\n4. Adjustment and Inspection: the worker checks and measures the parts (gauges, measuring tools, visual checks) and adjusts them.\n5. Assembly and Installation: the worker puts the parts back together and mounts them onto the bogie or train (fitting, bolting, tightening).\nFormat exactly: '## <phase name>' then 22 lines starting with '- '."
+  }
+ ],
+ "temperature": 0.7,
+ "seed": 20261128,
+ "max_tokens": 4096,
+ "chat_template_kwargs": {
+  "enable_thinking": false
+ }
+}

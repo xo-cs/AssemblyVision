@@ -29,8 +29,9 @@ from ..errors import AvError
 from ..storage.files import REPO_ROOT, run_source, utc_now
 from . import freeze
 
-# group c since 2026-11-28: three local text LLMs (rule.md, amendment), files written by experiments/w12-robustness/group_c
-AUTHORS = ("llm_qwen3", "llm_llama32", "llm_gemma3")
+# group c since 2026-11-28: three local text LLMs (rule.md, amendments), files written by experiments/w12-robustness/group_c
+AUTHORS = ("llm_llama32", "llm_gemma3", "llm_mistral7b")
+REPLACED = {"llm_qwen3": "Qwen3 4B", "llm_phi4mini": "Phi 4 mini instruct"}      # incomplete outputs, kept as a record
 AUTHOR_DIR = REPO_ROOT / "docs_team" / "independent_descriptions"
 SEED = 20261121
 N_SUBSETS = 20
@@ -190,7 +191,8 @@ def run_study(args) -> dict:
             elif got == []:
                 incomplete.append(a)
         add("c. independent descriptions", rows)
-        groups["c. independent descriptions"]["not_scored"] = [f"{a}: incomplete (not all five phases), not scored" for a in incomplete]
+        groups["c. independent descriptions"]["not_scored"] = [f"{a}: incomplete (not all five phases), not scored" for a in incomplete] \
+            + [f"{name} ({k}): replaced (incomplete)" for k, name in REPLACED.items()]
     if "d" in want:
         ok = args.vlm_file and (root / args.vlm_file).is_file()
         add("d. VLM sampling", [row(f"VLM file {args.vlm_file}", st.score(zero={"vlm_file": args.vlm_file}))] if ok else [])

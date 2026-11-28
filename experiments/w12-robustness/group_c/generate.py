@@ -22,7 +22,8 @@ HERE = Path(__file__).resolve().parent
 SERVER = ROOT / "third_party/llama.cpp/build/bin/llama-server"
 MODELS = {"llm_qwen3": "Qwen3-4B-Q4_K_M.gguf", "llm_llama32": "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
           "llm_gemma3": "google_gemma-3-4b-it-Q4_K_M.gguf",
-          "llm_phi4mini": "microsoft_Phi-4-mini-instruct-Q4_K_M.gguf"}     # replaces Qwen3 (second amendment of the rule)
+          "llm_phi4mini": "microsoft_Phi-4-mini-instruct-Q4_K_M.gguf",    # replaces Qwen3 (second amendment of the rule)
+          "llm_mistral7b": "Mistral-7B-Instruct-v0.3-Q4_K_M.gguf"}        # replaces Phi 4 mini (third amendment)
 GPU, PORT, SEED, TEMP, MAX_TOKENS = 1, 8095, 20261128, 0.7, 4096
 PROMPT = """You write visual descriptions for a video classifier. Below are 5 work phases of train bogie maintenance in a factory. For each phase, write 22 short sentences describing what a camera would SEE during that phase: tools, parts, what the hands and body do, the state of the parts, wide and close views. Do not use the phase names inside the sentences.
 1. Removal: the worker takes components off the train or bogie (for example wheelsets, covers, brake parts) and moves them away.
