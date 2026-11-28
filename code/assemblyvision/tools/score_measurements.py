@@ -31,6 +31,7 @@ from pathlib import Path
 import numpy as np
 
 from .. import validation_labels as VL
+from .. import validation_labels as L2
 from ..config import Config
 from ..storage.files import run_source, utc_now
 from . import freeze
@@ -148,6 +149,143 @@ def system_repetitive(F: Frames, a: int, b: int, fps: float, m: dict) -> str | N
     return "repetitive" if best[0] is not None and best[1] >= m["rep_acf_min"] else "not repetitive"
 
 
+# --- round 2 labels (Labels page, 2026-11-28): frames, wrists, events, ratings --------------------------------------
+GAZE_MAP = {"down": L2.GAZE2[0], "left": L2.GAZE2[1], "right": L2.GAZE2[2], "away": L2.GAZE2[4], "front": None}
+WINDOW_S = 10.0                        # repetitive work: the clip in 10 s windows
+PCK = 0.1
+
+
+def system_gaze2(F: Frames, f: int, m: dict) -> str | None:
+    """The round 2 gaze answer: "down" (nose below the ears by gaze_down_torso torso lengths) is towards the hands or the
+    work; else the image direction; "front" (facing the camera) has no answer in the label set and counts as a miss."""
+    from ..analysis.motion import L_EAR, NOSE, R_EAR
+    c = system_gaze(F, f, m)
+    w = F.at(f)
+    if w is not None:
+        s = F.subjects[w[0]]
+        fr = list(np.asarray(s.series.frame_idx, np.int64))
+        if f in fr:
+            si = fr.index(f)
+            raw = np.asarray(s.series.body_xy[si], np.float64)
+            conf = np.nan_to_num(np.asarray(s.series.body_conf[si], np.float64))
+            ok = conf >= m["gaze_conf_min"]
+            ears = [raw[j, 1] for j in (L_EAR, R_EAR) if ok[j]]
+            if ok[NOSE] and ears and s.cs.torso and raw[NOSE, 1] - np.mean(ears) > m["gaze_down_torso"] * s.cs.torso:
+                return GAZE_MAP["down"]
+    return None if c is None else (GAZE_MAP.get(c) or "facing the camera")
+
+
+def system_hands2(F: Frames, f: int, fps: float, m: dict) -> str | None:
+    """yes when both wrists are active (motion.hand_active) in at least half of the frames within 1 s of the frame."""
+    got = system_two_hand(F, int(f - fps), int(f + fps), fps, m)
+    return None if got is None else "yes" if got == "both hands" else "no"
+
+
+def system_wrists(F: Frames, boxes: dict, f: int) -> tuple:
+    """((left xy or None, right xy or None), PCK threshold in px: 0.1 x the longer side of the subject's box)."""
+    from ..analysis.motion import L_WRI, R_WRI
+    w, box = F.at(f), boxes.get(int(f))
+    if w is None or box is None:
+        return (None, None), None
+    s = F.subjects[w[0]]
+    pts = tuple(s.cs.xy[w[1], j].astype(np.float64) if s.cs.valid[w[1], j] else None for j in (L_WRI, R_WRI))
+    return pts, PCK * float(max(box[2] - box[0], box[3] - box[1]))
+
+
+def kappa_of(a: dict, b: dict, skip: str) -> dict | None:
+    """Cohen's kappa of two annotators on their common items (items either marked skip are left out)."""
+    from ..evaluation.metrics import cohen_kappa
+    common = [k for k in a if k in b and a[k] != skip and b[k] != skip]
+    if len(common) < 2:
+        return None
+    k, po, _ = cohen_kappa([a[x] for x in common], [b[x] for x in common])
+    return {"items": len(common), "kappa": round(k, 3), "agreement": round(po, 3)}
+
+
+def score_round2(root: Path, area: Path, F: Frames, m_all: dict, cfg, fps: float) -> dict:
+    from ..analysis.siglip import subject_boxes
+    from ..output import extras as X
+    m = cfg["motion"]
+    base = area / "validation" / "labels" / root.name
+    out: dict = {}
+    frames = {f.stem: VL.read(f) for f in sorted((base / "frames").glob("*.csv"))}
+    if frames:
+        q = {3: ("trunk", lambda r: system_trunk(F, int(r["frame"]), m), "cannot see"),
+             9: ("hands", lambda r: system_hands2(F, int(r["frame"]), fps, m), "cannot see"),
+             10: ("gaze", lambda r: system_gaze2(F, int(r["frame"]), m), "cannot see")}
+        for n, (col, sysf, skip) in q.items():
+            per = {}
+            for user, rows in frames.items():
+                if n == 3:
+                    pairs = [(r[col], sysf(r)) for r in rows]
+                    idx = lambda t: next((i for i, b in enumerate(BANDS) if t and (t == b or t.startswith(f"B{i} "))), None)
+                    pairs = [(h if h != skip else CANNOT, None if s is None else L2.TRUNK[idx(s)]) for h, s in pairs]
+                    res = agreement(pairs)
+                    near = [(h, s) for h, s in pairs if h != CANNOT and s is not None]
+                    res["within_one"] = round(sum(abs(L2.TRUNK.index(h) - L2.TRUNK.index(s)) <= 1 for h, s in near) / len(near), 3) if near else None
+                else:
+                    res = agreement([(r[col] if r[col] != skip else CANNOT, sysf(r)) for r in rows])
+                per[user] = res
+            ann = list(frames)
+            kap = kappa_of({r["item"]: r[col] for r in frames[ann[0]]}, {r["item"]: r[col] for r in frames[ann[1]]}, skip) \
+                if len(ann) >= 2 else None
+            out[n] = {"annotators": per, "between_annotators": kap, "task": "frames"}
+    wrists = {f.stem: VL.read(f) for f in sorted((base / "wrists").glob("*.csv"))}
+    if wrists:
+        boxes = subject_boxes(m_all, root)
+        per = {}
+        for user, rows in wrists.items():
+            hit = tot = 0
+            for r in rows:
+                (sl, sr), thr = system_wrists(F, boxes, int(r["frame"]))
+                for side, sp in (("left", sl), ("right", sr)):
+                    if r[f"{side}_x"] in ("", None) or thr is None:
+                        continue
+                    tot += 1
+                    hit += sp is not None and float(np.hypot(sp[0] - float(r[f"{side}_x"]), sp[1] - float(r[f"{side}_y"]))) <= thr
+            per[user] = {"labels": len(rows), "wrists": tot, "pck": round(hit / tot, 3) if tot else None}
+        out[6] = {"annotators": per, "task": "wrists"}
+    events = {f.stem: VL.read(f) for f in sorted((base / "events").glob("*.csv"))}
+    if events:
+        win = L2.gt_items("events", root.name, root)[0][0]
+        det = X.load_objects(root)
+        sys_ev = None if det is None else X.hand_event_list(F.subjects, det, fps, m["hand_active"])
+        for n, kind, sk in ((7, "tool pickup", "pickup"), (8, "object placement", "placement")):
+            per = {}
+            for user, rows in events.items():
+                marks = [float(r["time_s"]) for r in rows if r["kind"] == kind]
+                if sys_ev is None:
+                    per[user] = {"labels": len(marks), "note": "no object detection for this run (run tools/detect_objects.py first)"}
+                    continue
+                st = [e["t_s"] for e in sys_ev if e["kind"] == sk and win["time_s"] <= e["t_s"] <= win["end_s"]]
+                per[user] = {"labels": len(marks), **match_events(marks, st)}
+            out[n] = {"annotators": per, "task": "events"}
+        per = {}
+        for user, rows in events.items():
+            starts = [float(r["time_s"]) for r in rows if r["kind"] == "cycle start"]
+            pairs = []
+            t = win["time_s"]
+            while t + WINDOW_S <= win["end_s"] + 1e-6:
+                human = "repetitive" if sum(t <= x < t + WINDOW_S for x in starts) >= 2 else "not repetitive"
+                pairs.append((human, system_repetitive(F, int(t * fps), int((t + WINDOW_S) * fps), fps, m)))
+                t += WINDOW_S
+            res = agreement(pairs)
+            both = [(h, s) for h, s in pairs if s is not None]
+            tp = sum(h == s == "repetitive" for h, s in both)
+            fp = sum(s == "repetitive" and h != "repetitive" for h, s in both)
+            fn = sum(h == "repetitive" and s != "repetitive" for h, s in both)
+            res["f1"] = round(2 * tp / (2 * tp + fp + fn), 3) if 2 * tp + fp + fn else None
+            res["cycle_starts"] = len(starts)
+            per[user] = res
+        out[4] = {"annotators": per, "task": "events"}
+    ratings = {f.stem: VL.read(f) for f in sorted((base / "ratings").glob("*.csv"))}
+    if ratings:
+        out[5] = {"annotators": {u: {"labels": len(r), "useful": round(sum(x["rating"] == "useful" for x in r) / len(r), 3) if r else None,
+                                     "partly": sum(x["rating"] == "partly useful" for x in r)} for u, r in ratings.items()},
+                  "task": "ratings"}
+    return out
+
+
 def agreement(pairs: list[tuple[str, str | None]]) -> dict:
     """Over items the annotator could tell: agreement where the system has an answer, and its coverage."""
     told = [(h, s) for h, s in pairs if h != CANNOT]
@@ -178,6 +316,11 @@ def verdict(n: int, r: dict) -> str:
         return yes(r["boundary_mae_s"] is not None and r["boundary_mae_s"] <= 10 and r["phases_within_10_pct"] == r["phases"])
     if n == 3:
         return "-" if r["agreement"] is None else yes(r["agreement"] >= 0.80 and r["within_one"] >= 0.95)
+    if n == 5:
+        return "-" if r.get("useful") is None else yes(r["useful"] >= 0.60)
+    if n == 6:
+        return "-" if r.get("pck") is None else ("PCK part " + ("met" if r["pck"] >= 0.85 else "missed") +
+                                                 "; travel not measurable from single frames")
     if n == 4:
         return "-" if r.get("f1") is None else yes(r["f1"] >= 0.70)
     if n in (7, 8):
@@ -212,8 +355,11 @@ def score(root: Path, gt_path: Path | None) -> dict:
         within = sum(1 for k, v in g.items() if k in p and abs(p[k] - v) <= 0.10 * v)
         out[1] = {"labels": "two annotators (final labels)", "boundary_mae_s": mae, "phases": len(g), "phases_within_10_pct": within,
                   "duration_error_pct": {k: round(100 * (p.get(k, 0) - v) / v, 1) for k, v in g.items()}}
+    out.update(score_round2(root, area, F, m_all, cfg, fps))
     events = None
     for n, task in TASK_OF.items():
+        if n in out:                                   # the round 2 labels of this measurement are used
+            continue
         files = sorted((area / "validation" / "labels" / root.name / task).glob("*.csv"))
         if not files:
             continue
@@ -259,7 +405,7 @@ def score(root: Path, gt_path: Path | None) -> dict:
 def fmt(n: int, r: dict | None) -> list[tuple[str, str, str]]:
     """(annotator, result text, verdict) rows of one measurement."""
     if r is None:
-        why = {2: "no labels yet (needs walks of known length)", 5: "no labels yet (needs an engineer's rating of the suggestions)",
+        why = {2: "not validated on QiSens: no walk of known length in the video", 5: "no labels yet (needs an engineer's rating of the suggestions)",
                6: "no labels yet (needs Label Studio wrist keypoints)", 1: "no final phase labels given (--gt)"}
         return [("-", why.get(n, "no labels yet"), "-")]
     if n == 1:
@@ -270,15 +416,22 @@ def fmt(n: int, r: dict | None) -> list[tuple[str, str, str]]:
         if "note" in x:
             rows.append((user, f"{x['labels']} marks; {x['note']}", "-"))
             continue
-        if n in (7, 8):
+        if n == 6:
+            t = f"{x['labels']} frames, {x['wrists']} visible wrists: PCK@0.1 {x['pck']}"
+        elif n == 5:
+            t = f"{x['labels']} suggestions rated: useful {x['useful']}, partly useful {x['partly']}"
+        elif n in (7, 8):
             t = f"{x['marks']} marks, {x['events']} system events, {x['matched']} matched: recall {x['recall']}, precision {x['precision']}"
         else:
             t = f"{x['labels']} labels, {x['told']} not 'cannot tell', {x['scored']} with a system answer: agreement {x['agreement']}"
             if n == 3:
                 t += f", within one band {x['within_one']}"
             if n == 4:
-                t += f", F1 {x['f1']}"
+                t += f", F1 {x['f1']}" + (f" ({x['cycle_starts']} cycle starts in 10 s windows)" if "cycle_starts" in x else "")
         rows.append((user, t, verdict(n, x)))
+    k = r.get("between_annotators")
+    if k:
+        rows.append(("between the annotators", f"{k['items']} common items: kappa {k['kappa']}, agreement {k['agreement']}", "human agreement"))
     return rows
 
 

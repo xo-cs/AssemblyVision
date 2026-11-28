@@ -373,6 +373,20 @@ class ScoreMeasurementsTest(unittest.TestCase):
         self.assertEqual(SM.verdict(7, {"recall": 0.8, "precision": None}), "-")
         self.assertEqual(SM.verdict(1, {"boundary_mae_s": 8.09, "phases": 5, "phases_within_10_pct": 5}), "meets the target")
 
+    def test_kappa_between_annotators_leaves_out_cannot_see(self):
+        a = {"0": "yes", "1": "no", "2": "yes", "3": "cannot see"}
+        b = {"0": "yes", "1": "no", "2": "no", "3": "yes"}
+        k = SM.kappa_of(a, b, "cannot see")
+        self.assertEqual((k["items"], k["agreement"]), (3, 0.667))
+        self.assertIsNone(SM.kappa_of({"0": "yes"}, {"0": "yes"}, "cannot see"))
+
+    def test_the_gaze_answers_map_onto_the_label_set(self):
+        self.assertEqual(set(v for v in SM.GAZE_MAP.values() if v), set(VL.GAZE2) - {"up", "cannot see"})
+
+    def test_round2_verdicts(self):
+        self.assertEqual(SM.verdict(5, {"useful": 0.75}), "meets the target")
+        self.assertIn("PCK part missed", SM.verdict(6, {"pck": 0.5}))
+
     def test_a_measurement_without_labels_says_so(self):
         self.assertIn("no labels yet", SM.fmt(2, None)[0][1])
         self.assertTrue(all(SM.TARGETS[n] for n in range(1, 11)))
