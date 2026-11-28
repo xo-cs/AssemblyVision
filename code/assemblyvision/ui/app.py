@@ -61,7 +61,9 @@ STAGE_NAMES = {"ingest": "Ingest", "shots": "Shots", "reference": "Reference fra
                "tracking": "Tracking", "vlm_scores": "Phase scores (VLM)", "siglip_scores": "Phase scores (SigLIP)",
                "segmentation": "Steps", "metrics": "Motion metrics", "overlay": "Overlay video",
                "body3d": "3D body", "eval": "Evaluation"}
-PAGES = (("new", "New analysis"), ("results", "Results"), ("runs", "Runs"), ("live", "Live"))   # Labels: page kept, not in the sidebar
+PAGES = (("new", "New analysis"), ("results", "Results"), ("runs", "Runs"), ("live", "Live"), ("labels", "Labels"),
+         ("ratings", "Ratings"))
+HIDDEN_NAV = ("labels", "ratings")        # shown per account at page load: Labels to the team, Ratings to the mentor
 UI_DIR = Path(__file__).resolve().parent
 NO_LABELS = "No hand labels for this video, so accuracy cannot be scored."
 
@@ -1108,7 +1110,7 @@ class GradioApp:
         # matplotlib and its font list load once here, not on the first Results view
         from .charts import _plt
         from .live_tab import build_live_tab
-        from .labels_tab import build_labels_tab
+        from .gt_tab import build_gt_tab, build_ratings_tab
         _plt()
         # delete_cache: every hour, Gradio's temp files older than a day are removed
         with gr.Blocks(title="AssemblyVision", theme=_theme(gr), css=css, js=js, analytics_enabled=False,
@@ -1119,7 +1121,7 @@ class GradioApp:
                 with gr.Column(elem_id="av-sidebar", scale=0, min_width=260):
                     gr.HTML("<div class='av-brand'><b>AssemblyVision</b><span>AI Based Motion Analysis and Process "
                             "Improvements in Train Assembly</span></div>")
-                    navs = [gr.Button(title, elem_id=f"nav-{key}", size="md",
+                    navs = [gr.Button(title, elem_id=f"nav-{key}", size="md", visible=key not in HIDDEN_NAV,
                                       elem_classes=["av-nav"] + (["av-active"] if key == "new" else []))
                             for key, title in PAGES]
                     with gr.Column(elem_classes=["av-side-foot"]):
@@ -1258,9 +1260,11 @@ class GradioApp:
                         with gr.Tab("Live", id="live"), gr.Column(elem_classes=["av-page"]):
                             live_load, live_out = build_live_tab(self, gr, job, job_timer, server)
 
-                        # --- Labels (hand labels for validation) ---------------------------
+                        # --- Labels (team) and Ratings (mentor): measurement ground truth ---
                         with gr.Tab("Labels", id="labels"), gr.Column(elem_classes=["av-page"]):
-                            build_labels_tab(self, gr)
+                            gt_run = build_gt_tab(self, gr)
+                        with gr.Tab("Ratings", id="ratings"), gr.Column(elem_classes=["av-page"]):
+                            rate_run = build_ratings_tab(self, gr)
             server_timer = gr.Timer(5.0)
 
             def goto(key: str) -> list:
@@ -1302,12 +1306,22 @@ class GradioApp:
             job_out = [status, job_kpis, open_btn, gallery, job_timer]
 
             def on_load(request):
+                from ..validation_labels import is_mentor
                 q = dict(request.query_params) if request is not None else {}
                 run_id = self.initial_run(q.get("run"))
                 active = self.store.active_run()
                 page = q.get("view") if q.get("view") in keys else ("results" if q.get("run") else "new")
+                mentor = is_mentor(_user(request))
+                if (page == "labels" and mentor) or (page == "ratings" and not mentor):
+                    page = "results"                   # each page only for its accounts (the saves check too)
+                nav = goto(page)
+                for i, k in enumerate(keys):
+                    if k in HIDDEN_NAV:
+                        nav[1 + i] = gr.Button(elem_classes=["av-nav"] + (["av-active"] if k == page else []),
+                                               visible=(k == "ratings") == mentor)
+                runs = gr.update(choices=self.run_choices())
                 return [gr.update(choices=self.run_choices(run_id), value=run_id), active, *job_values(active),
-                        self.runs_html(run_id), *goto(page)]
+                        self.runs_html(run_id), runs, runs, *nav]
             on_load.__annotations__["request"] = gr.Request     # a real type, so Gradio passes the request
 
             def on_poll(job_id, shown):
@@ -1350,7 +1364,7 @@ class GradioApp:
                     return [gr.skip()] * (1 + len(nav_out))
                 return on_open(run_id)
 
-            demo.load(on_load, None, [run_dd, job, *job_out, runs_html, *nav_out])
+            demo.load(on_load, None, [run_dd, job, *job_out, runs_html, gt_run, rate_run, *nav_out])
             demo.load(live_load, None, live_out)
             for key, btn in zip(keys, navs):
                 if key == "runs":
