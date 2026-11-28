@@ -1,6 +1,6 @@
 """The Labels page (team accounts) and the Ratings page (mentor) of the measurement ground truth (Week 12, round 2).
 
-Labels: frames (trunk angle from two clicks, both hands working, gaze), wrists (click left and right) and events (cycle starts, tool
+Labels: frames (both hands working, gaze), wrists (click left and right) and events (cycle starts, tool
 pickups, object placements in one 2 minute clip). Ratings: the suggestions of a run, rated useful, partly useful or not
 useful. Items and files: assemblyvision/validation_labels.py. Frames and clips are shown by this app behind the login
 and saved nowhere outside the run's data area; the server refuses a save by the wrong kind of account, so hiding the
@@ -50,31 +50,6 @@ def marked(frame: np.ndarray | None, k: float, left, right) -> np.ndarray | None
     return img
 
 
-def marked_trunk(frame: np.ndarray | None, k: float, hip, shoulder, text: str = "") -> np.ndarray | None:
-    """The frame with the clicked hip and shoulder midpoints, the line between them, a thin vertical reference line
-    through the hip point and the angle text; points in video pixels, k = video px per shown px."""
-    if frame is None:
-        return None
-    import cv2
-    img = frame.copy()
-    sc = lambda p: (int(round(p[0] / k)), int(round(p[1] / k)))
-    if hip is not None:
-        h = sc(hip)
-        cv2.line(img, (h[0], 0), (h[0], img.shape[0] - 1), (230, 230, 230), 1)
-        cv2.circle(img, h, 6, (34, 197, 94), 2)
-        cv2.putText(img, "hip", (h[0] + 8, h[1] + 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (34, 197, 94), 2)
-    if shoulder is not None:
-        sh = sc(shoulder)
-        cv2.circle(img, sh, 6, (249, 115, 22), 2)
-        cv2.putText(img, "shoulder", (sh[0] + 8, sh[1] - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (249, 115, 22), 2)
-        if hip is not None:
-            cv2.line(img, sc(hip), sh, (250, 204, 21), 2)
-    if text:
-        cv2.rectangle(img, (6, 6), (14 + 11 * len(text), 34), (0, 0, 0), -1)
-        cv2.putText(img, text, (10, 27), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2)
-    return img
-
-
 def build_gt_tab(app, gr):
     gr.HTML(v.page_header("Labels", "Measurement ground truth. Label alone, under your own account, without looking at the "
                           "system's result. No screenshots or downloads of frames (docs_team/labelling_guide.md); clear "
@@ -89,10 +64,11 @@ def build_gt_tab(app, gr):
         image = gr.Image(show_label=False, interactive=False, visible=False, type="numpy", format="jpeg",
                          show_download_button=False, show_share_button=False)      # no download of a frame (labelling guide)
         video = gr.HTML(visible=False)
-        with gr.Row(visible=False) as trunk:          # the trunk: two clicks on the frame, or cannot see
-            redo_b = gr.Button("Redo clicks", elem_classes=["av-fit"])
-            cannot_b = gr.Button("Trunk: cannot see", elem_classes=["av-fit"])
-        hands = gr.Radio(L.HANDS, label="Are both hands working?", visible=False)
+        with gr.Row(visible=False) as trunk:          # empty since 2026-11-28: the trunk is validated on COCO, not here
+            pass
+        hands = gr.Radio(L.HANDS, label="Are both hands working?", visible=False,
+                         info="Yes only if both hands do the task (holding, turning, guiding a part or tool), even if they do "
+                              "different things. A hand that only braces the body or rests = no.")
         gaze = gr.Radio(L.GAZE2, label="Gaze direction (left and right as seen in the image)", visible=False)
         with gr.Row(visible=False) as wrist_row:
             no_left = gr.Button("Left wrist not visible", elem_classes=["av-fit"])
@@ -127,29 +103,15 @@ def build_gt_tab(app, gr):
                     gr.update(value=video_html(app._file_url(st["video"]), w["time_s"], w["end_s"]), visible=True),
                     hide(), hide(), hide(), hide(), gr.update(visible=True), hide(), msg]
         it = st["items"][i]
-        old = next((r for r in done if int(r["item"]) == it["item"]), {})
+        old = next((r for r in done if int(r["item"]) == it["item"] and int(r["frame"]) == it["frame"]), {})
         top = (f"<b>Frame {i + 1} of {len(st['items'])}</b> &middot; {len(done)} saved &middot; {v.esc(it['phase'])} &middot; "
                f"items drawn with a fixed seed from frames with a tracked worker, evenly over the phases ({v.esc(st['src'])})")
         frame = L.read_frame(st["video"], it["frame"])
         k = st["width"] / frame.shape[1] if frame is not None else 1.0
-        if kind == "frames":
-            if cl is None:                             # a saved item shows its saved trunk clicks
-                cl = {"hip": None, "shoulder": None, "cannot": old.get("trunk") == L.TRUNK_CANNOT}
-                if old.get("trunk") == L.TRUNK_CLICKS:
-                    cl.update(hip=(float(old["hip_x"]), float(old["hip_y"])), shoulder=(float(old["shoulder_x"]), float(old["shoulder_y"])))
-            text, say = "", "Trunk: click (1) the <b>midpoint of the hips</b>, then (2) the <b>midpoint of the shoulders</b>."
-            if cl.get("cannot"):
-                say = "Trunk: <b>cannot see</b>. Redo clicks to click it after all."
-            elif cl.get("hip") is not None and cl.get("shoulder") is None:
-                say = "Trunk: now click the <b>midpoint of the shoulders</b>."
-            elif cl.get("hip") is not None:
-                ang, band = L.trunk_angle_band(cl["hip"], cl["shoulder"], st.get("edges", (20.0, 45.0, 60.0)))
-                text = f"{ang:.1f} deg, {band}"
-                say = f"Trunk angle <b>{ang:.1f} degrees</b>, {v.esc(L.BAND_TEXT[band])}. Redo clicks if a point is off."
-            img = marked_trunk(frame, k, cl.get("hip"), cl.get("shoulder"), text)
-            return [st, cl, top + "<br>" + say, gr.update(visible=True), gr.update(value=img, visible=True), hide(),
-                    gr.update(visible=True), gr.update(value=old.get("hands") or None, visible=True),
-                    gr.update(value=old.get("gaze") or None, visible=True), hide(), hide(), gr.update(visible=True), msg]
+        if kind == "frames":                           # both hands and gaze (the trunk is validated on COCO)
+            return [st, None, top, gr.update(visible=True), gr.update(value=frame, visible=True), hide(), hide(),
+                    gr.update(value=old.get("hands") or None, visible=True), gr.update(value=old.get("gaze") or None, visible=True),
+                    hide(), hide(), gr.update(visible=True), msg]
         if cl is None:                                 # a saved item shows its saved clicks
             pt = lambda a, b: None if not old or old.get(a) in ("", None) else (float(old[a]), float(old[b]))
             cl = {"left": pt("left_x", "left_y") if old else None, "right": pt("right_x", "right_y") if old else None}
@@ -203,13 +165,9 @@ def build_gt_tab(app, gr):
             path = L.gt_path(st["area"], st["run"], st["task"], user)
             it = st["items"][st["i"]]
             if st["task"] == "frames":
-                cl = cl or {}
-                trunk = L.TRUNK_CANNOT if cl.get("cannot") else (cl["hip"], cl["shoulder"]) \
-                    if cl.get("hip") is not None and cl.get("shoulder") is not None else None
-                if trunk is None or not (b and c):
-                    return render(st, user, cl, "<span class='av-note'>Set the trunk (two clicks or cannot see) and answer "
-                                                "both questions first.</span>")
-                L.save_frame(path, it, trunk, b, c, user, st.get("edges", (20.0, 45.0, 60.0)))
+                if not (b and c):
+                    return render(st, user, msg="<span class='av-note'>Answer both questions first.</span>")
+                L.save_frame(path, it, None, b, c, user)
             elif st["task"] == "wrists":
                 if not cl or cl.get("left") is None or cl.get("right") is None:
                     return render(st, user, cl, "<span class='av-note'>Set both wrists first (click, or not visible).</span>")
@@ -221,20 +179,10 @@ def build_gt_tab(app, gr):
         return render({**st, "i": min(len(st["items"]) - 1, st["i"] + 1)}, user)
 
     def on_click(st, cl, evt, request):
-        if st is None or st["task"] not in ("wrists", "frames"):
+        if st is None or st["task"] != "wrists":
             return [gr.skip()] * len(outs)
         frame = L.read_frame(st["video"], st["items"][st["i"]]["frame"])
         k = st["width"] / frame.shape[1] if frame is not None else 1.0
-        if st["task"] == "frames":                     # (1) hip midpoint, (2) shoulder midpoint, in original pixels
-            cl = dict(cl or {"hip": None, "shoulder": None, "cannot": False})
-            p = (evt.index[0] * k, evt.index[1] * k)
-            if cl.get("cannot"):
-                return render(st, _user(request), cl)
-            if cl.get("hip") is None:
-                cl["hip"] = p
-            elif cl.get("shoulder") is None:
-                cl["shoulder"] = p
-            return render(st, _user(request), cl)
         cl = dict(cl or {"left": None, "right": None})
         side = "left" if cl.get("left") is None else "right" if cl.get("right") is None else None
         if side:
@@ -253,16 +201,6 @@ def build_gt_tab(app, gr):
         if st is None:
             return [gr.skip()] * len(outs)
         return render(st, _user(request), {"left": None, "right": None})
-
-    def on_redo(st, request):
-        if st is None or st["task"] != "frames":
-            return [gr.skip()] * len(outs)
-        return render(st, _user(request), {"hip": None, "shoulder": None, "cannot": False})
-
-    def on_cannot(st, request):
-        if st is None or st["task"] != "frames":
-            return [gr.skip()] * len(outs)
-        return render(st, _user(request), {"hip": None, "shoulder": None, "cannot": True})
 
     def mark(kind):
         def f(st, t, request):
@@ -284,15 +222,13 @@ def build_gt_tab(app, gr):
         L.remove_last_event(L.gt_path(st["area"], st["run"], "events", user))
         return render(st, user)
 
-    for f in (on_open, on_prev, on_next, on_save, on_clear, on_undo, on_redo, on_cannot):
+    for f in (on_open, on_prev, on_next, on_save, on_clear, on_undo):
         f.__annotations__["request"] = gr.Request
     on_click.__annotations__.update(evt=gr.SelectData, request=gr.Request)
     open_b.click(on_open, [task, run], outs)
     prev_b.click(on_prev, state, outs, show_progress="hidden")
     next_b.click(on_next, state, outs, show_progress="hidden")
     save_b.click(on_save, [state, clicks, hands, gaze], outs, show_progress="hidden")
-    redo_b.click(on_redo, state, outs, show_progress="hidden")
-    cannot_b.click(on_cannot, state, outs, show_progress="hidden")
     image.select(on_click, [state, clicks], outs, show_progress="hidden")
     no_left.click(not_visible("left"), [state, clicks], outs, show_progress="hidden")
     no_right.click(not_visible("right"), [state, clicks], outs, show_progress="hidden")

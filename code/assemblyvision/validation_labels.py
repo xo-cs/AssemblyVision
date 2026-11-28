@@ -201,7 +201,9 @@ GAZE2 = ["towards the hands or the work", "left (in the image)", "right (in the 
 EVENT_KINDS = ["cycle start", "tool pickup", "object placement"]
 RATINGS = ["useful", "partly useful", "not useful"]
 GT_TASKS = {
-    "frames": {"title": "Frames: trunk angle (two clicks), both hands, gaze (100 frames)", "n": 100},
+    # 30 frames since 2026-11-28, a subset of the first 100 frame draw (same seed), so earlier answers stay valid; the trunk
+    # is validated on COCO instead (experiments/w12-coco-pose)
+    "frames": {"title": "Frames: both hands working, gaze (30 frames)", "n": 100, "keep": 30},
     "wrists": {"title": "Wrists: click left and right (50 frames)", "n": 50},
     "events": {"title": "Events: cycle starts, tool pickups, object placements (2 minute clip)", "span_s": 120.0},
 }
@@ -231,8 +233,11 @@ def phase_spans(root: Path, manifest: dict) -> tuple[list[tuple[str, float, floa
     return [(s.label, s.start_s, s.end_s) for s in steps if s.label != "other"], "hand labels" if gt else "run steps"
 
 
-def stratified_frames(task: str, run_id: str, frames: np.ndarray, fps: float, spans: list, n: int) -> list[dict]:
-    """n frames with a tracked subject, the same number from each phase (the rest from the phases with frames left)."""
+def stratified_frames(task: str, run_id: str, frames: np.ndarray, fps: float, spans: list, n: int,
+                      keep: int | None = None) -> list[dict]:
+    """n frames with a tracked subject, the same number from each phase (the rest from the phases with frames left). With
+    keep, only the first keep frames of that draw are used, again evenly over the phases (the first ones each phase
+    drew), with their item numbers of the full draw: a smaller set whose earlier answers stay valid."""
     rng = _rng(run_id, task)
     frames = np.unique(np.asarray(frames, np.int64))
     pools = [(name, frames[(frames >= a * fps) & (frames < b * fps)]) for name, a, b in spans]
@@ -242,12 +247,21 @@ def stratified_frames(task: str, run_id: str, frames: np.ndarray, fps: float, sp
     want = {nm: n // len(pools) for nm, _ in pools}
     for nm, _ in pools[: n - sum(want.values())]:
         want[nm] += 1
-    picked = []
+    picked, order = [], {}
     for nm, p in pools:
         k = min(want[nm], len(p))
-        picked += [(int(f), nm) for f in rng.choice(p, k, replace=False)]
+        drawn = [int(f) for f in rng.choice(p, k, replace=False)]
+        order[nm] = drawn
+        picked += [(f, nm) for f in drawn]
     picked.sort()
-    return [{"item": i, "frame": f, "time_s": round(f / fps, 3), "phase": nm} for i, (f, nm) in enumerate(picked)]
+    items = [{"item": i, "frame": f, "time_s": round(f / fps, 3), "phase": nm} for i, (f, nm) in enumerate(picked)]
+    if keep is None or keep >= len(items):
+        return items
+    share = {nm: keep // len(order) for nm in order}
+    for nm in list(order)[: keep - sum(share.values())]:
+        share[nm] += 1
+    chosen = {(f, nm) for nm, fs in order.items() for f in fs[: share[nm]]}
+    return [it for it in items if (it["frame"], it["phase"]) in chosen]
 
 
 def event_window(root: Path, manifest: dict, spans: list, fps: float) -> dict:
@@ -291,7 +305,8 @@ def gt_items(task: str, run_id: str, root: Path) -> tuple[list[dict], float, str
     spans, src = phase_spans(root, m)
     if task == "events":
         return [event_window(root, m, spans, fps)], fps, src
-    return stratified_frames(task, run_id, subject_frames(m, root), fps, spans, GT_TASKS[task]["n"]), fps, src
+    return stratified_frames(task, run_id, subject_frames(m, root), fps, spans, GT_TASKS[task]["n"],
+                             GT_TASKS[task].get("keep")), fps, src
 
 
 def gt_path(area: Path, run_id: str, task: str, user: str) -> Path:
@@ -328,13 +343,17 @@ def drop_old_bands(rows: list[dict]) -> tuple[list[dict], int]:
 
 
 def save_frame(path: Path, item: dict, trunk, hands: str, gaze: str, user: str, edges=(20.0, 45.0, 60.0)) -> None:
-    """trunk: TRUNK_CANNOT, or ((hip x, y), (shoulder x, y)) in pixels of the original frame."""
-    if hands not in HANDS or gaze not in GAZE2 or trunk is None:
-        raise ValueError("answer all three questions (two trunk clicks or cannot see)")
+    """trunk: None (not asked since 2026-11-28; a saved trunk answer of the item is kept), TRUNK_CANNOT, or
+    ((hip x, y), (shoulder x, y)) in pixels of the original frame."""
+    if hands not in HANDS or gaze not in GAZE2:
+        raise ValueError("answer both questions")
     row = {"item": item["item"], "frame": item["frame"], "time_s": item["time_s"], "phase": item["phase"], "hands": hands,
            "gaze": gaze, "user": user, "utc": utc_now(), "hip_x": "", "hip_y": "", "shoulder_x": "", "shoulder_y": "",
            "angle_deg": "", "band": ""}
-    if trunk == TRUNK_CANNOT:
+    if trunk is None:
+        prev = next((r for r in read(path) if str(r["item"]) == str(item["item"])), {})
+        row.update({k: prev.get(k, "") for k in ("trunk", "hip_x", "hip_y", "shoulder_x", "shoulder_y", "angle_deg", "band")})
+    elif trunk == TRUNK_CANNOT:
         row["trunk"] = TRUNK_CANNOT
     else:
         (hx, hy), (sx, sy) = trunk

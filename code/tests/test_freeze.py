@@ -423,8 +423,20 @@ class ScoreMeasurementsTest(unittest.TestCase):
             r = VL.read(p)[0]
             self.assertEqual((r["trunk"], r["band"], r["hip_x"], r["shoulder_y"]), ("clicks", "B0", "100.0", "100.0"))
             self.assertAlmostEqual(float(r["angle_deg"]), 16.7, places=1)
+            VL.save_frame(p, it, None, "no", VL.GAZE2[1], "asel")             # trunk not asked: the saved trunk stays
+            r = VL.read(p)[0]
+            self.assertEqual((r["trunk"], r["band"], r["hands"]), ("clicks", "B0", "no"))
             with self.assertRaises(ValueError):
-                VL.save_frame(p, it, None, "yes", VL.GAZE2[0], "asel")
+                VL.save_frame(p, it, None, "", VL.GAZE2[0], "asel")
+
+    def test_the_30_frames_are_a_subset_of_the_100_with_their_item_numbers(self):
+        f = np.arange(0, 10000)
+        spans = [("A", 0, 60), ("B", 60, 120), ("C", 120, 200), ("D", 200, 260), ("E", 260, 333)]
+        full = VL.stratified_frames("frames", "run_x", f, 30.0, spans, 100)
+        sub = VL.stratified_frames("frames", "run_x", f, 30.0, spans, 100, 30)
+        self.assertEqual(len(sub), 30)
+        self.assertTrue(all(x in full for x in sub))
+        self.assertEqual([sum(x["phase"] == p for x in sub) for p in "ABCDE"], [6] * 5)
 
     def test_a_measurement_without_labels_says_so(self):
         self.assertIn("not validated on QiSens", SM.fmt(2, None)[0][1])     # measure 2 has no walk of known length
