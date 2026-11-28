@@ -32,6 +32,9 @@ Design reference: HLD v1.1 and LLD v1.0 (error codes AV-XXX-nnn, tests TC-XXX-nn
    force push, never rewrite history, never push tags unless Khurshid asks. Push
    only after the pre-push check (.git/hooks/pre-push) passes. Push when Khurshid
    asks, or at the end of a task he approved, and say so in the report.
+9. Never delete a data folder (anything under data/, also data/public) without first
+   listing what it holds and asking Khurshid. Test files of your own are no exception:
+   list them, then ask. (Under data/qisens you may neither list nor delete; ask him.)
 
 ## Environment
 - Always: source ~/AssemblyVision/av.sh (conda env ~/AssemblyVision/env, Python 3.11)
