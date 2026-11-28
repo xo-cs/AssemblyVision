@@ -29,7 +29,8 @@ from ..errors import AvError
 from ..storage.files import REPO_ROOT, run_source, utc_now
 from . import freeze
 
-AUTHORS = ("asel", "kazi", "huzaifa")
+# group c since 2026-11-28: three local text LLMs (rule.md, amendment), files written by experiments/w12-robustness/group_c
+AUTHORS = ("llm_qwen3", "llm_llama32", "llm_gemma3")
 AUTHOR_DIR = REPO_ROOT / "docs_team" / "independent_descriptions"
 SEED = 20261121
 N_SUBSETS = 20
@@ -148,7 +149,7 @@ def author_phases(name: str, wanted: list[str]) -> list[dict] | None:
         return None
     got = pt.parse(path).get(None, [])
     if [p["name"] for p in got] != wanted or not all(p["descriptions"] for p in got):
-        raise ValueError(f"{path.name}: needs the phases {wanted} in this order, each with \"- \" lines")
+        return []                                      # incomplete (for example a model that wrote one phase only)
     return got
 
 
@@ -181,11 +182,15 @@ def run_study(args) -> dict:
                                        for i in range(N_SUBSETS)])
     if "c" in want:
         rows = []
+        incomplete = []
         for a in AUTHORS:
             got = author_phases(a, [p["name"] for p in phases])
-            if got is not None:
+            if got:
                 rows.append(row(a, st.with_bank(bank_from(encode(got)))))
+            elif got == []:
+                incomplete.append(a)
         add("c. independent descriptions", rows)
+        groups["c. independent descriptions"]["not_scored"] = [f"{a}: incomplete (not all five phases), not scored" for a in incomplete]
     if "d" in want:
         ok = args.vlm_file and (root / args.vlm_file).is_file()
         add("d. VLM sampling", [row(f"VLM file {args.vlm_file}", st.score(zero={"vlm_file": args.vlm_file}))] if ok else [])
@@ -212,6 +217,8 @@ def markdown(res: dict) -> str:
         s = g["summary"]
         L.append(f"| {k} | {s['n']} | - | - | - | - | {s['verdict']} |" if not s["n"] else
                  f"| {k} | {s['n']} | {s['min']:.2f} | {s['median']:.2f} | {s['max']:.2f} | {100 * s['share_within']:.0f} % | {s['verdict']} |")
+    for k, g in res["groups"].items():
+        L += [f"{k}: {x}" for x in g.get("not_scored", [])]
     L += ["", "| group | variant | frame acc | edit | F1@10 | F1@25 | F1@50 | MAE s |", "| --- | --- | --- | --- | --- | --- | --- | --- |"]
     for k, g in res["groups"].items():
         for r in g["rows"]:

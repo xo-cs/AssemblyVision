@@ -1,0 +1,36 @@
+{
+ "choices": [
+  {
+   "finish_reason": "stop",
+   "index": 0,
+   "message": {
+    "role": "assistant",
+    "content": "## Removal  \n- A worker stands in front of a train bogie with a wrench in hand.  \n- The worker is holding a wheelset that is being removed from the bogie.  \n- A large cover is open on the bogie, revealing internal components.  \n- The worker is using a screwdriver to remove a bolt from a bracket.  \n- A brake part is being lifted off the bogie by a worker.  \n- A worker is holding a grease gun to clean off excess grease from a component.  \n- The worker is standing on a step stool to reach a high part of the bogie.  \n- A part is being moved to the side of the bogie for removal.  \n- The worker is using pliers to remove a small component from the bogie.  \n- A worker is holding a part that is being taken off the bogie.  \n- The worker is wearing gloves to protect their hands from grease and dirt.  \n- A part is being held under a light to inspect for damage.  \n- The worker is using a torque wrench to remove a bolt.  \n- A worker is standing next to a component that is being removed.  \n- The worker is using a socket wrench to remove a bolt from a bracket.  \n- A part is being lifted to a storage area on the side of the bogie.  \n- The worker is using a jack to lift a component off the bogie.  \n- A worker is holding a part that is being removed from the bogie.  \n- The worker is using a magnetic pickup to remove small parts from the bogie.  \n- A worker is using a brush to clean a part before removing it.  \n- The worker is using a screwdriver to remove a small component.  \n- A part is being held in a container next to the bogie for removal."
+   }
+  }
+ ],
+ "created": 1795854909,
+ "model": "/home/qisens/AssemblyVision/models/text_llm/Qwen3-4B-Q4_K_M.gguf",
+ "system_fingerprint": "b12005-e0f142d5d",
+ "object": "chat.completion",
+ "usage": {
+  "completion_tokens": 375,
+  "prompt_tokens": 244,
+  "total_tokens": 619,
+  "prompt_tokens_details": {
+   "cached_tokens": 0
+  }
+ },
+ "id": "chatcmpl-RygOM3J5MwADwZLSffC76P1R6RfnK47J",
+ "timings": {
+  "cache_n": 0,
+  "prompt_n": 244,
+  "prompt_ms": 210.199,
+  "prompt_per_token_ms": 0.8614713114754099,
+  "prompt_per_second": 1160.8047612024795,
+  "predicted_n": 375,
+  "predicted_ms": 3204.471,
+  "predicted_per_token_ms": 8.568104278074866,
+  "predicted_per_second": 116.71193154814007
+ }
+}

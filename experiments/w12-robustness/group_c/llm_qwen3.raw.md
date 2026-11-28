@@ -1,0 +1,23 @@
+## Removal  
+- A worker stands in front of a train bogie with a wrench in hand.  
+- The worker is holding a wheelset that is being removed from the bogie.  
+- A large cover is open on the bogie, revealing internal components.  
+- The worker is using a screwdriver to remove a bolt from a bracket.  
+- A brake part is being lifted off the bogie by a worker.  
+- A worker is holding a grease gun to clean off excess grease from a component.  
+- The worker is standing on a step stool to reach a high part of the bogie.  
+- A part is being moved to the side of the bogie for removal.  
+- The worker is using pliers to remove a small component from the bogie.  
+- A worker is holding a part that is being taken off the bogie.  
+- The worker is wearing gloves to protect their hands from grease and dirt.  
+- A part is being held under a light to inspect for damage.  
+- The worker is using a torque wrench to remove a bolt.  
+- A worker is standing next to a component that is being removed.  
+- The worker is using a socket wrench to remove a bolt from a bracket.  
+- A part is being lifted to a storage area on the side of the bogie.  
+- The worker is using a jack to lift a component off the bogie.  
+- A worker is holding a part that is being removed from the bogie.  
+- The worker is using a magnetic pickup to remove small parts from the bogie.  
+- A worker is using a brush to clean a part before removing it.  
+- The worker is using a screwdriver to remove a small component.  
+- A part is being held in a container next to the bogie for removal.

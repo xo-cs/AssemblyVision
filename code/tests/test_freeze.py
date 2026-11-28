@@ -199,10 +199,13 @@ class RobustnessTest(unittest.TestCase):
         e = [np.array([[1.0, 0.0], [0.0, 1.0], [-1.0, 0.0]])]
         np.testing.assert_allclose(R.bank_from(e, [np.array([0, 1])])[0], [2 ** -0.5, 2 ** -0.5], atol=1e-6)
 
-    def test_the_author_template_has_the_phases_in_order(self):
+    def test_the_llm_author_files_and_an_incomplete_one(self):
         from assemblyvision.analysis import phase_text as pt
-        got = pt.parse(R.AUTHOR_DIR / "TEMPLATE.md")[None]
-        self.assertEqual([p["name"] for p in got], [p["name"] for p in pt.phases("qisens")])
+        wanted = [p["name"] for p in pt.phases("qisens")]
+        self.assertEqual(R.AUTHORS, ("llm_qwen3", "llm_llama32", "llm_gemma3"))
+        self.assertEqual([p["name"] for p in R.author_phases("llm_llama32", wanted)], wanted)
+        self.assertEqual(R.author_phases("llm_qwen3", wanted), [])           # Qwen3 wrote only the first phase
+        self.assertIsNone(R.author_phases("nobody", wanted))
 
 
 class ValidationLabelsTest(unittest.TestCase):
